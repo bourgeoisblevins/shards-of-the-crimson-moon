@@ -57,7 +57,10 @@ Crimson is accent-only. Gold reads as light (edge highlights).
 | `ui-panel.9.png` | 12×12 | 12×12 | nine-slice | Obsidian fill + Temple 1px hairline; 4×4 corners |
 | `vfx-skill-order.png` | 64×16 | 16×16 | burst0, burst1, burst2, burst3 | Order radiant burst; Illum/Nexus/Light |
 | `vfx-skill-cult.png` | 64×16 | 16×16 | trail0, trail1, trail2, trail3 | Cult ember trail; punctuate only |
-| `ui/touch-buttons.png` | 168×24 | 24×24 | left, right, jump, strike, dodge, skill, pause | Obsidian plates + Temple hairline + Bone glyphs |
+| `ui/touch-buttons.png` | 168×24 | 24×24 | left, right, jump, strike, dodge, skill, pause | **Retired in v6** (kept on disk, not loaded or shipped); replaced by `ui/touch-pad.png` |
+| `ui/touch-pad.png` | 448×28 | 28×28 | left, right, jump, strike, dodge, skill, pause, ok, then each `-on` (pressed) | v6, `tools/make_touch.py`. Stepped octagon plates: Void edge, Temple hairline (Illumination when pressed), Obsidian ring, dithered Obsidian body so the world shows through (no alpha). Bone glyphs with Void outline, Nexus accents |
+| `ui/rotate-device.png` | 72×40 | 72×40 | image | v6 portrait screen emblem: Ash portrait phone, Nexus arc, Temple landscape phone with a Crimson moon accent |
+| `icons/icon-180.png` | 180×180 | 180×180 | image | v6 apple-touch-icon: icon-32 at 5× on Obsidian |
 | `ui-dialogue-frame.png` | 288×48 | 288×48 | frame | Obsidian 288×48; Temple hairline; ziggurat corners; 32×32 portrait slot inset 8 |
 | `icons/icon-32.png` | 32×32 | 32×32 | master | Serpent's Eye master; gold on Obsidian; ember slit |
 | `icons/icon-192.png` | 192×192 | 192×192 | pwa | Nearest 6× from icon-32 |

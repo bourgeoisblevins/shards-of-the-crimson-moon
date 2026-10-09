@@ -51,8 +51,10 @@
       canvas.height = Math.round(lh * cssFit * dpr);
       scale = canvas.width / lw;
     }
-    canvas.style.width = Math.floor(lw * cssFit) + "px";
-    canvas.style.height = Math.floor(lh * cssFit) + "px";
+    // CSS size = backing / dpr exactly, so the browser never resamples the frame
+    const dprUsed = touch ? Math.min(3, window.devicePixelRatio || 1) : 1;
+    canvas.style.width = (touch ? canvas.width / dprUsed : Math.floor(lw * cssFit)) + "px";
+    canvas.style.height = (touch ? canvas.height / dprUsed : Math.floor(lh * cssFit)) + "px";
     if (portrait !== wasPortrait) { try { releasePads(); } catch (_) { /* first call, before the touch layer exists */ } }
     document.documentElement.style.background = P().ground.void;
     document.body.style.background = P().ground.void;

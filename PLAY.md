@@ -1,5 +1,19 @@
 # Shards of the Crimson Moon — how to play
 
+**Play in the browser (phone or computer):** https://bourgeoisblevins.github.io/shards-of-the-crimson-moon/
+
+## On a phone
+
+1. Open the link above and hold the phone **sideways** (portrait shows a "Turn your phone" screen and the game waits).
+2. The first tap goes full screen where the browser allows it (Android Chrome). On iPhone, Safari has no
+   full-screen API: use **Share > Add to Home Screen** and launch the game from its icon for full screen.
+3. Everything is played by touch: tap menu rows directly, hold the left pads to move, use the right pads to
+   jump / strike / dodge / use your skill. Several fingers at once work (run and jump, run and strike).
+4. **OK** appears at the bottom centre when there is something to do: talk to the guide, open Travel at the
+   pad, enter a boss gate, or use the altar. Tap the dialogue box to read on. **II** (top right) pauses.
+5. Starting a new pilgrimage over a save, forgetting a save, and choosing a path need a second tap on the
+   same row, so a stray tap never wipes progress or locks a path.
+
 ## On a computer
 
 1. Unzip `shards-of-the-crimson-moon-v1.zip`.
@@ -17,8 +31,8 @@
 | Strike | X / J | A | Strike |
 | Dodge | C / K / Shift | X | Dodge |
 | Skill | V / L | Y | Skill |
-| Talk / confirm | Enter | A | Jump also confirms |
-| Pause | Esc | Start | Pause |
+| Talk / confirm | Enter | A | OK pad, or tap the dialogue / menu row |
+| Pause | Esc | Start | II pad (top right) |
 
 Order skill: radiant burst. Cult skill: crimson dash.
 
@@ -26,8 +40,9 @@ Order skill: radiant burst. Cult skill: crimson dash.
 
 When the game is served over **http** or **https** (not `file://`):
 
-1. Open the site in Chrome / Edge on desktop or mobile.
-2. Use **Install app** / **Add to Home Screen** from the browser menu.
+1. Open the site in Chrome / Edge on desktop or Android, or Safari on iPhone / iPad.
+2. Use **Install app** / **Add to Home Screen** from the browser menu (iPhone: Share > Add to Home Screen).
+   It launches full screen, in landscape, with the Serpent's Eye icon.
 3. The PWA caches core files for offline play after the first visit.
 
 ## Paths
