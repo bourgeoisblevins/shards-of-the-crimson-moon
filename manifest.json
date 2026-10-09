@@ -1,7 +1,7 @@
 {
   "name": "Shards of the Crimson Moon",
   "short_name": "Shards",
-  "description": "After the Shattering. Two paths. Six fragments. (v2, 480x270)",
+  "description": "After the Shattering. Two paths. Six fragments. (v2.3, 480x270)",
   "start_url": "./index.html",
   "display": "fullscreen",
   "background_color": "#050404",

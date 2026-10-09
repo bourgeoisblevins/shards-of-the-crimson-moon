@@ -234,11 +234,14 @@ window.SHARDS.text = {
     defeat: "{A} Select",
     heading: "Controller",
     layout: [
-      "{LS}{DPad} Move",
-      "{A} Jump / Use",
+      "{LS} Move",
+      "{A} Jump/Use",
       "{X} Strike",
       "{B} Dodge",
       "{Y} Skill",
+      "{LB} Flask",
+      "{RB} Shoot",
+      "{View} Bag",
       "{Start} Pause"
     ]
   },

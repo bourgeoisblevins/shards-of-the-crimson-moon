@@ -833,6 +833,43 @@
   // ======================================================================
   const nT = (A, o, t, notes, gap, opts) => notes.forEach((m, i) => tone(A, o, t + i * gap, Object.assign({ f: mtof(m) }, opts)));
   const SFX = {
+    // ---- v2.3 ----
+    bowShot(A, o, t) {
+      noise(A, o, t, { dur: 0.05, vol: 0.2, type: "bandpass", fq: 900, fq2: 1800, Q: 2, a: 0.002 });
+      tone(A, o, t, { wave: "tri", f: 220, f2: 120, dur: 0.07, vol: 0.3 });
+      noise(A, o, t + 0.02, { dur: 0.16, vol: 0.2, type: "bandpass", fq: 3600, fq2: 1400, Q: 1.8, a: 0.01 });
+    },
+    knifeThrow(A, o, t) {
+      noise(A, o, t, { dur: 0.12, vol: 0.28, type: "bandpass", fq: 1800, fq2: 5200, Q: 2.2, a: 0.004 });
+      tone(A, o, t, { wave: "p12", f: 1500, f2: 900, dur: 0.05, vol: 0.07 });
+    },
+    bow(A, o, t) { tone(A, o, t, { wave: "tri", f: 120, f2: 190, dur: 0.1, vol: 0.2 }); },
+    arrowHit(A, o, t) {
+      noise(A, o, t, { dur: 0.05, vol: 0.3, type: "lowpass", fq: 3000, fq2: 800 });
+      tone(A, o, t, { wave: "p25", f: 520, f2: 260, dur: 0.05, vol: 0.12 });
+    },
+    arrowGet(A, o, t) { nT(A, o, t, [79, 84], 0.05, { wave: "p25", dur: 0.06, vol: 0.1 }); },
+    coin(A, o, t) { nT(A, o, t, [88, 95], 0.045, { wave: "p12", dur: 0.07, vol: 0.09 }); },
+    buy(A, o, t) { nT(A, o, t, [76, 83, 88], 0.06, { wave: "p25", dur: 0.09, vol: 0.1 }); noise(A, o, t, { dur: 0.1, vol: 0.12, metal: true, rate: 2, type: "highpass", fq: 3000 }); },
+    menu(A, o, t) { nT(A, o, t, [72, 79], 0.05, { wave: "tri", dur: 0.1, vol: 0.3 }); },
+    weaponSwap(A, o, t) {
+      noise(A, o, t, { dur: 0.06, vol: 0.2, metal: true, rate: 1.4, type: "highpass", fq: 2000 });
+      tone(A, o, t + 0.03, { wave: "p25", f: 620, f2: 940, dur: 0.07, vol: 0.09 });
+    },
+    flaskStart(A, o, t) { tone(A, o, t, { wave: "tri", f: 330, f2: 440, dur: 0.18, vol: 0.28 }); noise(A, o, t, { dur: 0.15, vol: 0.1, type: "bandpass", fq: 1200, fq2: 2400, Q: 1.2, a: 0.04 }); },
+    flaskHeal(A, o, t) { nT(A, o, t, [72, 76, 79, 84], 0.07, { wave: "tri", dur: 0.22, vol: 0.32 }); nT(A, o, t, [84, 88], 0.09, { wave: "p12", dur: 0.12, vol: 0.05 }); },
+    flaskFill(A, o, t) { nT(A, o, t, [91, 96], 0.06, { wave: "p12", dur: 0.08, vol: 0.08 }); },
+    enchant(A, o, t) {
+      nT(A, o, t, [60, 67, 72, 76, 84], 0.09, { wave: "p25", dur: 0.2, vol: 0.12 });
+      noise(A, o, t, { dur: 0.7, vol: 0.2, type: "bandpass", fq: 400, fq2: 4200, Q: 1.4, a: 0.2 });
+      tone(A, o, t, { wave: "tri", f: 90, f2: 180, dur: 0.6, vol: 0.4 });
+    },
+    enchHit(A, o, t) { tone(A, o, t, { wave: "p12", f: 1700, f2: 900, dur: 0.06, vol: 0.07 }); noise(A, o, t, { dur: 0.06, vol: 0.16, type: "bandpass", fq: 3800, fq2: 2200, Q: 2 }); },
+    teleport(A, o, t) {
+      noise(A, o, t, { dur: 0.7, vol: 0.28, type: "bandpass", fq: 300, fq2: 6000, Q: 1.6, a: 0.25 });
+      nT(A, o, t, [60, 67, 74, 81, 88], 0.07, { wave: "tri", dur: 0.3, vol: 0.28 });
+      tone(A, o, t + 0.3, { wave: "p25", f: 1400, f2: 300, dur: 0.35, vol: 0.08 });
+    },
     strike1(A, o, t) {
       noise(A, o, t, { dur: 0.09, vol: 0.3, type: "bandpass", fq: 2400, fq2: 6000, Q: 1.2, a: 0.004 });
       tone(A, o, t, { wave: "p12", f: 1400, f2: 500, dur: 0.06, vol: 0.09 });
@@ -970,7 +1007,7 @@
     }
   };
   // loudness trims (dB-matched against the music bus in the offline renders)
-  const SFX_GAIN = { strike1: 2.6, strike2: 2.8, strike3: 1.2, hit: 1.3, enemyHurt: 2.8, enemyDeath: 1.1, playerHurt: 2, dodge: 2,
+  const SFX_GAIN = { bowShot: 2.4, coin: 2, buy: 2, menu: 2.6, flaskHeal: 1.6, flaskStart: 1.6, teleport: 1.4, enchant: 1.3, strike1: 2.6, strike2: 2.8, strike3: 1.2, hit: 1.3, enemyHurt: 2.8, enemyDeath: 1.1, playerHurt: 2, dodge: 2,
     radiant: 1.4, crimsonDash: 1.4, heal: 1.8, menuMove: 4, menuSelect: 2.6, blip: 4, dialogue: 3, telegraph: 1.6, playerDeath: 1.5 };
   function fireSfx(A, out, key, t) {
     const k = SFX_GAIN[key] || 1;

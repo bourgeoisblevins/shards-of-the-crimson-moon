@@ -78,6 +78,39 @@ When the game is served over **http** or **https** (not `file://`):
 - **Zone hazards:** Vespera falling masonry and crumbling floors; the Deep darkness (follow the glowing caps); the Deep's fortresses swinging blades and trap doors; Aurelion wind and crumbling spires; the Monastery ice and bells (strike a bell to raise its platforms); the frozen mountains slippery ice and falling icicles.
 - Fragments you claim show on your body: Heart pulse, Eye sigil, Bone pauldrons, Blaze hands, Shadow trail, Claw gauntlets.
 
+## v2.3: weapons, flask, aurels, shops, NIP
+
+**New controls** (keyboard / controller / touch)
+| Action | Keyboard | Controller | Touch |
+|---|---|---|---|
+| Flask (channel a heal, ~0.75 s, damage interrupts) | F or Q | LB | Flask button |
+| Shoot the ranged weapon (hold Up / R to aim up) | G or B (R aims up) | RB | Shoot button |
+| Inventory (charms, weapons, fragments, lore) | I or Tab | View | Bag button |
+| Everything from before (A jump/use, B dodge/back, X strike, Y skill, Start pause) | unchanged | unchanged | unchanged |
+
+**Health flask.** You start with 3 charges (shop upgrades raise it to 6). Kills fill the meter: one charge per 5 kills on Standard (4 Pilgrim, 6 Penitent; elites count extra). Resting at a shrine refills it. Channelling roots you; any hit interrupts it and spends nothing. It will not start at full health.
+
+**Aurels** are the coin of the temples and the ash-camps. Enemies drop 1-3 small aurels, elites 5+, bosses 60. They fly to you inside a magnet range. Death never costs you aurels.
+
+**Shops.** In each hub a merchant (Order: temple almoner; cult: ash-peddler) sells max-HP and flask upgrades, a notch, quiver size, arrows, charms (Shoving Palm, Alms Magnet and others) and weapons. Some stock unlocks as you claim fragments.
+
+**Weapons** (open Inventory to swap; MAIN melee + RANGED):
+Pilgrim's Staff / Ash-Wood Staff (starter, balanced), Harvest Scythe / Reaper's Scythe (long first swing), Temple Sword / Borrowed Sword (fast), Warden's / Hunter's Spear (long thrust), Stone Hammer / Behemoth Maul (slow, huge knockback; boss reward), Twin Daggers / Shadow Daggers (very fast, short; boss reward). Ranged: Hunter's Bow (start) and Throwing Knives.
+
+**Arrows.** Max 5 (7 and 9 with quiver upgrades). Shooting costs 1. Enemy drop roll (once per kill): 50% one arrow, 20% two arrows, 30% nothing; capped at your max. Shops and some secrets refill them.
+
+**Enemies** are knocked back and briefly stunned when hit (heavy weapons more, bosses little, elites reduced). Walkers and crawlers are solid: they cannot pass through you (a small push-out keeps you from being trapped). Dust wraiths and monastery shades phase through you, but they hurt.
+
+**NIP = Nexus Influence Power** - Ryan's definition: how much power and control you have over the Nexus. Bosses grant it (1-2 each). Spend it with your leader (Ryan for the Order, General Jeriah for the cult) to enchant a weapon: Flame/Ember (burn), Frost/Rime (slow, then freeze), Shadow (afterimage on dodge), Radiance/Pale Light (heal on kills), Bone (stagger), Claw (bleed). Three tiers cost 1, 2, 3 NIP. Bosses resist status effects.
+
+**Shrine teleport.** Resting at a shrine opens a menu: Charms, Teleport, Close. Teleport shows a map of every shrine you have lit in this zone plus the hub; pick one to travel. It sets your respawn, refills the flask and respawns enemies, like resting does.
+
+**Touch settings.** Settings now has a Touch size slider (70%-150%, live preview) and Touch controls: Buttons or Joystick (floating left stick, action buttons on the right). **Fullscreen** is in Settings and the Pause menu. Android Chrome: works on tap. iPhone/iPad Safari has no fullscreen API for pages - use Share > Add to Home Screen and launch from the icon (the app runs standalone, landscape).
+
+**Redesigns.** Ryan, General Jeriah, Azmardus and the Silent Dark Apostle were redrawn from their archive portraits (bearded Ryan with the golden blade; Jeriah with the burning Heart in black plate; Azmardus pale and black-haired with the eye-staff; the Silent Apostle in horned black plate).
+
+**Platforms.** Blinking and crumbling platforms now overlap (the next one is up at least half a second before the last one leaves; no gaps) and flicker faster as they are about to change.
+
 ## Paths
 
 - **Order of the Golden Serpent** (warrior monk): take all six fragments from the Apostles of the Shattered, General Jeriah included, so Ryan can keep them apart, or destroy them if it can be done. Six bosses.

@@ -11,6 +11,10 @@
   // v2 reads it once to carry a pilgrimage over and never writes to it.
   const SAVE_KEY = "shards-crimson-moon-2.0";
   const V1_SAVE_KEY = "shards-crimson-moon-v2";
+  // v2.3 state (declared up top: normalizeSave runs at load)
+  let coins = [], efx = [], hitCtx = null, shootCD = 0, shootAimTouch = false, flaskPing = 0, healFx = 0, coinPing = 0, arrowPing = 0, coinDirty = false, holyN = 0;
+  let invFrom = "play", invTab = 0, invIx = 0, loreScroll = 0, shopIx = 0, leaderStage = 0, leaderIx = 0, leaderMsg = "", enchW = 0, enchE = 0, shrineIx = 0, tpList = [], tpIx = 0, tele = null, teleArrive = 0;
+  let fsReq = false, fsNote = "", fsNoteT = 0, padScaleCur = 1, touchScheme = "buttons"; const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 }; const stickBlocked = new Set();
   let cameraY = 0, camPy = 0, w22 = null, stats = null, powers = {};
   let charmIx = 0, charmFrom = "pause", canEquip = false, popup = null, readText = null, difficulty = "standard";
 
@@ -77,7 +81,7 @@
     return {
       path: null, claimed: {}, guideIndex: { order: 0, cult: 0 }, seenIntro: {},
       tutorial: { move: false, jump: false, strike: false, dodge: false, skill: false },
-      settings: { master: 0.7, music: 0.45, sfx: 0.7, fullscreen: false, vibration: true, difficulty: "standard" },
+      settings: { master: 0.7, music: 0.45, sfx: 0.7, fullscreen: false, vibration: true, difficulty: "standard", padScale: 1, scheme: "buttons" },
       charms: { owned: [], equipped: [] }, notches: 3, vessels: 0, world: {}, gifts: {}, deaths: 0
     };
   }
@@ -130,21 +134,23 @@
     if (!Array.isArray(save.charms.equipped)) save.charms.equipped = [];
     if (!save.world || typeof save.world !== "object") save.world = {};
     if (!save.gifts || typeof save.gifts !== "object") save.gifts = {};
-    save.notches = Math.max(3, Math.min(6, save.notches | 0 || 3)); save.vessels = Math.max(0, Math.min(3, save.vessels | 0)); save.deaths = save.deaths | 0;
+    save.notches = Math.max(3, Math.min(7, save.notches | 0 || 3)); save.vessels = Math.max(0, Math.min(3, save.vessels | 0)); save.deaths = save.deaths | 0;
     save.charms.owned = save.charms.owned.filter(c => (window.SHARDS.world22 || { cost: {} }).cost[c] != null);
     save.charms.equipped = save.charms.equipped.filter(c => save.charms.owned.includes(c));
     if (!save.settings || typeof save.settings !== "object") save.settings = defaultSave().settings;
     if (!["pilgrim", "standard", "penitent"].includes(save.settings.difficulty)) save.settings.difficulty = "standard";
     if ((save.version | 0) < 22 && (save.version | 0) > 0 && !save.migratedFrom) save.migratedFrom = "v2.0";
     difficulty = save.settings.difficulty;
-    save.version = 22;
+    if ((save.version | 0) === 22 && !save.migratedFrom) save.migratedFrom = "v2.2";
+    normV23();
+    save.version = 23;
   }
   normalizeSave();
   function persist() {
     save.settings = {
       master: synth.volume.master, music: synth.volume.music, sfx: synth.volume.sfx,
       fullscreen: !!document.fullscreenElement,
-      vibration: vibrationOn(), difficulty
+      vibration: vibrationOn(), difficulty, padScale: padScaleCur, scheme: touchScheme
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
   }
@@ -152,6 +158,7 @@
     const settings = save.settings;
     save = defaultSave();
     save.settings = settings;
+    normV23();
     persist();
   }
   // v7: controller rumble. Saves from before v7 have no flag: on by default.
@@ -321,7 +328,7 @@
   function diffRules() { return W22().diff[difficulty] || W22().diff.standard; }
   function hasCharm(id) { return !!(save.charms && save.charms.equipped.includes(id)); }
   function notchUsed() { return save.charms.equipped.reduce((a, c) => a + (W22().cost[c] || 0), 0); }
-  function maxHpNow() { return 5 + (save.vessels | 0) + (gathered("heart") ? 1 : 0); }
+  function maxHpNow() { return 5 + (save.vessels | 0) + (save.v23 ? save.v23.hpBuy | 0 : 0) + (gathered("heart") ? 1 : 0); }
   function recomputeStats() {
     const H = hasCharm;
     stats = {
@@ -332,7 +339,8 @@
       skillCD: H("focus") ? 0.5 : 1, skillDmg: (H("focus") ? 1 : 0) + (gathered("blaze") ? 1 : 0),
       thorn: H("thorn"), ward: H("ward"), lantern: H("lantern") ? 1 : 0,
       reson: H("resonance") ? Math.floor(claimedCount() / 3) : 0, glass: H("glass"),
-      invBonus: gathered("bone") ? 18 : 0, iceSafe: gathered("claw")
+      invBonus: gathered("bone") ? 18 : 0, iceSafe: gathered("claw"),
+      kbMul: H("shove") ? 1.6 : 1, magnet: H("magnet")
     };
     if (player) { player.maxHp = maxHpNow(); player.hp = Math.min(player.hp, player.maxHp); }
   }
@@ -357,7 +365,7 @@
   function toast(text) { popup = { text, t: 150 }; }
   function wz() {
     const zid = level && level.zone; if (!zid) return null;
-    if (!save.world[zid]) save.world[zid] = { seals: {}, doors: {}, broken: {}, items: {}, blocks: {}, elites: {}, levers: {}, cp: null, map: {} };
+    if (!save.world[zid]) save.world[zid] = { seals: {}, doors: {}, broken: {}, items: {}, blocks: {}, elites: {}, levers: {}, cp: null, map: {}, lit: {} };
     return save.world[zid];
   }
   function sealCount() { const S = wz(); return S ? Object.keys(S.seals).length : 0; }
@@ -410,6 +418,7 @@
   function makeDyn(p, extra) { return Object.assign({ dyn: true, x: p.x, y: p.y, w: p.w, h: p.h || 8, solid: false, oneWay: true, dx: 0, dy: 0, live: false }, extra || {}); }
   function initWorld22() {
     const L = level, S = wz(), E = (a) => a || [];
+    if (!S.lit) S.lit = {}; if (S.cp) S.lit[S.cp] = 1;
     w22 = { t: 0, S, cur: [], statics: [], items: [], drops: [], movers: [], crumbles: [], blinks: [], springs: [], levers: [], doors: [], bells: [],
       bellPlats: [], breaks: [], blocks: [], cps: [], seals: [], tablets: [], blades: [], fallers: [], winds: [], fungi: [], flames: E(L.flames),
       warded: false, tithe: 0, eliteLock: null, restT: 0, visited: new Set(), lastCell: "", safe: null, fx: [], bellT: {}, hazardsAcc: 0 };
@@ -462,7 +471,7 @@
         if (--c.timer <= 0) { c.state = 2; c.timer = c.respawn; c.fall = 0; synth.sfx("crumbleFall"); for (let i = 0; i < 6; i++) particles.push({ x: c.x + Math.random() * c.w, y: c.y + 4, vx: (Math.random() - 0.5) * 0.8, vy: 0.2, life: 24, color: P().ground.stone3 }); }
       } else { c.fall += 1; if (--c.timer <= 0) { c.state = 0; } }
     }
-    for (const b of w22.blinks) b.isOn = ((t + b.ph) % (b.on + b.off)) < b.on;
+    for (const b of w22.blinks) b.isOn = ((t + b.ph) % (b.on + b.off)) < b.on + 8;
     for (const k in w22.bellT) if (w22.bellT[k] > 0) w22.bellT[k]--;
     for (const d of w22.doors) { if (d.open && d.openT < 1) d.openT = Math.min(1, d.openT + 0.04); }
     for (const b of w22.blocks) if (b.bump > 0) b.bump--;
@@ -509,13 +518,12 @@
   }
   function restAt(c) {
     for (const k of w22.cps) k.lit = false;
-    c.lit = true; w22.S.cp = c.id; persist();
-    player.hp = player.maxHp; w22.warded = false; powers = {};
+    c.lit = true; w22.S.cp = c.id; w22.S.lit[c.id] = 1;
+    player.hp = player.maxHp; w22.warded = false; powers = {}; flaskRefill();
     synth.sfx("checkpoint"); fxAdd("claim", c.x + c.w / 2, c.y + 12, {});
-    worldRespawnEnemies(); w22.drops = []; projectiles = [];
-    w22.restT = 30;
-    if (save.charms.owned.length) { canEquip = true; charmFrom = "traverse"; charmIx = 0; popup = null; scene = "charms"; }
-    else toast(T22().rest.done);
+    worldRespawnEnemies(); w22.drops = []; projectiles = []; coins = [];
+    w22.restT = 30; persist();
+    shrineIx = 0; popup = null; scene = "shrine";
   }
   function updateInteract() {
     const n = nearInteract();
@@ -523,7 +531,7 @@
     if (!input.pressed("confirm")) return false;
     if (n.kind === "rest") { restAt(n.obj); return true; }
     if (n.kind === "lever") { pullLever(n.obj); return true; }
-    if (n.kind === "tablet") { readText = n.obj.text || (T22().tablets[level.zone] || [])[n.obj.i | 0] || ""; synth.sfx("dialogue"); return true; }
+    if (n.kind === "tablet") { V().tablets[level.zone + ":" + (n.obj.i | 0)] = 1; persist(); readText = n.obj.text || (T22().tablets[level.zone] || [])[n.obj.i | 0] || ""; synth.sfx("dialogue"); return true; }
     if (n.kind === "gate") {
       if (sealCount() >= sealNeed()) { const zid = level.zone; synth.sfx("gate"); toast(T22().seals.open); goScene(() => enterArena(zid)); }
       else { synth.sfx("locked"); const m = sealNeed() - sealCount(); toast(m === 1 ? T22().seals.lockedOne : T22().seals.locked.replace("{n}", m)); }
@@ -535,7 +543,7 @@
   function updateCheckpointsAuto() {
     for (const c of w22.cps) {
       if (!c.lit && Math.abs(player.x + player.w / 2 - (c.x + c.w / 2)) < 18 && Math.abs(player.y + player.h - (c.y + c.h)) < 24) {
-        for (const k of w22.cps) k.lit = false; c.lit = true; w22.S.cp = c.id; persist();
+        for (const k of w22.cps) k.lit = false; c.lit = true; w22.S.cp = c.id; w22.S.lit[c.id] = 1; persist();
         synth.sfx("checkpoint"); toast(T22().rest.lit);
       }
     }
@@ -552,6 +560,7 @@
     else if (it.type === "vessel") { save.vessels = Math.min(3, (save.vessels | 0) + 1); recomputeStats(); player.hp = player.maxHp; synth.sfx("charmGet"); toast(T22().got.vessel.replace("{n}", maxHpNow())); }
     else if (it.type === "heal") { player.hp = Math.min(player.maxHp, player.hp + 2 + diffRules().heal); synth.sfx("pickup"); spark(it.x, it.y, P().order.nexus, 8); }
     else if (it.type === "pw") { givePower(it.ref); }
+    else if (it.type === "weapon") { giveWeapon(it.ref); }
     persist();
   }
   function givePower(id) {
@@ -563,6 +572,7 @@
   }
   const PW_IDS = ["ember", "gale", "ward", "guard", "speed"];
   function onEnemyKilled(e) {
+    v23Kill(e);
     if (stats.tithe && ++w22.tithe >= 4) { w22.tithe = 0; if (player.hp < player.maxHp) { player.hp++; synth.sfx("heal"); fxAdd("claim", player.x + 6, player.y + 6, {}); } }
     if (!level.tiled || !w22) return;
     if (e.elite) {
@@ -573,8 +583,8 @@
       persist(); return;
     }
     const r = Math.random();
-    if (r < 0.22 + (difficulty === "pilgrim" ? 0.12 : 0)) spawnDrop("heal", null, e.x + 4, e.y);
-    else if (r < 0.29) spawnDrop("pw", PW_IDS[(Math.random() * PW_IDS.length) | 0], e.x + 4, e.y);
+    if (r < 0.1 + (difficulty === "pilgrim" ? 0.08 : 0)) spawnDrop("heal", null, e.x + 4, e.y);
+    else if (r < 0.17) spawnDrop("pw", PW_IDS[(Math.random() * PW_IDS.length) | 0], e.x + 4, e.y);
   }
   function hitBlock(b) {
     if (b.used) return; b.used = true; b.bump = 10; w22.S.blocks[b.id] = 1; synth.sfx("block");
@@ -749,8 +759,8 @@
     for (const b of w22.blinks) {
       if (!onScr(b.x, b.y, b.w, 10)) continue;
       const ph = (w22.t + b.ph) % (b.on + b.off);
-      if (b.isOn) { if (b.on - ph < 18 && (k & 4)) { /* warning flicker */ } else { drawPlat(b); rect(wx(b.x), wy(b.y) + 14, Math.round(b.w * WS), 1, "#74B49C"); } }
-      else { const x0 = wx(b.x), y0 = wy(b.y), ww = Math.round(b.w * WS); for (let xx = 0; xx < ww; xx += 4) { rect(x0 + xx, y0, 2, 1, "#448A7E"); rect(x0 + xx, y0 + 13, 2, 1, "#2B5C59"); } if (b.off - (ph - b.on) < 24 && (k & 4)) drawPlat(b); }
+      if (ph < b.on) { if (b.on - ph < 44 && (k & (b.on - ph < 20 ? 2 : 4))) { /* warning flicker: faster as it nears */ } else { drawPlat(b); rect(wx(b.x), wy(b.y) + 14, Math.round(b.w * WS), 1, "#74B49C"); } }
+      else { const x0 = wx(b.x), y0 = wy(b.y), ww = Math.round(b.w * WS); for (let xx = 0; xx < ww; xx += 4) { rect(x0 + xx, y0, 2, 1, "#448A7E"); rect(x0 + xx, y0 + 13, 2, 1, "#2B5C59"); } if (ph >= b.on && b.off - (ph - b.on) < 50 && (k & 8)) drawPlat(b); }
     }
     for (const b of w22.bellPlats) {
       if (!onScr(b.x, b.y, b.w, 10)) continue;
@@ -814,6 +824,7 @@
       else if (it.type === "vessel") blitFrame("w22-pickup", "vessel" + f, wx(it.x + 7), wy(it.y + 14), false);
       else if (it.type === "pw") blitFrame("w22-pickup", "pw-" + it.ref + f, wx(it.x + 7), wy(it.y + 14), false);
       else if (it.type === "heal") drawActor("pickup-heal", animFrame("pickup-heal", "idle", k, 8), it.x + 7, it.y + 14, false);
+      else if (it.type === "weapon") blitFrame("ui23-wicon", it.ref, wx(it.x + 7) - 12, wy(it.y + 14) - 26 + Math.round(Math.sin(k / 12) * 2), false);
     };
     for (const it of w22.items) one(it);
     for (const it of w22.drops) one(it);
@@ -871,6 +882,9 @@
     else if (p.dodge > 0 && stats.rend) blitFrame(sh + "-outline-red", frame, sx, sy, flip);
     // the body
     blitFrame(sh, frame, sx, sy, flip, live && p.hurtT > 14 ? "flash" : null);
+    if (!(live && p.hurtT > 14)) drawWeaponLayer(sx, sy, p, frame, flip, live);
+    drawBowLayer(sx, sy, p, an, flip, S);
+    if (live) drawHeal(sx, sy);
     // on the body
     if (save.claimed.heart && an) { const [x, y] = pt("chest", 0, 2); blitFrame("w22-up-heart", "pulse" + ((T / 9 | 0) % 3), x, y, false); }
     if (save.claimed.bone && an) { const l = pt("shL", 0, 0), r = pt("shR", 0, 0); blitFrame("w22-up-bone", "pauld" + ((T / 30 | 0) % 2), l[0] - 2, l[1] + 2, true); blitFrame("w22-up-bone", "pauld0", r[0] + 2, r[1] + 2, false); }
@@ -889,7 +903,7 @@
   }
   function drawHUD22() {
     if (!player) return;
-    let y = 30;
+    let y = 52;
     if (level && level.tiled && level.bossGate) {
       const need = sealNeed(), have = sealCount(), pk = path === "cult" ? "cult" : "order";
       panel(4, y, 14 + need * 16, 20, "plate");
@@ -910,7 +924,7 @@
   }
 
   // ---------- Charms screen ----------
-  const CH_COLS = 7;
+  const CH_COLS = 8;
   function charmList() { return W22().charmOrder; }
   function toggleCharm(id) {
     if (!save.charms.owned.includes(id)) { synth.sfx("locked"); return; }
@@ -925,7 +939,7 @@
   }
   function closeCharms() {
     canEquip = false;
-    if (charmFrom === "pause") scene = "pause"; else scene = (level && level.kind === "hub") ? "hub" : (level && level.kind === "arena" ? "arena" : "traverse");
+    if (charmFrom === "pause") scene = "pause"; else if (charmFrom === "inventory") scene = "inventory"; else if (charmFrom === "traverse") scene = "shrine"; else scene = (level && level.kind === "hub") ? "hub" : (level && level.kind === "arena" ? "arena" : "traverse");
   }
   function updateCharms() {
     const n = charmList().length;
@@ -947,7 +961,7 @@
     const used = notchUsed();
     for (let i = 0; i < save.notches; i++) blitFrame("ui22-hud", i < used ? "notch-empty" : "notch", ntx + i * 12, 17, false);
     if (t) { drawText(TT.back, W - 54, 18, P().order.illumination); tapTarget(W - 70, 8, 62, 24, () => { input.tap("cancel"); }); }
-    const cw = 36, ch = 34, gx = 24, gy = 38;
+    const cw = 34, ch = 34, gx = 24, gy = 38;
     ids.forEach((id, i) => {
       const cx = gx + (i % CH_COLS) * cw, cy = gy + ((i / CH_COLS) | 0) * ch, owned = save.charms.owned.includes(id), eq = save.charms.equipped.includes(id);
       if (i === charmIx) { rect(cx - 1, cy - 1, 30, 30, P().order.illumination); rect(cx, cy, 28, 28, P().ground.void); }
@@ -1019,7 +1033,7 @@
   function makePlayer(x, y) {
     return {
       x, y, w: 12, h: 20, vx: 0, vy: 0, onGround: false, facing: 1,
-      hp: maxHpNow(), maxHp: maxHpNow(), inv: 0, airJumps: 0, wall: 0, dropT: 0, wjLock: 0,
+      hp: maxHpNow(), maxHp: maxHpNow(), inv: 0, sinceDodge: 999, channel: 0, shootT: 0, shootUpT: 0, airJumps: 0, wall: 0, dropT: 0, wjLock: 0,
       atk: 0, atkCD: 0, combo: 0, comboTimer: 0,
       dodge: 0, dodgeCD: 0, skillCD: 0, skill: 0,
       coyote: 0, jumpBuf: 0, hurtT: 0, landT: 0, deathT: 0, airVy: 0,
@@ -1033,7 +1047,7 @@
       id: zone.bossId, fragment: zone.fragment,
       x: sp.x, y: sp.y, w: tune.size[0], h: tune.size[1],
       vx: 0, vy: 0, onGround: false, facing: -1,
-      hp: Math.round(tune.hp * diffRules().boss), maxHp: Math.round(tune.hp * diffRules().boss), speed: tune.speed,
+      hp: Math.round(tune.hp * diffRules().boss * 1.15), maxHp: Math.round(tune.hp * diffRules().boss * 1.15), speed: tune.speed,
       moves: tune.moves.slice(), moves2: (tune.moves2 || tune.moves).slice(),
       phase2At: tune.phase2At || 0.5, phase: 1,
       rest: tune.rest, staffEye: !!tune.staffEye,
@@ -1102,7 +1116,7 @@
     recomputeStats();
     player = makePlayer(level.spawn.x, level.spawn.y);
     boss = null; enemies = []; projectiles = []; particles = [];
-    pickups = []; cameraX = 0; cameraY = 0; w22 = null; powers = {}; grantGifts(); recomputeStats(); player.hp = player.maxHp;
+    pickups = []; cameraX = 0; cameraY = 0; w22 = null; powers = {}; coins = []; efx = []; ensureWeapons(); grantGifts(); recomputeStats(); player.hp = player.maxHp; flaskRefill(true);
     scene = "hub"; hubSaid = false;
     seedAmbient(); fxList = [];
     titleCard = 90; titleCardText = level.title || "";
@@ -1140,6 +1154,7 @@
     }
     scene = "traverse";
     seedAmbient(); fxList = [];
+    ensureWeapons(); coins = []; efx = []; readText = null; if (opts && opts.respawn) flaskRefill(true);
     titleCard = (opts && opts.respawn) ? 0 : 90; titleCardText = level.title || "";
     fade = 16; fadeDir = -1;
     setMusic(zoneId);
@@ -1152,7 +1167,7 @@
     levelId = zoneId;
     level = window.SHARDS.levels[zoneId];
     player = makePlayer(level.spawn.x, level.spawn.y);
-    recomputeStats(); powers = {}; w22 = null; cameraY = 0;
+    recomputeStats(); powers = {}; w22 = null; cameraY = 0; coins = []; efx = []; ensureWeapons();
     boss = makeBoss(def);
     enemies = [];
     pickups = (level.pickups || []).map(p => ({ ...p, w: 8, h: 8, taken: false }));
@@ -1179,6 +1194,7 @@
     if (heldByAlly(frag)) { claimTimer = 0; enterHub(); return; } // never claim what Jeriah holds
     claimTimer = 160;
     save.claimed[frag] = true; persist();
+    { const zz = window.SHARDS.zones.find(z => z.fragment === frag); claimExtra = awardBoss(zz ? zz.bossId : frag); }
     synth.sfx("claim"); rumble("claim");
   }
   function enterDefeat() { scene = "defeat"; menuIx = 0; synth.sfx("death"); }
@@ -1236,6 +1252,7 @@
     if (input.held("left")) mx -= 1;
     if (input.held("right")) mx += 1;
     if (p.wjLock > 0) { p.wjLock--; mx = 0; }
+    if (p.channel > 0) mx = 0;
     const wind = tiled ? windFor(p) : { fx: 0, fy: 0 };
     const onIce = tiled && p.onGround && p.ground && p.ground.ice && !stats.iceSafe;
 
@@ -1328,13 +1345,17 @@
     if (input.pressed("strike") && p.atkCD === 0 && p.dodge === 0 && introHold === 0) {
       p.combo = Math.min(3, p.combo + 1);
       p.comboTimer = 40;
-      p.atk = 10; p.atkCD = Math.round((p.combo === 3 ? 22 : 14) * stats.atkMul);
+      p.atk = 10; p.atkCD = Math.round((p.combo === 3 ? 22 : 14) * stats.atkMul * wpn().cd); p.channel = 0;
       p.anim = "attack" + p.combo;
       p.animT = 0;
       synth.sfx("strike", p.combo || 1);
       if (p.combo === 3) p.combo = 0;
     }
     if (p.castT > 0) p.castT--;
+    if (input.pressed("flask")) tryFlask(p);
+    if (input.pressed("shoot") || input.pressed("shootUp")) shoot(p);
+    if (shootCD > 0) shootCD--; if (p.shootT > 0) p.shootT--; if (p.shootUpT > 0) p.shootUpT--;
+    flaskTick(p); p.sinceDodge = p.dodge > 0 ? 0 : (p.sinceDodge | 0) + 1;
 
     const wasAir = !p.onGround, fallV = p.vy;
     const prevDodge = p.dodge;
@@ -1375,6 +1396,7 @@
     const D = diffRules();
     n = Math.max(1, Math.round(n * D.dmg));
     if (scene === "arena") n = Math.max(1, Math.round(n * D.bossDmg));
+    player.channel = 0;
     if (powers.guard > 0) { delete powers.guard; synth.sfx("guard"); player.inv = 40; flash = 2; spark(player.x + 6, player.y + 8, P().order.light, 10); return; }
     if (level && level.tiled && stats.ward && !w22.warded) { w22.warded = true; synth.sfx("guard"); player.inv = 40; spark(player.x + 6, player.y + 8, P().order.light, 8); return; }
     if (stats.glass) n *= 2;
@@ -1383,24 +1405,27 @@
     player.anim = "hurt"; player.animT = 0; player.hurtT = 18;
     synth.sfx("hurt"); doHitstop(3); rumble("hurt");
     fxAdd("hit", player.x + player.w / 2, player.y + player.h / 2, { big: false });
+    if (src && src.type && src.hp != null && !src.dead) { src.vx = -(kbDir || 1) * 1.3; src.stun = Math.max(src.stun | 0, 10); }
     if (stats.thorn && src && src.hp != null && !src.dead) damageEnemy(src, 1);
     if (player.hp <= 0) { player.dead = true; player.anim = "death"; player.animT = 0; player.deathT = 48; shake = 10; save.deaths = (save.deaths | 0) + 1; }
   }
 
-  function damageEnemy(e, n) {
+  function damageEnemy(e, n, o) {
     if (e.inv > 0 || e.dead) return;
-    e.hp -= n; e.inv = 12; e.vx = player.facing * 2; e.vy = -1.5;
-    if (e.behavior === "bound") { e.vx = 0; e.vy = 0; e.attackT = 0; }
+    e.hp -= n; e.inv = hitCtx ? Math.max(5, Math.min(12, Math.round(10 * wpn().cd))) : 12; knock(e, o);
+    if (e.behavior === "bound") { e.attackT = 0; }
     e.anim = "hurt"; synth.sfx("enemyHurt"); doHitstop(2); shake = 3; rumble("hit");
     spark(e.x + e.w / 2, e.y + e.h / 2, P().order.light, 5);
     e.flashT = 4;
     fxAdd("hit", e.x + e.w / 2 - player.facing * 2, e.y + e.h / 2, { flip: player.facing < 0 });
+    if (hitCtx) applyEnch(e, false);
     if (e.hp <= 0) { e.dead = true; e.anim = "death"; e.animT = 0; synth.sfx("enemyDeath"); fxAdd("puff", e.x + e.w / 2, e.y + e.h, {}); onEnemyKilled(e); }
   }
   function damageBoss(n) {
     if (!boss || boss.inv > 0 || boss.dead) return;
     boss.hp -= n; boss.inv = 16;
-    boss.vx = player.facing * 2.2; boss.vy = -1.4;
+    boss.vx = player.facing * 0.5; boss.vy = -0.3;
+    if (hitCtx) applyEnch(boss, true);
     boss.anim = "hurt"; synth.sfx("hit"); doHitstop(3); shake = 4; flash = 2; rumble("hit");
     spark(boss.x + boss.w / 2, boss.y + boss.h / 2, P().order.light, 8);
     boss.flashT = 4;
@@ -1421,13 +1446,13 @@
 
   function playerStrikeHit() {
     if (player.atk !== 8 && player.atk !== 7) return;
-    const sw = stats.strikeW;
-    const hit = {
-      x: player.facing > 0 ? player.x + player.w : player.x - sw,
-      y: player.y + 2, w: sw, h: 16
-    };
-    for (const e of enemies) if (!e.dead && aabb(hit, e)) damageEnemy(e, strikeDmg(player.combo === 0 ? 2 : 1));
-    if (boss && !boss.dead && boss.visible && aabb(hit, boss)) damageBoss(strikeDmg(1));
+    const w = wpn(), ix = Math.max(0, Math.min(2, ((player.anim || "attack1").replace("attack", "") | 0) - 1));
+    const sw = w.reach[ix] + (stats.strikeW - 16), hh = w.hitH || 16;
+    const hit = { x: player.facing > 0 ? player.x + player.w : player.x - sw, y: player.y + 10 - hh / 2, w: sw, h: hh };
+    hitCtx = { ix };
+    for (const e of enemies) if (!e.dead && aabb(hit, e)) damageEnemy(e, strikeDmgW(ix));
+    if (boss && !boss.dead && boss.visible && aabb(hit, boss)) damageBoss(strikeDmgW(ix));
+    hitCtx = null;
     if (player.atk === 8 && level.tiled && w22) worldStrike(hit);
   }
 
@@ -1578,6 +1603,8 @@
       e.animT++;
       if (e.inv > 0) e.inv--;
       e.vy = Math.min(4.5, e.vy + 0.18);
+      tickStatus(e, false);
+      if (e.stun > 0) { e.stun--; e.vx *= e.onGround ? 0.86 : 0.97; resolve(e, plats()); if (e.stun === 0) e.vx = 0; continue; }
       if (level.tiled) {
         if (Math.abs(e.x - player.x) > 520 || Math.abs(e.y - player.y) > 380) continue;
         const ddx = player.x - e.x, ddy = player.y - e.y;
@@ -1588,8 +1615,9 @@
           if (Math.abs(e.x - e.homeX) > e.leash) e.pdir = -Math.sign(e.x - e.homeX);
           e.vx = e.pdir * e.speed * 0.3; e.facing = e.pdir; e.anim = "walk";
           if (e.onGround && e.ground) { const nx = e.x + e.w / 2 + e.vx * 10; if (nx < e.ground.x + 2 || nx > e.ground.x + e.ground.w - 2) { e.pdir = -e.pdir; e.vx = 0; } }
-          resolve(e, plats());
-          if (aabb(player, e) && player.inv === 0 && player.dodge === 0) hurtPlayer(e.damage, Math.sign(player.x - e.x) || -player.facing, e);
+          if (e.slowT > 0) e.vx *= 1 - (e.slowM || 0.4);
+          resolve(e, plats()); separate(e);
+          if (contactHurt(e)) hurtPlayer(e.damage, Math.sign(player.x - e.x) || -player.facing, e);
           continue;
         }
       }
@@ -1642,8 +1670,9 @@
         if (e.cd <= 0 && Math.abs(dx) < 28) { e.cd = 50; e.anim = "attack"; }
       }
       if (level.tiled && e.onGround && e.ground && e.behavior !== "jumper") { const nx = e.x + e.w / 2 + e.vx * 12; if (nx < e.ground.x + 2 || nx > e.ground.x + e.ground.w - 2) e.vx = 0; }
-      resolve(e, plats());
-      if (aabb(player, e) && player.inv === 0 && player.dodge === 0) hurtPlayer(e.damage, Math.sign(player.x - e.x) || -player.facing, e);
+      if (e.slowT > 0) e.vx *= 1 - (e.slowM || 0.4);
+      resolve(e, plats()); separate(e);
+      if (contactHurt(e)) hurtPlayer(e.damage, Math.sign(player.x - e.x) || -player.facing, e);
     }
   }
 
@@ -1651,6 +1680,13 @@
     for (const pr of projectiles) {
       pr.x += pr.vx; pr.y += pr.vy; pr.life--;
       if (pr.ground && pr.vy < 0 && pr.life < 25) pr.vy = 0;
+      if (pr.arrow) {
+        pr.vy += pr.grav;
+        for (const e of enemies) if (!e.dead && aabb(pr, e)) { damageEnemy(e, arrowDmg(pr.dmg), { kb: 0.55, stun: 5 }); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; }
+        if (pr.life > 0 && boss && !boss.dead && boss.visible && aabb(pr, bossCore(boss))) { damageBoss(arrowDmg(pr.dmg)); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); }
+        if (pr.life > 0 && level.tiled && w22) { for (const p of w22.cur) if (p.solid && aabb(pr, p)) { pr.life = 0; synth.sfx("arrowHit"); efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; } worldStrike({ x: pr.x, y: pr.y, w: pr.w, h: pr.h }); }
+        continue;
+      }
       if (pr.fire) {
         for (const e of enemies) if (!e.dead && aabb(pr, e)) { damageEnemy(e, pr.dmg); pr.life = 0; fxAdd("hit", pr.x, pr.y, {}); break; }
         if (boss && !boss.dead && boss.visible && pr.life > 0 && aabb(pr, bossCore(boss))) { damageBoss(pr.dmg); pr.life = 0; }
@@ -1783,19 +1819,14 @@
     else { if (t.skill) tutPrompt = ""; }
   }
   function updateHub() {
-    updatePlayer(); updateAmbient(); updateCamera(); advanceTutorial();
+    updatePlayer(); updateAmbient(); updateCamera(); advanceTutorial(); updateCoins(); updateEfx();
     for (const n of (level.npcs || [])) n.animT = (n.animT || 0) + 1;
     const guide = level.guide;
     const nearGuide = Math.abs(player.x - guide.x) < 28 && Math.abs(player.y - guide.y) < 28;
     const pad = level.travelPad;
     const nearTravel = pad && Math.abs((player.x + player.w / 2) - (pad.x + pad.w / 2)) < 40 && Math.abs(player.y - (pad.y - 4)) < 36;
-    if (nearGuide && input.pressed("confirm")) {
-      if (hubSaid) {
-        lineIx = (lineIx + 1) % T().guideLines[path].length;
-        save.guideIndex[path] = lineIx; persist();
-      }
-      hubSaid = true; synth.sfx("dialogue"); return;
-    }
+    if (nearMerchantNow() && input.pressed("confirm")) { scene = "shop"; shopIx = 0; synth.sfx("menu"); return; }
+    if (nearGuide && input.pressed("confirm")) { scene = "leader"; leaderStage = 0; leaderIx = 0; leaderMsg = ""; synth.sfx("menu"); return; }
     if (allClaimed()) {
       const a = level.altar;
       if (aabb(player, { x: a.x - 10, y: a.y - 10, w: a.w + 20, h: a.h + 28 }) && input.pressed("confirm")) {
@@ -1824,10 +1855,10 @@
       if (readText) { if (input.pressed("confirm") || menuBack()) readText = null; input.clearJust(); return; }
       updateWorld22Pre();
       if (updateInteract()) return;
-      updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updateWorld22Post(); updateAmbient(); updateCamera();
+      updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updateWorld22Post(); updateAmbient(); updateCamera(); updateCoins(); updateEfx();
       return;
     }
-    updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updatePickups(); updateCamera();
+    updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updatePickups(); updateCamera(); updateCoins(); updateEfx();
     const gate = level.bossGate;
     if (gate && aabb(player, gate) && input.pressed("confirm")) {
       const zid = level.zone; synth.sfx("gate"); goScene(() => enterArena(zid));
@@ -1845,7 +1876,8 @@
     if (b.deathT === 0) { b.visible = false; enterClaim(b.fragment); }
   }
   function updateArena() {
-    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera();
+    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); updateEfx();
+    if (boss && !boss.dead) tickStatus(boss, true);
     for (const m of teleMarks) m.life--;
     teleMarks = teleMarks.filter(m => m.life > 0);
   }
@@ -1876,31 +1908,6 @@
     }
     if (menuBack()) enterTitle();
   }
-  const SETTINGS_ROWS = 7; // master, music, sfx, fullscreen, vibration (v7), difficulty (v2.2), back
-  function updateSettings() {
-    if (input.pressed("up")) { settingsIx = (settingsIx + SETTINGS_ROWS - 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
-    if (input.pressed("down")) { settingsIx = (settingsIx + 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
-    const adj = (input.pressed("left") ? -0.1 : input.pressed("right") ? 0.1 : 0);
-    if (settingsIx === 0 && adj) { synth.setVolume("master", synth.volume.master + adj); persist(); }
-    if (settingsIx === 1 && adj) { synth.setVolume("music", synth.volume.music + adj); persist(); }
-    if (settingsIx === 2 && adj) { synth.setVolume("sfx", synth.volume.sfx + adj); persist(); }
-    if (settingsIx === 3 && input.pressed("confirm")) {
-      if (!document.fullscreenElement) enterFullscreen();
-      else document.exitFullscreen?.();
-      persist();
-    }
-    if (settingsIx === 4 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) {
-      setVibration(!vibration); synth.sfx("menuMove");
-    }
-    if (settingsIx === 5 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) {
-      const order = W22().order, d = input.pressed("left") ? -1 : 1;
-      difficulty = order[(order.indexOf(difficulty) + d + order.length) % order.length]; save.settings.difficulty = difficulty; persist(); synth.sfx("menuMove");
-    }
-    if (settingsIx === 6 && (input.pressed("confirm") || menuBack())) {
-      scene = settingsFrom === "pause" ? "pause" : "title";
-    }
-    if (menuBack() && settingsIx !== 6) scene = settingsFrom === "pause" ? "pause" : "title";
-  }
   function updateClaim() {
     claimTimer--;
     if (claimTimer <= 0 || input.pressed("confirm")) enterHub();
@@ -1921,32 +1928,6 @@
     if (input.pressed("confirm")) {
       endingIx++;
       if (endingIx > endingLines.length) { resetSave(); enterTitle(); }
-    }
-  }
-  function updatePause() {
-    if (pausePage === "fragments") {
-      if (menuBack() || input.pressed("confirm")) { pausePage = "main"; return; }
-      if (input.pressed("up")) fragScroll = Math.max(0, fragScroll - 1);
-      if (input.pressed("down")) fragScroll = Math.min(3, fragScroll + 1);
-      return;
-    }
-    if (menuBack()) {
-      pausePage = "main";
-      scene = level.kind === "hub" ? "hub" : (level.kind === "traverse" ? "traverse" : "arena");
-      return;
-    }
-    const n = 7;
-    if (input.pressed("up")) { pauseIx = (pauseIx + n - 1) % n; synth.sfx("menuMove"); }
-    if (input.pressed("down")) { pauseIx = (pauseIx + 1) % n; synth.sfx("menuMove"); }
-    if (input.pressed("confirm")) {
-      synth.sfx("menu");
-      if (pauseIx === 0) scene = level.kind === "hub" ? "hub" : (level.kind === "traverse" ? "traverse" : "arena");
-      else if (pauseIx === 1) { charmFrom = "pause"; canEquip = level.kind === "hub"; charmIx = 0; popup = null; scene = "charms"; }
-      else if (pauseIx === 2) { scene = "map"; }
-      else if (pauseIx === 3) { pausePage = "fragments"; fragScroll = 0; }
-      else if (pauseIx === 4) openSettings("pause");
-      else if (pauseIx === 5) enterHub();
-      else enterTitle();
     }
   }
 
@@ -1972,7 +1953,14 @@
     if ((scene === "hub" || scene === "traverse") && input.padJust.jump && contextAction()) {
       delete input.padJust.jump;
     }
+    if ((scene === "hub" || scene === "traverse" || (scene === "arena" && introHold === 0)) && input.pressed("inv") && !(player && player.dead)) { openInventory("play"); input.clearJust(); return; }
     if (scene === "charms") updateCharms();
+    else if (scene === "inventory") updateInventory();
+    else if (scene === "shop") updateShop();
+    else if (scene === "leader") updateLeader();
+    else if (scene === "shrine") updateShrine();
+    else if (scene === "teleport") updateTeleport();
+    else if (scene === "tele") updateTele();
     else if (scene === "map") updateMap();
     else if (scene === "title") updateTitle();
     else if (scene === "path") updatePath();
@@ -2025,13 +2013,13 @@
     const srcX = (fi % cols) * s.fw, srcY = ((fi / cols) | 0) * s.fh;
     const dx = Math.round(flip ? px - (s.fw - s.ax) : px - s.ax), dy = Math.round(py - s.ay);
     let src = img, sx0 = srcX, sy0 = srcY;
-    if (mode === "flash" || mode === "tint") {
+    if (mode === "flash" || mode === "tint" || (typeof mode === "string" && mode[0] === "#")) {
       if (flashCanvas.width < s.fw || flashCanvas.height < s.fh) { flashCanvas.width = Math.max(flashCanvas.width, s.fw); flashCanvas.height = Math.max(flashCanvas.height, s.fh); }
       flashG.globalCompositeOperation = "source-over";
       flashG.clearRect(0, 0, flashCanvas.width, flashCanvas.height);
       flashG.drawImage(img, srcX, srcY, s.fw, s.fh, 0, 0, s.fw, s.fh);
       flashG.globalCompositeOperation = "source-in";
-      flashG.fillStyle = mode === "tint" ? P().cult.ember : P().order.light; flashG.fillRect(0, 0, s.fw, s.fh);
+      flashG.fillStyle = mode === "tint" ? P().cult.ember : (mode[0] === "#" ? mode : P().order.light); flashG.fillRect(0, 0, s.fw, s.fh);
       flashG.globalCompositeOperation = "source-over";
       src = flashCanvas; sx0 = 0; sy0 = 0;
     }
@@ -2287,7 +2275,12 @@
       if (e.dead && e.animT > 30) continue;
       if (e.elite && !e.dead) { const ex = e.x + e.w / 2, ey = e.y + e.h, fr = enemyFrame(e); for (const [ox, oy] of [[-0.7, 0], [0.7, 0], [0, -0.7]]) drawActor("enemy-" + e.type, fr, ex + ox, ey + oy, e.facing < 0, "tint"); }
       if (e.inv > 0 && (e.inv % 4 < 2) && !e.dead && !(e.flashT > 0)) continue;
-      drawActor("enemy-" + e.type, enemyFrame(e), e.x + e.w / 2, e.y + e.h, e.facing < 0, e.flashT > 0 && !e.dead ? "flash" : null);
+      drawActor("enemy-" + e.type, enemyFrame(e), e.x + e.w / 2 + (e.stun > 0 && !e.dead ? ((animT >> 1) & 1 ? 0.8 : -0.8) : 0), e.y + e.h, e.facing < 0, e.flashT > 0 && !e.dead ? "flash" : null);
+      if (!e.dead && onScrAny(e.x, e.y)) {
+        if (e.burn) rect(wx(e.x + Math.random() * e.w), wy(e.y + Math.random() * 6), 2, 2, enchColor("flame"));
+        if (e.bleed) rect(wx(e.x + Math.random() * e.w), wy(e.y + e.h * Math.random()), 1, 2, enchColor("claw"));
+        if (e.slowT > 0) { rect(wx(e.x + 1), wy(e.y - 3), 2, 2, enchColor("frost")); rect(wx(e.x + e.w - 3), wy(e.y + e.h - 3), 2, 2, enchColor("frost")); }
+      }
     }
   }
   function drawPickups() {
@@ -2300,6 +2293,15 @@
     for (const pr of projectiles) {
       const x = wx(pr.x), y = wy(pr.y), w = Math.round(pr.w * WS), h = Math.round(pr.h * WS);
       const fl = (animT >> 2) & 1;
+      if (pr.arrow) {
+        const s = sheetOf("w23-proj"), img = s && atlas.images.get(s.path);
+        if (img) {
+          const fi = frameIndex(s, pr.kind === "bow" ? "arrow" : "knife" + ((animT >> 1) & 3)), ang = pr.kind === "bow" ? Math.atan2(pr.vy, pr.vx) : 0;
+          g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(ang); if (pr.kind !== "bow" && pr.vx < 0) g.scale(-1, 1);
+          g.drawImage(img, (fi % (s.cols || s.n)) * s.fw, 0, s.fw, s.fh, -s.ax, -s.ay, s.fw, s.fh); g.restore();
+        }
+        continue;
+      }
       if (pr.ground) {        // bone spikes rising from the floor
         for (let i = 0; i < w; i++) { const t = Math.abs(i - w / 2) / (w / 2); rect(x + i, y + Math.round(t * h * 0.5), 1, h - Math.round(t * h * 0.5), i < w / 2 ? P().order.boneShade : P().ground.ash); }
         rect(x + (w >> 1), y, 1, 2, P().order.light);
@@ -2342,7 +2344,7 @@
       else if (heldByAlly(f)) { blitFrame("ui-hud", f + "-held", x, 7, false); rect(x + 2, 23, 12, 1, P().cult.ember); }
       else blitFrame("ui-hud", f + "-dim", x, 7, false);
     }
-    drawHUD22();
+    drawHUD23(); drawHUD22();
   }
   function drawFragIcon(f, x, y, mode) {
     blitFrame("ui-frag16", mode === "empty" ? f + "-dim" : mode === "half" ? f + "-held" : f, x, y, false);
@@ -2425,15 +2427,15 @@
     if (input.padConnected) {
       drawText(T().pad.heading, 78, cy, P().order.illumination);
       if (padUI()) drawText(T().pad.title, W - 78, cy, P().ground.smoke, "right");
-      const lay = T().pad.layout, rows = 2, colW = 114;
-      lay.forEach((ln, i) => drawText(ln, 80 + ((i / rows) | 0) * colW, cy + 18 + (i % rows) * 17, P().order.boneShade));
+      const lay = T().pad.layout, rows = 3, colW = 86;
+      lay.forEach((ln, i) => drawText(ln, 80 + ((i / rows) | 0) * colW, cy + 16 + (i % rows) * 14, P().order.boneShade));
       return;
     }
     drawText(T().controls.heading, 78, cy, P().order.illumination);
     drawText("Gamepad", 250, cy, P().order.illumination);
-    const kb = T().controls.kb.slice(0, 4), pd = T().controls.pad.slice(0, 4);
-    kb.forEach((ln, i) => drawText(ln, 78, cy + 15 + i * 12, P().order.boneShade));
-    pd.forEach((ln, i) => drawText(ln, 250, cy + 15 + i * 12, P().order.boneShade));
+    const kb = T23().titleKb, pd = T23().titlePad;
+    kb.forEach((ln, i) => drawText(ln, 78, cy + 13 + i * 10, P().order.boneShade));
+    pd.forEach((ln, i) => drawText(ln, 250, cy + 13 + i * 10, P().order.boneShade));
   }
   function drawAnimsScreen(list) {
     for (const a of list || []) {
@@ -2471,40 +2473,6 @@
     drawText(note, W / 2, 250, P().ground.ash, "center");
   }
 
-  function drawSettings() {
-    uiT++;
-    drawImg(ART().ui.menuBg.path, 0, 0);
-    const rows = [
-      `${T().settings.master}: ${(synth.volume.master * 100) | 0}`,
-      `${T().settings.music}: ${(synth.volume.music * 100) | 0}`,
-      `${T().settings.sfx}: ${(synth.volume.sfx * 100) | 0}`,
-      `${T().settings.fullscreen}: ${document.fullscreenElement ? "On" : "Off"}`,
-      `${T().settings.vibration}: ${vibration ? "On" : "Off"}`,
-      `${T22().diff.label}: ${T22().diff[difficulty]}`,
-      T().settings.back
-    ];
-    const t = touchUI(), pitch = t ? 30 : 20, top = t ? 56 : 64;
-    panel(60, top - 40, W - 120, rows.length * pitch + 56);
-    drawText(T().settings.heading, W / 2, top - 30, P().order.illumination, "center");
-    rows.forEach((r, i) => {
-      const y = top + i * pitch;
-      menuText(r, 110, y, i === settingsIx, "left");
-      if (i <= 2) {
-        // volume: a 10-step gauge
-        const v = Math.round([synth.volume.master, synth.volume.music, synth.volume.sfx][i] * 10);
-        for (let k = 0; k < 10; k++) rect(300 + k * 8, y + 2, 6, 7, k < v ? P().order.nexus : P().ground.stone3);
-      }
-      if (!t) return;
-      if (i <= 2) {
-        drawText("-", 76, y, P().order.boneShade); drawText("+", W - 82, y, P().order.boneShade);
-        const key = ["master", "music", "sfx"][i];
-        const ty = y - ((pitch - 9) >> 1);
-        tapTarget(60, ty, W / 2 - 60, pitch, () => { settingsIx = i; synth.setVolume(key, synth.volume[key] - 0.1); persist(); });
-        tapTarget(W / 2, ty, W / 2 - 60, pitch, () => { settingsIx = i; synth.setVolume(key, synth.volume[key] + 0.1); persist(); });
-      } else menuRow(60, y, W - 120, pitch, "set" + i, false, () => { settingsIx = i; });
-    });
-    if (padUI()) drawText(T().pad.settings, W / 2, H - 22, P().ground.smoke, "center");
-  }
 
   function nextFragmentHint() {
     const order = window.SHARDS.fragmentOrder;
@@ -2548,6 +2516,7 @@
     if (!dialogueOpen) {
       const pu = padUI();
       if (nearGuide && !hubSaid) drawPrompt(guide.x + 8, guide.y - 14, pu ? T().pad.talk : T().prompts.talk);
+      if (nearMerchantNow()) drawPrompt(merchantPos().x + 8, merchantPos().y - 14, pu ? T23().shop.promptTalk : (touchUI() ? T23().shop.promptTalkTouch : T23().shop.promptTalkKb));
       if (nearTravel) drawPrompt(pad.x + pad.w / 2, pad.y - 22, pu ? T().pad.travel : T().prompts.travel);
       if (nearAltar) drawPrompt(level.altar.x + 8, level.altar.y - 8, pu ? T().pad.altar : T().prompts.altar);
     }
@@ -2651,8 +2620,8 @@
   // ---------- touch layer (v6, v2 scale) ----------
   // Pads: 42x42 plates (>= 44 CSS px at the ~1.1x+ fit every phone gets in landscape).
   // Multi-touch: every active finger maps to a pad on each touchstart/move/end.
-  const PAD_ACTS = ["left", "right", "jump", "strike", "dodge", "skill", "cancel", "confirm", "up", "down"];
-  const PAD = 42;
+  const PAD_ACTS = ["left", "right", "jump", "strike", "dodge", "skill", "cancel", "confirm", "up", "down", "flask", "shoot", "inv"];
+  let PAD = 42;
   let tapTargets = [], drawnTargets = [], padHeld = new Set(), touchDialogue = false, lastTouchDialogue = false;
   let armedKey = "", fsTried = false;
   function touchUI() { return input.isTouch && input.lastDevice === "touch"; }
@@ -2667,10 +2636,11 @@
     });
   }
   function hubNear() {
-    const out = { guide: false, travel: false, altar: false };
+    const out = { guide: false, travel: false, altar: false, merchant: false };
     if (scene !== "hub" || !level || !player || !level.guide) return out;
     const guide = level.guide, pad = level.travelPad;
     out.guide = Math.abs(player.x - guide.x) < 28 && Math.abs(player.y - guide.y) < 28;
+    out.merchant = nearMerchantNow();
     out.travel = !!pad && Math.abs((player.x + player.w / 2) - (pad.x + pad.w / 2)) < 40 && Math.abs(player.y - (pad.y - 4)) < 36;
     const a = level.altar;
     out.altar = !!(allClaimed() && a && aabb(player, { x: a.x - 10, y: a.y - 10, w: a.w + 20, h: a.h + 28 }));
@@ -2678,59 +2648,14 @@
   }
   function contextAction() {
     if (!player || !level) return false;
-    if (scene === "hub") { const n = hubNear(); return n.guide || n.travel || n.altar; }
+    if (scene === "hub") { const n = hubNear(); return n.guide || n.travel || n.altar || n.merchant; }
     if (scene === "traverse") return level.tiled ? !!nearInteract() : !!(level.bossGate && aabb(player, level.bossGate));
     return false;
-  }
-  function touchLayout() {
-    if (!touchUI() || portrait) return [];
-    const play = scene === "hub" || scene === "traverse" || (scene === "arena" && introHold <= 0);
-    if (!play) return [];
-    const L = [
-      { name: "left", act: "left", x: 6, y: H - 48 },
-      { name: "right", act: "right", x: 54, y: H - 48 },
-      { name: "strike", act: "strike", x: W - 96, y: H - 48 },
-      { name: "jump", act: "jump", x: W - 48, y: H - 48 },
-      { name: "dodge", act: "dodge", x: W - 96, y: H - 96 },
-      { name: "skill", act: "skill", x: W - 48, y: H - 96 },
-    ];
-    if (!lastTouchDialogue) L.push({ name: "pause", act: "cancel", x: W - 46, y: 32 });
-    if (contextAction()) L.push({ name: "ok", act: "confirm", x: (W / 2 - 21) | 0, y: H - 48 });
-    return L;
-  }
-  function drawTouch() {
-    lastTouchDialogue = touchDialogue;
-    for (const b of touchLayout()) blitFrame("ui-touch", padHeld.has(b.name) ? b.name + "-on" : b.name, b.x, b.y, false);
   }
   function toGame(t) {
     const r = canvas.getBoundingClientRect();
     return { x: ((t.clientX - r.left) / r.width) * W, y: ((t.clientY - r.top) / r.height) * H };
   }
-  function padAt(gx, gy) {
-    const L = touchLayout();
-    let best = null, bd = 1e9;
-    for (const b of L) {
-      const r = (b.name === "pause" || b.name === "ok") ? 25 : 31;
-      const d = Math.max(Math.abs(gx - (b.x + PAD / 2)), Math.abs(gy - (b.y + PAD / 2)));
-      if (d <= r && d < bd) { bd = d; best = b; }
-    }
-    if (!best && gy > H - 108 && gx < 114) best = L.find(b => b.name === (gx < 51 ? "left" : "right")) || null;
-    return best;
-  }
-  function syncPads(list) {
-    const names = new Set(), acts = new Set();
-    for (const t of list) {
-      const p = toGame(t);
-      const b = padAt(p.x, p.y);
-      if (b) { names.add(b.name); acts.add(b.act); }
-    }
-    for (const a of PAD_ACTS) {
-      const on = acts.has(a);
-      if (on !== !!input.touch[a]) input.setTouch(a, on);
-    }
-    padHeld = names;
-  }
-  function releasePads() { padHeld = new Set(); for (const a of PAD_ACTS) input.touch[a] = false; }
   function isStandalone() {
     return (window.matchMedia && (matchMedia("(display-mode: fullscreen)").matches || matchMedia("(display-mode: standalone)").matches)) || navigator.standalone === true;
   }
@@ -2765,6 +2690,7 @@
     if (e.cancelable) e.preventDefault();
     synth.resume();
     syncPads(e.touches);
+    if (fsReq) runFsReq();
     if (!fsTried && !isStandalone() && !document.fullscreenElement &&
         (document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
       fsTried = true; enterFullscreen();
@@ -2796,7 +2722,7 @@
     g = keep;
   }
 
-  let claimT = 0;
+  let claimT = 0, claimExtra = "";
   function drawClaim() {
     claimT++;
     drawImg(ART().ui.menuBg.path, 0, 0);
@@ -2805,6 +2731,7 @@
       blitFrame("fx-claim", Math.min(sheetOf("fx-claim").n - 1, (claimT / 4) | 0), W / 2, 92, false);
       blitFrame("ui-frag32", frag, W / 2, 92, false);
     }
+    if (claimExtra) drawText(claimExtra, W / 2, 124, P().order.illumination, "center");
     const lines = wrapLines(claimMsg, W - 120);
     const h = lines.length * LH + 22;
     panel(48, 142, W - 96, h);
@@ -2900,22 +2827,6 @@
       tapTarget(20, 108, W - 40, H - 154, () => input.tap("down"));
     } else drawText(padUI() ? T().pad.fragBack : T().pause.back + " (Esc/Enter)", W / 2, H - 30, P().ground.smoke, "center");
   }
-  function drawPause() {
-    uiT++;
-    if (pausePage === "fragments") { drawFragmentsPage(); return; }
-    const t = touchUI(), pitch = t ? 28 : 20;
-    const items = [T().hud.resume, T22().pause.charms, T22().pause.map, T().hud.fragments, T().hud.settings, T().hud.toHub, T().hud.toTitle];
-    const ph = 40 + items.length * pitch + (padUI() ? 18 : 4);
-    const py = ((H - ph) / 2) | 0;
-    panel(120, py, W - 240, ph);
-    drawText(T().hud.paused, W / 2, py + 12, P().order.illumination, "center");
-    const top = py + 40;
-    items.forEach((it, i) => {
-      menuText(it, W / 2, top + i * pitch, i === pauseIx, "center");
-      menuRow(120, top + i * pitch, W - 240, pitch, "pause" + i, false, () => { pauseIx = i; });
-    });
-    if (padUI()) drawText(T().pad.pause, W / 2, py + ph - 20, P().ground.smoke, "center");
-  }
 
   function drawWorld() {
     animT++;
@@ -2925,13 +2836,14 @@
     drawInteractables();
     if (tl) drawWorldItems();
     drawPickups();
-    if (scene === "hub" || (scene === "pause" && level.kind === "hub") || scene === "travel") { drawHubNPCs(); drawGuide(); }
-    drawEnemies();
+    if (scene === "hub" || (scene === "pause" && level.kind === "hub") || scene === "travel" || scene === "leader") { drawMerchant(); drawHubNPCs(); drawGuide(); }
+    drawEnemies(); drawCoins();
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
     if (player) drawPlayer();
     drawProjectiles();
-    drawFx();
+    drawFx(); drawEfx();
     drawParticles();
+    drawTeleFx();
     if (!tl) drawFront();
     drawAmbient();
     if (tl && level.dark) drawDarkness();
@@ -2990,6 +2902,12 @@
     } else if (flash > 0 && scene !== "claim") {
       rect(0, 0, W, H, P().order.light);
     } else if (scene === "charms") drawCharms();
+    else if (scene === "inventory") drawInventory();
+    else if (scene === "shop") drawShop();
+    else if (scene === "teleport") drawTeleport();
+    else if (scene === "leader") { if (leaderStage === 0) drawWorld(); drawLeader(); }
+    else if (scene === "shrine") { drawWorld(); drawShrineMenu(); }
+    else if (scene === "tele") drawWorld();
     else if (scene === "map") drawMap();
     else if (scene === "title") drawTitle();
     else if (scene === "path") drawPath();
@@ -3081,6 +2999,946 @@
     wstate() { return w22 ? { crumbles: w22.crumbles.map(c => c.state), movers: w22.movers.map(m => [m.x | 0, m.y | 0]), bell: Object.assign({}, w22.bellT), breaks: w22.breaks.length } : null; },
     strikeAt() { return player ? { atk: player.atk } : null; }
   };
+
+  // =====================================================================================================
+  // v2.3: weapons, enchantments, flask, aurels, arrows, shop, inventory, leader, shrine teleport, touch schemes
+  // =====================================================================================================
+  const W23 = () => window.SHARDS.world23, T23 = () => window.SHARDS.text23;
+  const PK = () => (path === "cult" ? "cult" : "order");
+  const V = () => save.v23;
+  function normV23() {
+    const d = { aurels: 0, nip: 0, nipTotal: 0, flaskMax: 3, flask: 3, meter: 0, arrows: 5, arrowMax: 5, hpBuy: 0,
+      melee: { owned: [], main: null }, ranged: { owned: ["bow"], main: "bow" }, ench: {}, shop: {}, bossNip: {}, tablets: {}, kills: 0 };
+    const o = (save.v23 && typeof save.v23 === "object") ? save.v23 : {};
+    const v = Object.assign(d, o);
+    v.melee = Object.assign({ owned: [], main: null }, o.melee || {}); v.ranged = Object.assign({ owned: ["bow"], main: "bow" }, o.ranged || {});
+    v.ench = (o.ench && typeof o.ench === "object") ? o.ench : {}; v.shop = (o.shop && typeof o.shop === "object") ? o.shop : {};
+    v.bossNip = (o.bossNip && typeof o.bossNip === "object") ? o.bossNip : {}; v.tablets = (o.tablets && typeof o.tablets === "object") ? o.tablets : {};
+    const num = (x, lo, hi, df) => { x = +x; return Number.isFinite(x) ? Math.max(lo, Math.min(hi, Math.floor(x))) : df; };
+    v.aurels = num(v.aurels, 0, 999999, 0); v.nip = num(v.nip, 0, 999, 0); v.nipTotal = num(v.nipTotal, 0, 999, 0);
+    v.flaskMax = num(v.flaskMax, 3, 6, 3); v.flask = num(v.flask, 0, v.flaskMax, v.flaskMax); v.meter = num(v.meter, 0, 20, 0);
+    v.arrowMax = [5, 7, 9].includes(v.arrowMax | 0) ? v.arrowMax | 0 : 5; v.arrows = num(v.arrows, 0, v.arrowMax, v.arrowMax); v.hpBuy = num(v.hpBuy, 0, 2, 0);
+    const W = window.SHARDS.world23;
+    v.melee.owned = (v.melee.owned || []).filter(w => W.melee.includes(w)); v.ranged.owned = (v.ranged.owned || []).filter(w => W.ranged.includes(w));
+    if (!v.ranged.owned.includes("bow")) v.ranged.owned.unshift("bow");
+    if (!v.ranged.owned.includes(v.ranged.main)) v.ranged.main = "bow";
+    if (v.melee.main && !v.melee.owned.includes(v.melee.main)) v.melee.main = v.melee.owned[0] || null;
+    for (const k of Object.keys(v.ench)) if (!v.melee.owned.includes(k) || !v.ench[k] || !W.ench.includes(v.ench[k].t)) delete v.ench[k]; else v.ench[k].k = num(v.ench[k].k, 1, 3, 1);
+    save.v23 = v;
+    if (!save.settings) save.settings = {};
+    const ps = +save.settings.padScale; save.settings.padScale = Number.isFinite(ps) ? Math.max(0.7, Math.min(1.5, Math.round(ps * 10) / 10)) : 1;
+    if (save.settings.scheme !== "stick") save.settings.scheme = "buttons";
+    padScaleCur = save.settings.padScale; touchScheme = save.settings.scheme;
+    if (save.lit == null || typeof save.lit !== "object") save.lit = {};
+  }
+  function ensureWeapons() {
+    if (!path || !save.v23) return;
+    const v = V(), st = W23().start[PK()];
+    if (!v.melee.owned.length) { v.melee.owned.push(st); }
+    if (!v.melee.main || !v.melee.owned.includes(v.melee.main)) v.melee.main = v.melee.owned[0];
+  }
+  function wpnId() { const v = V(); return (v && v.melee.main) || W23().start[PK()] || "staff"; }
+  function wpn() { return W23().weapons[wpnId()] || W23().weapons.staff; }
+  function weaponName(id) { const n = T23().weapon.names[id]; return n ? n[PK()] : id; }
+  function enchOf() { const v = V(); return v && v.ench[wpnId()] || null; }
+  function enchName(t) { return T23().ench.names[t][PK()]; }
+  function enchColor(t) { const c = P().w23; return c ? c[t] : P().order.illumination; }
+  function giveWeapon(id, quiet) {
+    const v = V(), ranged = W23().ranged.includes(id), list = ranged ? v.ranged.owned : v.melee.owned;
+    if (list.includes(id)) {
+      const n = (W23().shop.find(s => s.id === id) || { price: 60 }).price >> 1; v.aurels += n;
+      if (!quiet) { toast(T23().got.dup.replace("{n}", n)); synth.sfx("coin"); } persist(); return false;
+    }
+    list.push(id); if (!quiet) { synth.sfx("charmGet"); toast(T23().got.weapon.replace("{name}", weaponName(id))); } persist(); return true;
+  }
+  // ----- flask -----
+  function flaskKill(e) {
+    const v = V(), F = W23().flask, per = F.killsPer[difficulty] || 5;
+    if (v.flask >= v.flaskMax) { v.meter = 0; return; }
+    v.meter += e.elite ? F.elite : 1;
+    while (v.meter >= per && v.flask < v.flaskMax) { v.meter -= per; v.flask++; flaskPing = 50; synth.sfx("flaskFill"); }
+    if (v.flask >= v.flaskMax) v.meter = 0;
+  }
+  function flaskRefill(quiet) { const v = V(); v.flask = v.flaskMax; v.meter = 0; if (!quiet) flaskPing = 50; }
+  function tryFlask(p) {
+    if (p.channel > 0 || p.dead) return;
+    const v = V();
+    if (p.hp >= p.maxHp) { toast(T23().hud.full); synth.sfx("locked"); return; }
+    if (v.flask <= 0) { toast(T23().hud.empty); synth.sfx("locked"); return; }
+    p.channel = W23().flask.channel; synth.sfx("flaskStart");
+  }
+  function flaskTick(p) {
+    if (!(p.channel > 0)) return;
+    if (p.hurtT > 0 || input.pressed("jump") || input.pressed("dodge") || input.pressed("strike") || input.pressed("skill") || !p.onGround && p.vy < -0.5) { p.channel = 0; return; }
+    p.channel--; p.vx *= 0.5;
+    if ((p.channel & 3) === 0) particles.push({ x: p.x + 2 + Math.random() * 8, y: p.y + 16, vx: (Math.random() - 0.5) * 0.3, vy: -0.7 - Math.random() * 0.6, life: 22, color: P().order.illumination });
+    if (p.channel === 0) {
+      const v = V(), F = W23().flask; v.flask = Math.max(0, v.flask - 1);
+      p.hp = Math.min(p.maxHp, p.hp + F.heal + diffRules().heal); healFx = 24; synth.sfx("flaskHeal"); persist();
+    }
+  }
+  // ----- aurels & arrows -----
+  function rollArrows(r) { const A = W23().arrowRoll; if (r == null) r = Math.random(); return r < A.one ? 1 : r < A.two ? 2 : 0; }
+  function spawnCoin(x, y, v, big, kind, n) {
+    coins.push({ x: x - 4, y: y - 4, w: 8, h: 8, vx: (Math.random() - 0.5) * 2.4, vy: -2.4 - Math.random() * 1.2, v, big: !!big, kind: kind || "coin", n: n || 0, age: 0, onGround: false, ph: (Math.random() * 4) | 0 });
+    if (coins.length > 80) coins.shift();
+  }
+  function dropLoot(e) {
+    const C = W23().coin, cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+    if (e.elite) for (let i = 0; i < C.eliteCoins; i++) spawnCoin(cx, cy, C.big, true);
+    else { const n = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.2 ? 1 : 0); for (let i = 0; i < n; i++) spawnCoin(cx, cy, C.small, false); }
+    const a = rollArrows(); if (a) spawnCoin(cx, cy, 0, false, "arrow", a);
+  }
+  function v23Kill(e) {
+    flaskKill(e); dropLoot(e); V().kills++;
+  }
+  function updateCoins() {
+    const C = W23().coin, v = V(), pc = { x: player.x + player.w / 2, y: player.y + player.h / 2 };
+    const R = stats.magnet ? C.magnetCharm : C.magnet;
+    for (const c of coins) {
+      c.age++;
+      const cx = c.x + 4, cy = c.y + 4, dx = pc.x - cx, dy = pc.y - cy, d = Math.hypot(dx, dy);
+      const wanted = c.kind === "coin" || v.arrows < v.arrowMax;
+      if (!player.dead && wanted && c.age > 18 && d < R) {
+        const sp = 1.4 + (R - d) / R * 3.2; c.x += dx / (d || 1) * sp; c.y += dy / (d || 1) * sp; c.mag = true; c.vy = 0;
+      } else {
+        c.mag = false; c.vy = Math.min(4, c.vy + 0.16);
+        resolve(c, plats());
+        if (c.onGround) { c.vx *= 0.7; if (Math.abs(c.vy) < 0.3) c.vy = 0; }
+      }
+      if (!player.dead && wanted && Math.abs(dx) < 9 && Math.abs(dy) < 13) {
+        c.dead = true;
+        if (c.kind === "coin") { v.aurels += c.v; coinPing = 20; synth.sfx("coin"); efx.push({ x: cx, y: cy, t: 0, type: "coinget", n: 4 }); coinDirty = true; }
+        else { const n = Math.min(c.n, v.arrowMax - v.arrows); v.arrows += n; synth.sfx("arrowGet"); arrowPing = 24; efx.push({ x: cx, y: cy, t: 0, type: "coinget", n: 4 }); coinDirty = true; }
+      }
+      if (c.age > C.life) c.dead = true;
+    }
+    coins = coins.filter(c => !c.dead);
+    if (coinDirty && (animT & 31) === 0) { coinDirty = false; persist(); }
+  }
+  function updateEfx() { for (const f of efx) f.t++; efx = efx.filter(f => f.t < f.n * 3); }
+  function drawEfx() {
+    for (const f of efx) {
+      const fr = Math.min(f.n - 1, (f.t / 3) | 0), nm = f.type + fr;
+      blitFrame("fx23", nm, wx(f.x), wy(f.y), false);
+    }
+  }
+  function drawCoins() {
+    for (const c of coins) {
+      if (!onScrAny(c.x, c.y)) continue;
+      if (c.age > W23().coin.life - 120 && (animT & 4)) continue;
+      const f = (((animT + c.ph * 3) / 5) | 0) % 4;
+      if (c.kind === "coin") drawActor("w23-world", (c.big ? "coinb" : "coin") + f, c.x + 4, c.y + 8, false);
+      else drawActor("w23-world", "arrow" + c.n, c.x + 4, c.y + 8, false);
+    }
+  }
+  function onScrAny(x, y) { return x > cameraX - 20 && x < cameraX + VW + 20 && y > cameraY - 20 && y < cameraY + VH + 20; }
+  // ----- ranged -----
+  function aimUpNow() { return input.pressed("shootUp") || !!input.keys.__padU || !!input.touch.up || shootAimTouch; }
+  function shoot(p) {
+    if (shootCD > 0 || p.dodge > 0 || p.skill > 0 || p.dead) return;
+    const v = V(), rid = v.ranged.main, R = W23()[rid];
+    if (!R) return;
+    if (v.arrows <= 0) { toast(T23().hud.noArrows); synth.sfx("locked"); shootCD = 14; return; }
+    v.arrows--; shootCD = R.cd; p.shootT = 16; p.channel = 0; synth.sfx(rid === "bow" ? "bowShot" : "knifeThrow");
+    const up = input.pressed("shootUp") || input.keys.__padU || input.touch.up || shootAimTouch; p.aimUp = !!up;
+    p.shootUpT = up ? 16 : 0;
+    const cnt = R.count || 1;
+    for (let k = 0; k < cnt; k++) {
+      const sp = R.speed * (up ? 0.85 : 1);
+      projectiles.push({ x: p.x + p.w / 2 + p.facing * 8, y: p.y + 6 + (cnt > 1 ? (k - 0.5) * 5 : 0), w: 8, h: 4, vx: p.facing * sp, vy: up ? -R.up - k * 0.5 : (rid === "bow" ? -0.55 : 0), grav: R.grav, life: R.life, arrow: true, kind: rid, dmg: R.dmg, spin: k });
+    }
+    persist();
+  }
+  function arrowDmg(base) { return Math.max(1, strikeDmg(base) - (stats.reson | 0) * 0); }
+  // ----- knockback, stun, collision -----
+  const PHASING = { dust_wraith: 1, monastery_shade: 1 };
+  function enemyWeight(e) { return Math.max(0.6, Math.min(1.9, e.w * e.h / 216)); }
+  function knock(e, o) {
+    const w = wpn(), mel = !!hitCtx, en = enchOf();
+    let k = (o && o.kb != null ? o.kb : (mel ? w.kb : 0.5)) * (stats.kbMul || 1);
+    if (mel && en && en.t === "bone") k *= W23().enchFx.bone.kb[en.k - 1];
+    const el = e.elite ? 0.45 : 1, wt = enemyWeight(e), dir = Math.sign((e.x + e.w / 2) - (player.x + player.w / 2)) || player.facing;
+    const flying = e.behavior === "bound";
+    e.vx = dir * Math.min(5, 1.7 * k * el / wt);
+    e.vy = flying ? 0 : -Math.min(2.6, (1 + 0.5 * k) * Math.sqrt(el) / Math.sqrt(wt));
+    if (e.behavior === "bound") e.vy = 0;
+    e.onGround = false;
+    let st = (o && o.stun != null ? o.stun : (mel ? w.stun : 6)) * el * (1 + 0.15 * (k - 1));
+    if (mel && en && en.t === "bone") st += (W23().enchFx.bone.stagger[en.k - 1] || 0) * el;
+    e.stun = Math.max(e.stun | 0, Math.round(st)); e.shk = 8; e.kbDir = dir;
+  }
+  function blockedBox(r) {
+    if (!(level && level.tiled && w22)) return false;
+    for (const q of w22.cur) if (q.solid && aabb(r, q)) return true;
+    return false;
+  }
+  function separate(e) {
+    const p = player;
+    if (PHASING[e.type] || e.dead || p.dead || p.dodge > 0 || !aabb(p, e)) return;
+    if (p.y + p.h - e.y < 5 && p.vy >= 0 && p.y < e.y) { /* stepped on its head: slide off sideways */ }
+    const pl = (p.x + p.w / 2) < (e.x + e.w / 2);
+    const ox = pl ? (p.x + p.w) - e.x : (e.x + e.w) - p.x;
+    if (ox <= 0) return;
+    const dirE = pl ? 1 : -1, hx = ox * 0.5 + 0.01;
+    const eBox = (dx) => ({ x: e.x + dx, y: e.y, w: e.w, h: e.h }), pBox = (dx) => ({ x: p.x + dx, y: p.y, w: p.w, h: p.h });
+    const edgeOK = (dx) => !(e.onGround && e.ground && e.behavior !== "jumper" && ((e.x + dx + e.w / 2) < e.ground.x || (e.x + dx + e.w / 2) > e.ground.x + e.ground.w));
+    let eMove = 0, pMove = 0;
+    const eFree = !blockedBox(eBox(dirE * hx)) && edgeOK(dirE * hx), pFree = !blockedBox(pBox(-dirE * hx));
+    if (eFree && pFree) { eMove = dirE * hx; pMove = -dirE * hx; }
+    else if (eFree && !blockedBox(eBox(dirE * ox)) && edgeOK(dirE * ox)) eMove = dirE * ox;
+    else if (pFree && !blockedBox(pBox(-dirE * ox))) pMove = -dirE * ox;
+    else if (pFree) pMove = -dirE * hx;
+    e.x += eMove; p.x += pMove;
+    if (p.x < 0) p.x = 0;
+    if (level && level.w && p.x + p.w > level.w) p.x = level.w - p.w;
+  }
+  function contactHurt(e) {
+    if (e.dead || (e.stun | 0) > 0 || player.inv > 0 || player.dodge > 0) return false;
+    const box = PHASING[e.type] ? e : { x: e.x - 2, y: e.y, w: e.w + 4, h: e.h };
+    return aabb(player, box);
+  }
+  // ----- enchantments -----
+  function applyEnch(e, isBoss) {
+    const en = enchOf(); if (!en) return;
+    const F = W23().enchFx[en.t], k = en.k - 1, bk = isBoss ? W23().bossK : 1;
+    const col = enchColor(en.t);
+    if (en.t === "flame") { e.burn = { n: F.burnTicks[k], t: 0, gap: F.gap / bk }; }
+    else if (en.t === "claw") { e.bleed = { n: F.ticks[k], t: 0, gap: F.gap / bk }; }
+    else if (en.t === "frost" && !isBoss) { e.slowT = F.time[k]; e.slowM = F.slow[k]; if (F.freeze[k] && !(e.freezeCD > 0)) { e.stun = Math.max(e.stun | 0, F.freeze[k]); e.freezeCD = 120; } }
+    else if (en.t === "frost" && isBoss) { e.cd = (e.cd | 0) + 3; }
+    else if (en.t === "holy") {
+      holyN++; if (holyN >= F.every[k] && player.hp < player.maxHp) { holyN = 0; player.hp++; synth.sfx("heal"); efx.push({ x: player.x + 6, y: player.y + 4, t: 0, type: "holy", n: 4 }); }
+    }
+    efx.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, t: 0, type: en.t, n: 4 });
+    synth.sfx("enchHit", en.t);
+  }
+  function tickStatus(e, isBoss) {
+    for (const key of ["burn", "bleed"]) {
+      const s = e[key]; if (!s) continue;
+      if (++s.t >= s.gap) { s.t = 0; s.n--; dotHit(e, key, isBoss); if (s.n <= 0) e[key] = null; }
+    }
+    if (e.slowT > 0) e.slowT--; if (e.freezeCD > 0) e.freezeCD--;
+  }
+  function dotHit(e, key, isBoss) {
+    if (isBoss) { if (boss && !boss.dead) { boss.hp -= 1; boss.flashT = 2; efx.push({ x: boss.x + boss.w / 2, y: boss.y + boss.h / 2, t: 0, type: key === "burn" ? "flame" : "claw", n: 4 }); if (boss.hp <= 0) { boss.hp = 1; damageBoss(1); } } return; }
+    if (e.dead) return;
+    e.hp -= 1; e.flashT = 3; efx.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, t: 0, type: key === "burn" ? "flame" : "claw", n: 4 });
+    if (e.hp <= 0) { e.dead = true; e.anim = "death"; e.animT = 0; synth.sfx("enemyDeath"); fxAdd("puff", e.x + e.w / 2, e.y + e.h, {}); onEnemyKilled(e); }
+  }
+  function strikeDmgW(ix) {
+    const w = wpn(), en = enchOf(); let d = w.dmg[ix];
+    if (en && en.t === "shadow" && player.sinceDodge < W23().enchFx.shadow.window) d += W23().enchFx.shadow.after[en.k - 1];
+    return strikeDmg(d);
+  }
+  // ----- weapon layers on the player -----
+  function drawWeaponLayer(sx, sy, p, frame, flip, live) {
+    const sh = "wp-" + wpnId() + "-" + PK();
+    if (!sheetOf(sh)) return;
+    const en = enchOf(), T = live ? animT : uiT;
+    if (en) {
+      const col = enchColor(en.t);
+      if ((T % 40) < 30 || p.atk > 0) for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) blitFrame(sh, frame, sx + ox, sy + oy, flip, col);
+    }
+    blitFrame(sh, frame, sx, sy, flip);
+    if (en && live && p.atk > 0) {
+      const tip = window.SHARDS.wp23 && window.SHARDS.wp23[PK()] && window.SHARDS.wp23[PK()][wpnId()] && window.SHARDS.wp23[PK()][wpnId()][frame];
+      const S = sheetOf(sh);
+      if (tip && S) {
+        const tx = Math.round(sx + (flip ? -1 : 1) * (tip[0] - S.ax)), ty = Math.round(sy + (tip[1] - S.ay)), col = enchColor(en.t);
+        for (let i = 0; i < 3; i++) rect(tx + ((Math.random() * 7) | 0) - 3, ty + ((Math.random() * 7) | 0) - 3, 2, 2, col);
+      }
+    }
+  }
+  function drawBowLayer(sx, sy, p, an, flip, S) {
+    if (!(p.shootT > 0)) return;
+    const a = an && an.hand; if (!a) return;
+    const up = p.shootUpT > 0 || p.aimUp, drawn = p.shootT > 9;
+    const hx = Math.round(sx + (flip ? -1 : 1) * (a[0] - S.ax)), hy = Math.round(sy + (a[1] - S.ay));
+    if (V().ranged.main === "knives") return;
+    blitFrame("w23-ranged", (drawn ? "draw" : "loose") + (up ? "-up" : ""), hx + (flip ? -2 : 2), hy, flip);
+  }
+  function drawHeal(sx, sy) {
+    if (healFx > 0 || (player && player.channel > 0)) {
+      const t = player.channel > 0 ? W23().flask.channel - player.channel : 24 - healFx;
+      blitFrame("fx23", "heal" + (((t / 4) | 0) % 6), sx - 4, sy - 8, false);
+    }
+  }
+  // ----- NIP, claims -----
+  function awardBoss(bossId) {
+    const v = V(), N = W23();
+    let msg = [];
+    if (!v.bossNip[bossId]) {
+      v.bossNip[bossId] = 1; const n = N.nip[bossId] || 1; v.nip += n; v.nipTotal += n; v.aurels += N.coin.boss;
+      msg.push(T23().got.nip.replace("{n}", n)); msg.push(T23().got.aurels.replace("{n}", N.coin.boss));
+      const bw = N.bossWeapon[bossId]; if (bw) { const had = v.melee.owned.includes(bw); giveWeapon(bw, true); if (!had) msg.push(T23().got.weapon.replace("{name}", weaponName(bw))); }
+    }
+    persist(); return msg.join("   ");
+  }
+  // ----- shop -----
+  function shopList() { return W23().shop.filter(s => !s.only || s.only === PK()); }
+  function shopState(it) {
+    const v = V(), n = claimedCount();
+    const tier = (k) => v.shop[k] | 0;
+    let sold = false, locked = false, why = "";
+    switch (it.id) {
+      case "flask1": case "flask2": case "flask3": { const t = +it.id.slice(-1); sold = tier("flask") >= t; locked = !sold && tier("flask") < t - 1; if (locked) why = "prev"; break; }
+      case "hp1": case "hp2": { const t = +it.id.slice(-1); sold = tier("hp") >= t; locked = !sold && tier("hp") < t - 1; break; }
+      case "quiver1": case "quiver2": { const t = +it.id.slice(-1); sold = tier("quiver") >= t; locked = !sold && tier("quiver") < t - 1; break; }
+      case "notch": sold = save.notches >= 7 || tier("notch") >= 1; break;
+      case "ammo": sold = false; break;
+      default:
+        if (it.kind === "charm") sold = save.charms.owned.includes(it.id);
+        else if (it.kind === "weapon") sold = v.melee.owned.includes(it.id);
+        else if (it.kind === "ranged") sold = v.ranged.owned.includes(it.id);
+    }
+    const gated = n < it.at;
+    return { sold, locked: locked || false, gated, need: it.at, cost: it.price };
+  }
+  function itemText(it) {
+    const S = T23().shop;
+    if (S.items[it.id]) return { name: S.items[it.id][0], desc: S.items[it.id][1] };
+    if (it.kind === "charm") return { name: charmName(it.id), desc: T22().charms.desc[it.id] };
+    return { name: weaponName(it.id), desc: T23().weapon.desc[it.id] };
+  }
+  function buy(it) {
+    const v = V(), st = shopState(it);
+    if (st.sold || st.locked || st.gated) { synth.sfx("locked"); return false; }
+    if (it.id === "ammo" && v.arrows >= v.arrowMax) { toast(T23().hud.bowFull); synth.sfx("locked"); return false; }
+    if (v.aurels < it.price) { toast(T23().shop.cant); synth.sfx("locked"); return false; }
+    v.aurels -= it.price;
+    switch (it.id) {
+      case "flask1": case "flask2": case "flask3": v.shop.flask = +it.id.slice(-1); v.flaskMax = 3 + v.shop.flask; v.flask = Math.min(v.flaskMax, v.flask + 1); break;
+      case "hp1": case "hp2": v.shop.hp = +it.id.slice(-1); v.hpBuy = v.shop.hp; recomputeStats(); if (player) player.hp = player.maxHp; break;
+      case "quiver1": case "quiver2": v.shop.quiver = +it.id.slice(-1); v.arrowMax = it.id === "quiver1" ? 7 : 9; v.arrows = Math.min(v.arrowMax, v.arrows + 2); break;
+      case "notch": v.shop.notch = 1; save.notches = Math.min(7, save.notches + 1); break;
+      case "ammo": v.arrows = Math.min(v.arrowMax, v.arrows + 3); break;
+      default:
+        if (it.kind === "charm") { addCharm(it.id, true); recomputeStats(); }
+        else giveWeapon(it.id, true);
+    }
+    synth.sfx("buy"); toast(T23().shop.bought.replace("{name}", itemText(it).name)); persist(); return true;
+  }
+  // ----- update: shop / inventory / leader / shrine / teleport -----
+  function leaveTo(sc) { scene = sc; }
+  function updateShop() {
+    const list = shopList(), n = list.length;
+    if (menuBack()) { scene = "hub"; return; }
+    if (input.pressed("up")) { shopIx = (shopIx + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { shopIx = (shopIx + 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("confirm")) buy(list[shopIx]);
+  }
+  function invMelee() { return W23().melee; }
+  function updateInventory() {
+    if (menuBack()) { scene = invFrom === "pause" ? "pause" : (level.kind === "hub" ? "hub" : level.kind === "traverse" ? "traverse" : "arena"); return; }
+    if (input.pressed("inv") && invFrom !== "pause") { scene = level.kind === "hub" ? "hub" : level.kind === "traverse" ? "traverse" : "arena"; return; }
+    if (input.pressed("left")) { invTab = (invTab + 2) % 3; invIx = 0; synth.sfx("menuMove"); }
+    if (input.pressed("right")) { invTab = (invTab + 1) % 3; invIx = 0; synth.sfx("menuMove"); }
+    if (invTab === 0) {
+      const n = invMelee().length + W23().ranged.length;
+      if (input.pressed("up")) { invIx = (invIx + n - 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("down")) { invIx = (invIx + 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("confirm")) equipFromInv();
+    } else if (invTab === 1) {
+      if (input.pressed("confirm")) { charmFrom = "inventory"; canEquip = level.kind === "hub"; charmIx = 0; popup = null; scene = "charms"; }
+    } else {
+      const n = loreList().length;
+      if (input.pressed("up")) loreScroll = Math.max(0, loreScroll - 1);
+      if (input.pressed("down")) loreScroll = Math.min(Math.max(0, n - 4), loreScroll + 1);
+    }
+  }
+  function equipFromInv() {
+    const v = V(), M = invMelee(), R = W23().ranged;
+    if (invIx < M.length) { const id = M[invIx]; if (v.melee.owned.includes(id)) { v.melee.main = id; synth.sfx("weaponSwap"); persist(); } else synth.sfx("locked"); }
+    else { const id = R[invIx - M.length]; if (v.ranged.owned.includes(id)) { v.ranged.main = id; synth.sfx("weaponSwap"); persist(); } else synth.sfx("locked"); }
+  }
+  function loreList() {
+    const out = [];
+    for (const k of Object.keys(V().tablets)) { const [z, i] = k.split(":"); const tx = (T22().tablets[z] || [])[i | 0]; if (tx) out.push({ zone: z, text: tx }); }
+    return out;
+  }
+  function openInventory(from) { invFrom = from; invTab = 0; invIx = 0; loreScroll = 0; scene = "inventory"; synth.sfx("menu"); }
+  // leader (Ryan / Jeriah): counsel or enchant
+  function updateLeader() {
+    const L = T23().leader[PK()];
+    if (leaderStage === 0) {
+      if (menuBack()) { scene = "hub"; return; }
+      if (input.pressed("up")) { leaderIx = (leaderIx + 2) % 3; synth.sfx("menuMove"); }
+      if (input.pressed("down")) { leaderIx = (leaderIx + 1) % 3; synth.sfx("menuMove"); }
+      if (input.pressed("confirm")) {
+        synth.sfx("menu");
+        if (leaderIx === 0) { scene = "hub"; lineIx = (lineIx + 1) % T().guideLines[path].length; save.guideIndex[path] = lineIx; persist(); hubSaid = true; synth.sfx("dialogue"); }
+        else if (leaderIx === 1) { leaderStage = 1; enchW = 0; enchE = 0; leaderMsg = V().nip > 0 || Object.keys(V().ench).length ? L.hello : L.none; }
+        else scene = "hub";
+      }
+      return;
+    }
+    const owned = V().melee.owned;
+    if (menuBack()) { if (leaderStage === 2) leaderStage = 1; else { leaderStage = 0; leaderMsg = ""; } return; }
+    if (leaderStage === 1) {
+      const n = owned.length;
+      if (input.pressed("up")) { enchW = (enchW + n - 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("down")) { enchW = (enchW + 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("confirm")) { leaderStage = 2; synth.sfx("menu"); }
+    } else if (leaderStage === 2) {
+      const E = W23().enchFaction[PK()], n = E.length;
+      if (input.pressed("up")) { enchE = (enchE + n - 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("down")) { enchE = (enchE + 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("confirm")) doEnchant(owned[enchW], E[enchE]);
+    }
+  }
+  function enchTierFor(wid, type) { const e = V().ench[wid]; return e && e.t === type ? e.k + 1 : 1; }
+  function doEnchant(wid, type) {
+    const v = V(), L = T23().leader[PK()], tier = enchTierFor(wid, type);
+    if (tier > 3) { leaderMsg = L.max; synth.sfx("locked"); return; }
+    const cost = W23().nipCost[tier - 1];
+    if (v.nip < cost) { leaderMsg = L.cant; synth.sfx("locked"); return; }
+    v.nip -= cost; v.ench[wid] = { t: type, k: tier }; leaderMsg = L.done; synth.sfx("enchant"); flash = 3; persist();
+  }
+  // shrine menu + teleport
+  function shrineItems() {
+    const has = save.charms.owned.length > 0;
+    return [{ id: "charms", label: has ? T23().shrine.charms : T23().shrine.noCharms, ok: has }, { id: "teleport", label: T23().shrine.teleport, ok: true }, { id: "close", label: T23().shrine.close, ok: true }];
+  }
+  function updateShrine() {
+    const it = shrineItems(), n = it.length;
+    if (menuBack()) { scene = "traverse"; return; }
+    if (input.pressed("up")) { shrineIx = (shrineIx + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { shrineIx = (shrineIx + 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("confirm")) {
+      const s = it[shrineIx]; synth.sfx("menu");
+      if (s.id === "charms") { if (!s.ok) { synth.sfx("locked"); return; } canEquip = true; charmFrom = "traverse"; charmIx = 0; popup = null; scene = "charms"; }
+      else if (s.id === "teleport") openTeleport();
+      else scene = "traverse";
+    }
+  }
+  function litShrines() {
+    const out = [], here = level && level.zone, nm = T23().shrine.names[PK()];
+    const zones = window.SHARDS.zones.filter(z => !(path === "cult" && z.cultHeldBy));
+    for (const z of zones) {
+      const lv = window.SHARDS.levels[z.id + "_traverse"], S = save.world[z.id];
+      if (!lv || !S || !S.lit) continue;
+      if (save.claimed[z.fragment] && z.id !== here) continue;
+      for (const c of (lv.checkpoints || [])) if (S.lit[c.id]) {
+        const ix = W23().shrineNames[c.id]; out.push({ zone: z.id, id: c.id, x: c.x, y: c.y, name: nm[ix == null ? 0 : ix], here: z.id === here && S.cp === c.id && w22 && w22.cps.some(k => k.id === c.id && k.lit) });
+      }
+    }
+    out.sort((a, b) => (b.zone === here) - (a.zone === here));
+    out.push({ hub: true, name: T23().shrine.hub[PK()], zone: null });
+    return out;
+  }
+  function openTeleport() { tpList = litShrines(); tpIx = Math.max(0, tpList.findIndex(s => !s.here && !s.hub)); if (tpIx < 0) tpIx = 0; scene = "teleport"; }
+  function updateTeleport() {
+    const n = tpList.length;
+    if (menuBack()) { scene = "shrine"; return; }
+    if (input.pressed("up") || input.pressed("left")) { tpIx = (tpIx + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down") || input.pressed("right")) { tpIx = (tpIx + 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("confirm")) {
+      const s = tpList[tpIx];
+      if (s.here) { synth.sfx("locked"); return; }
+      startTeleport(s);
+    }
+  }
+  function startTeleport(s) {
+    synth.sfx("teleport"); tele = { t: 0, to: s }; scene = "tele";
+  }
+  function updateTele() {
+    tele.t++;
+    updateParticles(); updateFx();
+    if (tele.t === 30) { const s = tele.to; goScene(() => finishTeleport(s)); }
+  }
+  function finishTeleport(s) {
+    const T = tele; tele = null; flaskRefill(true); healFx = 0;
+    if (s.hub) { enterHub(); scene = "hub"; teleArrive = 26; return; }
+    const S = save.world[s.zone]; S.cp = s.id; S.lit = S.lit || {}; S.lit[s.id] = 1;
+    enterTraverse(s.zone, { respawn: true }); teleArrive = 26; persist();
+    toast(T23().shrine.tpDone);
+  }
+  function drawTeleFx() {
+    if (!player) return;
+    if (scene === "tele" && tele) {
+      const f = Math.min(7, (tele.t / 4) | 0); blitFrame("fx23-tp", "tp" + f, wx(player.x + player.w / 2), wy(player.y + player.h) + 2, false);
+      if (tele.t > 18) rect(0, 0, W, H, (tele.t & 2) ? P().order.light : P().ground.void);
+    } else if (teleArrive > 0) {
+      teleArrive--; const f = Math.min(7, 7 - ((teleArrive / 4) | 0)); blitFrame("fx23-tp", "tp" + f, wx(player.x + player.w / 2), wy(player.y + player.h) + 2, false);
+    }
+  }
+  // ----- fullscreen -----
+  function fsSupported() { const d = document, el = d.documentElement; return !!((d.fullscreenEnabled && el.requestFullscreen) || (d.webkitFullscreenEnabled && el.webkitRequestFullscreen) || (el.webkitRequestFullscreen && !/iPhone|iPod/.test(navigator.userAgent))); }
+  function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+  function fsActive() { return !!(document.fullscreenElement || document.webkitFullscreenElement) || isStandalone(); }
+  function toggleFullscreen() {
+    // must run inside a user-gesture handler (touchend / click / keydown): queue it, the handlers below run it
+    if (fsActive() && (document.fullscreenElement || document.webkitFullscreenElement)) { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (_) {} return; }
+    fsReq = true; fsNote = "";
+    if (input.lastDevice !== "touch") runFsReq();   // keyboard / pad: the key event is a gesture
+  }
+  function runFsReq() {
+    if (!fsReq) return; fsReq = false;
+    const el = document.documentElement;
+    if (!fsSupported() || (isIOS() && !el.requestFullscreen)) { fsNote = isIOS() ? T23().set.fsNote : T23().set.fsFail; fsNoteT = 420; return; }
+    try {
+      const pr = el.requestFullscreen ? el.requestFullscreen({ navigationUI: "hide" }) : el.webkitRequestFullscreen();
+      const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock("landscape").catch(() => {}); } catch (_) {} persist(); };
+      if (pr && pr.then) pr.then(lock).catch(() => { fsNote = T23().set.fsFail; fsNoteT = 300; }); else lock();
+    } catch (_) { fsNote = T23().set.fsFail; fsNoteT = 300; }
+  }
+  for (const ev of ["click", "keydown", "pointerup"]) document.addEventListener(ev, () => { if (fsReq) runFsReq(); }, true);
+  document.addEventListener("fullscreenchange", () => { persist(); });
+  // ----- touch: size and scheme -----
+  function setPadScale(s) { padScaleCur = Math.max(0.7, Math.min(1.5, Math.round(s * 10) / 10)); PAD = Math.round(42 * padScaleCur); save.settings.padScale = padScaleCur; persist(); }
+  function setScheme(s) { touchScheme = s === "stick" ? "stick" : "buttons"; save.settings.scheme = touchScheme; stick.id = null; releasePads(); persist(); }
+  // ----- HUD (480x270) -----
+  function drawHUD23() {
+    if (!player || !save.v23) return;
+    const v = V(), F = W23().flask, per = F.killsPer[difficulty] || 5, t = touchUI();
+    // flask pips under the hearts
+    const fw = 14 + v.flaskMax * 13;
+    panel(4, 28, fw, 22, "plate");
+    for (let i = 0; i < v.flaskMax; i++) {
+      const fx = 8 + i * 13;
+      blitFrame("ui23-hud", i < v.flask ? "fl-full" : "fl-empty", fx - 3, 28 + (i === v.flask - 1 && flaskPing > 0 && (animT & 4) ? 0 : 1), false);
+    }
+    const mf = v.flask >= v.flaskMax ? 1 : v.meter / per;
+    rect(9, 28 + 18, fw - 10, 2, P().ground.void); rect(9, 28 + 18, Math.round((fw - 10) * mf), 2, v.flask >= v.flaskMax ? P().order.illumination : P().order.nexus);
+    if (flaskPing > 0) flaskPing--;
+    if (player.channel > 0) { const cw = 30, k = 1 - player.channel / F.channel; rect(player.x * 0 + 0, 0, 0, 0, P().ground.void); const sx = wx(player.x + player.w / 2) - cw / 2, sy = wy(player.y) - 8; rect(sx, sy, cw, 3, P().ground.void); rect(sx + 1, sy + 1, Math.round((cw - 2) * k), 1, P().order.illumination); }
+    // aurels + arrows (right, clear of the pause pad)
+    const rx = t ? W - 50 : W - 6, strA = String(v.aurels), wA = 30 + measure(strA);
+    panel(rx - wA, 30, wA, 20, "plate");
+    blitFrame("ui23-hud", "coin", rx - wA - 1 + (coinPing > 0 && (animT & 2) ? 1 : 0), 31, false); drawText(strA, rx - wA + 20, 36, coinPing > 0 ? P().order.light : P().order.illumination);
+    if (coinPing > 0) coinPing--;
+    const rk = v.ranged.main, strB = v.arrows + "/" + v.arrowMax, wB = 30 + measure(strB);
+    panel(rx - wB, 52, wB, 20, "plate");
+    blitFrame("ui23-hud", rk === "knives" ? "knife" : (v.arrows > 0 ? "arrow" : "arrow-empty"), rx - wB - 1, 53, false);
+    drawText(strB, rx - wB + 20, 58, v.arrows === 0 ? P().cult.ember : (arrowPing > 0 ? P().order.light : P().order.bone));
+    if (arrowPing > 0) arrowPing--;
+    if (v.nip > 0) { const sN = "NIP " + v.nip; const wN = 24 + measure(sN); panel(rx - wN, 74, wN, 18, "plate"); blitFrame("ui23-hud", "nip", rx - wN - 1, 73, false); drawText(sN, rx - wN + 20, 79, P().order.illumination); }
+  }
+  // ----- shared screen helpers -----
+  function screenFrame(title, backTap) {
+    uiT++;
+    drawImg(ART().ui.menuBg.path, 0, 0);
+    panel(8, 8, W - 16, H - 16);
+    drawText(title, 24, 16, P().order.illumination);
+    if (touchUI()) { drawText(T22().charms.back, W - 54, 16, P().order.illumination); tapTarget(W - 70, 8, 62, 22, backTap || (() => input.tap("cancel"))); }
+  }
+  function hintLine(str) { drawText(str, W / 2, 246, P().ground.smoke, "center"); }
+  function statBar(x, y, label, val, max) {
+    drawText(label, x, y, P().order.boneShade);
+    for (let i = 0; i < 8; i++) rect(x + 50 + i * 7, y + 2, 5, 6, i < Math.round(val / max * 8) ? P().order.illumination : P().ground.stone3);
+  }
+  function wStats(id) {
+    const w = W23().weapons[id], avg = (a) => (a[0] + a[1] + a[2]) / 3;
+    return { reach: Math.max(w.reach[0], avg(w.reach)), dmg: (w.dmg[0] + w.dmg[1] + w.dmg[2]) / (14 * w.cd + 14 * w.cd + 22 * w.cd) * 50, speed: 2 / w.cd, shove: w.kb };
+  }
+  function drawEnchLine(x, y, wid) {
+    const e = V().ench[wid];
+    if (!e) { drawText(T23().inv.enchant + ": " + T23().ench.none, x, y, P().ground.smoke); return; }
+    blitFrame("ui23-hud", "en-" + e.t, x, y - 4, false);
+    drawText(enchName(e.t) + " " + T23().ench.tier + " " + e.k, x + 20, y, enchColor(e.t));
+  }
+  function drawInventory() {
+    const TT = T23().inv, v = V(), t = touchUI();
+    screenFrame(TT.heading);
+    const tabs = [TT.tabs[0], T22().pause.charms, TT.tabs[2]];
+    let tx = 120;
+    tabs.forEach((n, i) => { const w = measure(n) + 16; if (i === invTab) { rect(tx, 28, w, 14, P().ground.stone2); rect(tx, 41, w, 1, P().order.illumination); } drawText(n, tx + 8, 31, i === invTab ? P().order.illumination : P().order.boneShade); const ix = i; tapTarget(tx, 26, w, 18, () => { invTab = ix; invIx = 0; synth.sfx("menuMove"); }); tx += w + 4; });
+    // counters
+    const cs = [["coin", String(v.aurels)], ["nip", String(v.nip)], ["fl-full", v.flask + "/" + v.flaskMax], [v.ranged.main === "knives" ? "knife" : "arrow", v.arrows + "/" + v.arrowMax]];
+    cs.forEach(([ic, tx2], i) => { const x = 24 + i * 70; blitFrame("ui23-hud", ic, x - 3, 192, false); drawText(tx2, x + 17, 198, P().order.bone); });
+    if (invTab === 0) {
+      const M = invMelee(), R = W23().ranged, all = M.concat(R), pitch = 17;
+      drawText(TT.main, 24, 30, P().order.boneShade);
+      all.forEach((id, i) => {
+        const own = (i < M.length ? v.melee.owned : v.ranged.owned).includes(id), y = 46 + i * pitch + (i >= M.length ? 6 : 0);
+        if (i === invIx) rect(22, y - 2, 150, pitch - 2, P().ground.stone2);
+        blitFrame("ui23-wicon", own ? id : "none", 24, y - 2, false);
+        const eq = (i < M.length ? v.melee.main : v.ranged.main) === id;
+        drawText(own ? weaponName(id) : "???", 52, y + 5, i === invIx ? P().order.illumination : (own ? P().order.bone : P().ground.smoke));
+        if (eq) rect(166, y + 5, 4, 4, P().order.nexus);
+        const key = "inv" + i; menuRow(22, y + 5, 150, pitch, key, true, () => { invIx = i; }, false);
+      });
+      const id = all[invIx], own = (invIx < M.length ? v.melee.owned : v.ranged.owned).includes(id);
+      panel(180, 44, 150, 140, "plate");
+      drawText(own ? weaponName(id) : "???", 190, 52, P().order.illumination);
+      if (own) {
+        drawWrapped(T23().weapon.desc[id], 190, 66, 134, P().order.bone);
+        if (invIx < M.length) { const s = wStats(id); statBar(190, 100, TT.main === "x" ? "" : T23().weapon.stat.reach, s.reach, 32); statBar(190, 112, T23().weapon.stat.dmg, s.dmg, 8); statBar(190, 124, T23().weapon.stat.speed, s.speed, 3.2); statBar(190, 136, T23().weapon.stat.shove, s.shove, 2.4); drawEnchLine(190, 156, id); }
+        else { const R2 = W23()[id]; drawText(T23().weapon.stat.dmg + " " + R2.dmg, 190, 100, P().order.boneShade); drawText(TT.arrows + " " + v.arrows + "/" + v.arrowMax, 190, 114, P().order.boneShade); }
+        const eq = (invIx < M.length ? v.melee.main : v.ranged.main) === id;
+        drawText(eq ? TT.equipped : TT.equip, 190, 170, eq ? P().order.nexus : P().ground.smoke);
+      } else drawText(T23().shop.locked.replace("{n}", "?") === "" ? "" : "-", 190, 70, P().ground.smoke);
+      // live preview with the equipped weapon
+      panel(336, 34, 128, 150, "plate");
+      const pl = Object.assign({}, player || makePlayer(0, 0), { trail: null, anim: "idle", hurtT: 0, dodge: 0, vx: 0, onGround: true, atk: 0, shootT: 0, channel: 0 }); pl.hp = Math.max(pl.hp, 3);
+      drawPlayerVisual(400, 150, pl, animFrame(playerSheet(), "idle", uiT, 10), false, false);
+      drawText(weaponName(v.melee.main), 400, 164, P().order.bone, "center");
+      drawText(weaponName(v.ranged.main), 400, 174, P().order.boneShade, "center");
+    } else if (invTab === 1) {
+      const ids = charmList();
+      ids.forEach((id, i) => { const cx = 24 + (i % 8) * 34, cy = 50 + ((i / 8) | 0) * 34, own = save.charms.owned.includes(id), eq = save.charms.equipped.includes(id); if (eq) { rect(cx - 1, cy - 1, 30, 30, P().order.nexus); rect(cx, cy, 28, 28, P().ground.void); } blitFrame("ui22-charm", own ? id : "empty", cx + 2, cy + 2, false); });
+      const used = notchUsed(); drawText(T22().charms.notches + " " + (save.notches - used) + "/" + save.notches, 24, 122, P().order.boneShade);
+      drawText(TT.fragments, 24, 138, P().order.boneShade);
+      window.SHARDS.fragmentOrder.forEach((f, i) => { blitFrame("ui-frag16", save.claimed[f] ? f : f + "-dim", 24 + i * 22, 150, false); });
+      drawText(T23().nip.tip, 24, 172, P().ground.smoke);
+      const lbl = TT.open; panel(300, 120, 150, 24, "plate"); drawText(lbl, 375, 128, P().order.illumination, "center"); tapTarget(300, 120, 150, 24, () => input.tap("confirm"));
+      panel(300, 52, 150, 60, "plate"); drawText(T22().charms.notches, 308, 58, P().order.boneShade);
+      for (let i = 0; i < save.notches; i++) blitFrame("ui22-hud", i < used ? "notch-empty" : "notch", 308 + i * 14, 72, false);
+    } else {
+      const L = loreList(); drawText(TT.tabletsRead + ": " + L.length, 24, 50, P().order.boneShade);
+      if (!L.length) drawText(TT.noLore, 24, 70, P().ground.smoke);
+      L.slice(loreScroll, loreScroll + 4).forEach((e, i) => { panel(24, 64 + i * 30, W - 48, 28, "plate"); drawWrapped(e.text, 32, 70 + i * 30, W - 66, P().order.bone); });
+    }
+    hintLine(padUI() ? TT.hint : (t ? TT.hintTouch : TT.hintKb));
+  }
+  function drawShop() {
+    const S = T23().shop, v = V(), list = shopList(), t = touchUI();
+    screenFrame(S.heading[PK()]);
+    const sa = String(v.aurels); blitFrame("ui23-hud", "coin", W - 110, 14, false); drawText(sa, W - 90, 20, P().order.illumination);
+    drawText(S.hello[PK()], 24, 30, P().order.boneShade);
+    const pitch = t ? 18 : 15, rows = 11, top = 46, first = Math.max(0, Math.min(list.length - rows, shopIx - 5));
+    list.slice(first, first + rows).forEach((it, k) => {
+      const i = first + k, y = top + k * pitch, st = shopState(it), tx = itemText(it), sel = i === shopIx;
+      if (sel) rect(22, y - 3, 232, pitch - 1, P().ground.stone2);
+      const c = st.sold ? P().ground.smoke : (st.gated || st.locked) ? P().ground.ash : (v.aurels >= it.price ? P().order.bone : P().cult.ember);
+      drawText(tx.name, 28, y, sel ? P().order.illumination : c);
+      drawText(st.sold ? S.sold : String(it.price), 248 - measure(st.sold ? S.sold : String(it.price)), y, st.sold ? P().ground.smoke : c);
+      menuRow(22, y, 232, pitch, "shop" + i, true, () => { shopIx = i; }, false);
+    });
+    const it = list[shopIx], st = shopState(it), tx = itemText(it);
+    panel(262, 44, 192, 140, "plate");
+    drawText(tx.name, 272, 52, P().order.illumination);
+    drawWrapped(tx.desc || "", 272, 68, 174, P().order.bone);
+    if (it.kind === "weapon" || it.kind === "ranged") { const wid = it.id; if (it.kind === "weapon") { const s = wStats(wid); statBar(272, 100, T23().weapon.stat.reach, s.reach, 32); statBar(272, 112, T23().weapon.stat.dmg, s.dmg, 8); statBar(272, 124, T23().weapon.stat.speed, s.speed, 3.2); statBar(272, 136, T23().weapon.stat.shove, s.shove, 2.4); } blitFrame("ui23-wicon", wid, 424, 150, false); }
+    if (it.kind === "charm") blitFrame("ui22-charm", it.id, 424, 150, false);
+    drawText(st.sold ? S.owned : st.gated ? S.locked.replace("{n}", st.need) : st.locked ? "-" : S.buy + " " + it.price, 272, 168, st.sold ? P().order.nexus : P().order.illumination);
+    if (popup && popup.t > 0) { popup.t--; const tw = Math.min(W - 40, measure(popup.text) + 24); panel(((W - tw) / 2) | 0, 212, tw, 22); drawText(popup.text, W / 2, 219, P().order.illumination, "center"); }
+    hintLine(padUI() ? S.hint : (t ? S.hintTouch : S.hintKb));
+  }
+  function drawLeader() {
+    const L = T23().leader, LL = L[PK()], v = V();
+    if (leaderStage === 0) {
+      const portrait = portraitPath(level.guide.id === "ryan" ? "ryan" : level.guide.id);
+      drawDialogue(LL.name + ": " + (leaderMsg || LL.hello), portrait, null);
+      const pitch = touchUI() ? 26 : 16, ph = 14 + 3 * pitch, py = 20;
+      panel(W - 190, py, 170, ph);
+      LL.menu.forEach((s, i) => { menuText(s, W - 105, py + 8 + i * pitch, i === leaderIx, "center"); menuRow(W - 190, py + 8 + i * pitch, 170, pitch, "ld" + i, false, () => { leaderIx = i; }); });
+      return;
+    }
+    screenFrame(L.heading);
+    drawText(L.have + " " + v.nip, W - 90, 16, P().order.illumination); blitFrame("ui23-hud", "nip", W - 112, 11, false);
+    const owned = v.melee.owned, t = touchUI(), pitch = t ? 26 : 22;
+    drawText(L.pick, 24, 32, leaderStage === 1 ? P().order.illumination : P().order.boneShade);
+    owned.forEach((id, i) => {
+      const y = 48 + i * pitch; if (i === enchW) rect(22, y - 3, 150, pitch - 2, leaderStage === 1 ? P().ground.stone2 : P().ground.stone3);
+      blitFrame("ui23-wicon", id, 24, y - 3, false); drawText(weaponName(id), 52, y + 4, i === enchW ? P().order.illumination : P().order.bone);
+      const e = v.ench[id]; if (e) blitFrame("ui23-hud", "en-" + e.t, 150, y - 1, false);
+      menuRow(22, y + 4, 150, pitch, "ew" + i, true, () => { enchW = i; if (leaderStage === 2) leaderStage = 1; }, false);
+    });
+    const E = W23().enchFaction[PK()], wid = owned[enchW];
+    panel(180, 28, 280, 170, "plate");
+    drawText(L.pickEnch, 190, 34, leaderStage === 2 ? P().order.illumination : P().order.boneShade);
+    E.forEach((en, i) => {
+      const y = 50 + i * 16, sel = leaderStage === 2 && i === enchE, tier = enchTierFor(wid, en), cur = v.ench[wid] && v.ench[wid].t === en ? v.ench[wid].k : 0;
+      if (sel) rect(186, y - 3, 268, 15, P().ground.stone2);
+      blitFrame("ui23-hud", "en-" + en, 188, y - 4, false);
+      drawText(enchName(en) + (cur ? " (" + T23().ench.tier + " " + cur + ")" : ""), 212, y, sel ? P().order.illumination : P().order.bone);
+      const cost = tier > 3 ? "-" : String(W23().nipCost[tier - 1]); drawText(L.cost + " " + cost, 446 - measure(L.cost + " " + cost), y, v.nip >= (W23().nipCost[tier - 1] || 99) ? P().order.boneShade : P().cult.ember);
+      menuRow(186, y, 268, 16, "ee" + i, true, () => { enchE = i; leaderStage = 2; }, false);
+    });
+    const sel = E[enchE]; drawWrapped(T23().ench.desc[sel], 190, 152, 262, P().order.bone);
+    drawEnchLine(190, 182, wid);
+    drawDialogueBar(LL.name + ": " + (leaderMsg || LL.hello));
+    hintLine(padUI() ? L.hint : (t ? L.hintTouch : L.hintKb));
+  }
+  function drawDialogueBar(str) { const lines = wrapLines(str, W - 70); panel(24, 200, W - 48, 12 + lines.length * LH); lines.forEach((ln, i) => drawText(ln, 34, 206 + i * LH, P().order.bone)); }
+  function drawShrineMenu() {
+    const it = shrineItems(), t = touchUI(), pitch = t ? 28 : 20, ph = 40 + it.length * pitch, py = ((H - ph) / 2) | 0;
+    panel(130, py, W - 260, ph);
+    drawText(path === "cult" ? T23().shrine.heading_cult : T23().shrine.heading, W / 2, py + 12, P().order.illumination, "center");
+    it.forEach((s, i) => { menuText(s.label, W / 2, py + 40 + i * pitch, i === shrineIx, "center"); menuRow(130, py + 40 + i * pitch, W - 260, pitch, "sh" + i, false, () => { shrineIx = i; }); });
+  }
+  function drawTeleport() {
+    const TT = T23().shrine, t = touchUI();
+    screenFrame(TT.tpHeading);
+    const cur = tpList[tpIx], zid = cur && !cur.hub ? cur.zone : (level && level.zone), lv = window.SHARDS.levels[zid + "_traverse"], S = save.world[zid];
+    const bx = 150, by = 30, bw = W - 150 - 20, bh = 190;
+    rect(bx, by, bw, bh, P().ground.void);
+    if (lv && S) {
+      const sc = Math.min(bw / lv.w, bh / lv.h), ox = bx + ((bw - lv.w * sc) / 2) | 0, oy = by + ((bh - lv.h * sc) / 2) | 0, seen = (x, y) => !!(S.map && S.map[Math.floor(x / 80) + "," + Math.floor(y / 60)]);
+      for (let cx = 0; cx < Math.ceil(lv.w / 80); cx++) for (let cy = 0; cy < Math.ceil(lv.h / 60); cy++) if (S.map && S.map[cx + "," + cy]) rect(ox + cx * 80 * sc, oy + cy * 60 * sc, Math.ceil(80 * sc), Math.ceil(60 * sc), P().ground.obsidian);
+      for (const p of lv.platforms) for (let x = p.x; x < p.x + p.w; x += 40) if (seen(x, p.y) || seen(x, p.y + p.h)) { const xe = Math.min(p.x + p.w, x + 40); rect(ox + x * sc, oy + p.y * sc, Math.max(1, Math.ceil((xe - x) * sc)), Math.max(1, Math.round(Math.min(p.h, 16) * sc)), p.oneWay ? P().order.boneShade : P().order.temple); }
+      for (const s of tpList) if (!s.hub && s.zone === zid) {
+        const sel = s === cur, x = ox + s.x * sc, y = oy + s.y * sc, pulse = sel && ((animT >> 3) & 1);
+        rect(x - 2, y - 2, 8, 8, sel ? (pulse ? P().order.light : P().order.illumination) : P().order.nexus); rect(x - 1, y - 1, 6, 6, s.here ? P().cult.ember : P().ground.void); rect(x, y, 4, 4, sel ? P().order.illumination : P().order.nexus);
+        tapTarget(x - 8, y - 8, 20, 20, () => { tpIx = tpList.indexOf(s); if (armedKey === "tpm" + tpIx) { armedKey = ""; input.tap("confirm"); } else { armedKey = "tpm" + tpIx; synth.sfx("menuMove"); } });
+      }
+      if (cur && cur.hub) drawText(TT.hub[PK()], bx + bw / 2, by + bh / 2, P().order.illumination, "center");
+    }
+    const pitch = t ? 26 : 22;
+    tpList.forEach((s, i) => {
+      const y = 36 + i * pitch, sel = i === tpIx;
+      if (sel) rect(20, y - 3, 126, pitch - 2, P().ground.stone2);
+      const z = s.hub ? null : window.SHARDS.zones.find(z => z.id === s.zone), zn = z ? (T().zones[z.id].name || "") : "";
+      drawText(s.name.slice(0, 20), 24, y, sel ? P().order.illumination : (s.here ? P().ground.smoke : P().order.bone));
+      if (z && (i === 0 || tpList[i - 1].zone !== s.zone)) drawText(zn.slice(0, 22), 24, y + 10, P().ground.ash);
+      menuRow(20, y, 126, pitch, "tp" + i, true, () => { tpIx = i; }, false);
+    });
+    if (tpList.length <= 1) drawText(TT.tpNone, 24, 36 + pitch + 6, P().ground.smoke);
+    hintLine(padUI() ? TT.tpHint : (t ? TT.tpHintTouch : TT.tpHintKb));
+  }
+  // ----- merchant NPC (hub) -----
+  function merchantPos() { const m = W23().merchant[PK()]; return m; }
+  function nearMerchantNow() { if (scene !== "hub" || !level || !player) return false; const m = merchantPos(); return Math.abs(player.x - m.x) < W23().merchantNear && Math.abs(player.y - m.y) < 28; }
+  function drawMerchant() {
+    if (!level || level.kind !== "hub") return;
+    const m = merchantPos(), st = "w23-stall-" + PK(), sh = "npc-merchant-" + PK();
+    blitFrame(st, "stall" + (((animT / 40) | 0) & 1), Math.round((m.x - 30) * WS) - camPx, Math.round((m.y + 24) * WS) - camPy, false);
+    const fr = nearMerchantNow() ? animFrame(sh, "talk", animT, 9) : animFrame(sh, "idle", animT, 12);
+    drawActor(sh, fr, m.x + 8, m.y + 24, player ? player.x < m.x : true);
+  }
+  // ----- touch layout: size slider + Buttons / Joystick -----
+  function padGeom() {
+    const P_ = PAD, g_ = 6, rx = W - 6 - P_, by = H - 6 - P_, L = [];
+    const ps = Math.round(Math.min(P_, 46) * 1);
+    L.push({ name: "strike", act: "strike", x: rx - P_ - g_, y: by, size: P_ });
+    L.push({ name: "jump", act: "jump", x: rx, y: by, size: P_ });
+    L.push({ name: "shoot", act: "shoot", x: rx - 2 * (P_ + g_), y: by, size: P_, sheet: "ui23-touch" });
+    L.push({ name: "dodge", act: "dodge", x: rx - P_ - g_, y: by - P_ - g_, size: P_ });
+    L.push({ name: "skill", act: "skill", x: rx, y: by - P_ - g_, size: P_ });
+    L.push({ name: "flask", act: "flask", x: rx - 2 * (P_ + g_), y: by - P_ - g_, size: P_, sheet: "ui23-touch" });
+    if (touchScheme !== "stick") {
+      L.push({ name: "left", act: "left", x: 6, y: by, size: P_ });
+      L.push({ name: "right", act: "right", x: 6 + P_ + g_, y: by, size: P_ });
+    }
+    return { L, ps };
+  }
+  function stickGeom() {
+    const R = W23().touch.stickR * padScaleCur, bs = Math.round(64 * padScaleCur * 0.95);
+    return { R, bs, cx: 10 + bs / 2, cy: H - 10 - bs / 2 };
+  }
+  function touchLayout() {
+    if (!touchUI() || portrait) return [];
+    const play = scene === "hub" || scene === "traverse" || (scene === "arena" && introHold <= 0);
+    if (!play) return [];
+    const L = padGeom().L;
+    const sp = Math.round(Math.min(PAD, 50));
+    if (!lastTouchDialogue) { L.push({ name: "pause", act: "cancel", x: W - sp - 4, y: 30, size: sp }); L.push({ name: "inv", act: "inv", x: W - sp - 4, y: 30 + sp + 4, size: sp, sheet: "ui23-touch" }); }
+    if (contextAction()) L.push({ name: "ok", act: "confirm", x: ((W - PAD) / 2) | 0, y: H - 6 - PAD, size: PAD });
+    return L;
+  }
+  function blitPad(b, on) {
+    const sheet = b.sheet || "ui-touch", s = sheetOf(sheet); if (!s) return;
+    const img = atlas.images.get(s.path); if (!img) return;
+    const fi = frameIndex(s, on ? b.name + "-on" : b.name), cols = s.cols || s.n;
+    g.drawImage(img, (fi % cols) * s.fw, ((fi / cols) | 0) * s.fh, s.fw, s.fh, Math.round(b.x), Math.round(b.y), b.size || s.fw, b.size || s.fh);
+  }
+  function drawStick(preview) {
+    const G = stickGeom(), s = sheetOf("ui23-stick"); if (!s) return;
+    const img = atlas.images.get(s.path); if (!img) return;
+    const bx = stick.id != null ? stick.ox : G.cx, by_ = stick.id != null ? stick.oy : G.cy;
+    const k = padScaleCur * 0.95;
+    g.drawImage(img, 0, 0, 64, 64, Math.round(bx - 32 * k), Math.round(by_ - 32 * k), Math.round(64 * k), Math.round(64 * k));
+    let kx = bx, ky = by_;
+    if (stick.id != null) { kx = stick.x; ky = stick.y; }
+    else if (preview) { kx = bx + Math.sin(animT / 30) * G.R * 0.5; ky = by_; }
+    const d = Math.hypot(kx - bx, ky - by_); if (d > G.R) { kx = bx + (kx - bx) / d * G.R; ky = by_ + (ky - by_) / d * G.R; }
+    const on = stick.id != null, fi = frameIndex(s, on ? "knob-on" : "knob");
+    g.drawImage(img, (fi % (s.cols || s.n)) * 64, 0, 64, 64, Math.round(kx - 32 * k), Math.round(ky - 32 * k), Math.round(64 * k), Math.round(64 * k));
+  }
+  function drawTouch() {
+    lastTouchDialogue = touchDialogue;
+    const L = touchLayout();
+    for (const b of L) blitPad(b, padHeld.has(b.name));
+    if (L.length && touchScheme === "stick") drawStick(false);
+  }
+  function padAt(gx, gy) {
+    const L = touchLayout();
+    let best = null, bd = 1e9;
+    for (const b of L) {
+      const sz = b.size || PAD, r = sz / 2 + (b.name === "pause" || b.name === "ok" || b.name === "inv" ? 0 : 3);
+      const d = Math.max(Math.abs(gx - (b.x + sz / 2)), Math.abs(gy - (b.y + sz / 2)));
+      if (d <= r && d < bd) { bd = d; best = b; }
+    }
+    if (!best && touchScheme !== "stick" && L.length && gy > H - 12 - PAD * 1.6 && gx < 12 + PAD * 2.2) best = L.find(b => b.name === (gx < 6 + PAD + 3 ? "left" : "right")) || null;
+    return best;
+  }
+  function inStickZone(p) { return touchScheme === "stick" && touchLayout().length && p.x < W * 0.42 && p.y > 64 && !padAt(p.x, p.y); }
+  function syncPads(list) {
+    const names = new Set(), acts = new Set(), G = stickGeom();
+    shootAimTouch = false;
+    let st = null;
+    for (const t of list) {
+      const p = toGame(t);
+      if (stick.id === t.identifier) st = p;
+      const b = padAt(p.x, p.y);
+      if (b) {
+        names.add(b.name); acts.add(b.act);
+        if (b.name === "shoot" && p.y < b.y + (b.size || PAD) * 0.3) shootAimTouch = true;
+      }
+    }
+    if (stick.id != null && !st) { stick.id = null; }
+    if (stick.id == null && touchScheme === "stick") {
+      for (const t of list) { const p = toGame(t); if (inStickZone(p) && !stickBlocked.has(t.identifier)) { stick.id = t.identifier; stick.ox = Math.max(G.bs / 2 + 4, Math.min(W * 0.4, p.x)); stick.oy = Math.max(80, Math.min(H - G.bs / 2 - 4, p.y)); stick.x = p.x; stick.y = p.y; st = p; break; } }
+    }
+    if (stick.id != null && st) {
+      let dx = st.x - stick.ox, dy = st.y - stick.oy; const d = Math.hypot(dx, dy);
+      if (d > G.R) { const over = d - G.R; stick.ox += dx / d * over; stick.oy += dy / d * over; dx = st.x - stick.ox; dy = st.y - stick.oy; }
+      stick.x = st.x; stick.y = st.y;
+      if (dx < -G.R * 0.35) { acts.add("left"); names.add("left"); } else if (dx > G.R * 0.35) { acts.add("right"); names.add("right"); }
+      if (dy < -G.R * 0.6) { acts.add("up"); } else if (dy > G.R * 0.6) { acts.add("down"); }
+    }
+    for (const a of PAD_ACTS) {
+      const on = acts.has(a);
+      if (on !== !!input.touch[a]) input.setTouch(a, on);
+    }
+    padHeld = names;
+  }
+  function releasePads() { padHeld = new Set(); stick.id = null; shootAimTouch = false; for (const a of PAD_ACTS) input.touch[a] = false; }
+  // ----- settings -----
+  const SETTINGS_ROWS = 9; // master, music, sfx, fullscreen, vibration, difficulty, touch size, touch scheme, back
+  function updateSettings() {
+    if (input.pressed("up")) { settingsIx = (settingsIx + SETTINGS_ROWS - 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { settingsIx = (settingsIx + 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
+    const adj = (input.pressed("left") ? -0.1 : input.pressed("right") ? 0.1 : 0);
+    if (settingsIx === 0 && adj) { synth.setVolume("master", synth.volume.master + adj); persist(); }
+    if (settingsIx === 1 && adj) { synth.setVolume("music", synth.volume.music + adj); persist(); }
+    if (settingsIx === 2 && adj) { synth.setVolume("sfx", synth.volume.sfx + adj); persist(); }
+    if (settingsIx === 3 && input.pressed("confirm")) { toggleFullscreen(); synth.sfx("menu"); }
+    if (settingsIx === 4 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) { setVibration(!vibration); synth.sfx("menuMove"); }
+    if (settingsIx === 5 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) {
+      const order = W22().order, d = input.pressed("left") ? -1 : 1;
+      difficulty = order[(order.indexOf(difficulty) + d + order.length) % order.length]; save.settings.difficulty = difficulty; persist(); synth.sfx("menuMove");
+    }
+    if (settingsIx === 6 && (adj || input.pressed("confirm"))) { const T = W23().touch; let n = padScaleCur + (adj || 0.1); if (n > T.max + 0.001) n = T.min; setPadScale(n); synth.sfx("menuMove"); }
+    if (settingsIx === 7 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) { setScheme(touchScheme === "stick" ? "buttons" : "stick"); synth.sfx("menuMove"); }
+    if (settingsIx === 8 && (input.pressed("confirm") || menuBack())) { scene = settingsFrom === "pause" ? "pause" : "title"; }
+    if (menuBack() && settingsIx !== 8) scene = settingsFrom === "pause" ? "pause" : "title";
+    if (fsNoteT > 0) fsNoteT--;
+  }
+  function drawSettings() {
+    uiT++;
+    drawImg(ART().ui.menuBg.path, 0, 0);
+    const TS = T23().set, fsOn = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const rows = [
+      `${T().settings.master}: ${(synth.volume.master * 100) | 0}`, `${T().settings.music}: ${(synth.volume.music * 100) | 0}`, `${T().settings.sfx}: ${(synth.volume.sfx * 100) | 0}`,
+      `${T().settings.fullscreen}: ${fsOn ? TS.fsOn : TS.fsOff}`, `${T().settings.vibration}: ${vibration ? "On" : "Off"}`, `${T22().diff.label}: ${T22().diff[difficulty]}`,
+      `${TS.size}: ${Math.round(padScaleCur * 100)}%`, `${TS.scheme}: ${touchScheme === "stick" ? TS.stick : TS.buttons}`, T().settings.back
+    ];
+    const t = touchUI(), pitch = t ? 20 : 16, top = 26, pw = 270;
+    panel(8, 6, pw, top + rows.length * pitch + 4);
+    drawText(T().settings.heading, 8 + pw / 2, 14, P().order.illumination, "center");
+    rows.forEach((r, i) => {
+      const y = top + i * pitch;
+      menuText(r, 30, y, i === settingsIx, "left");
+      if (i <= 2) { const v = Math.round([synth.volume.master, synth.volume.music, synth.volume.sfx][i] * 10); for (let k = 0; k < 10; k++) rect(176 + k * 8, y + 2, 6, 7, k < v ? P().order.nexus : P().ground.stone3); }
+      if (i === 6) { const f = (padScaleCur - 0.7) / 0.8; rect(176, y + 4, 80, 3, P().ground.stone3); rect(176, y + 4, Math.round(80 * f), 3, P().order.nexus); rect(176 + Math.round(80 * f) - 1, y + 1, 3, 9, P().order.illumination); }
+      if (!t) return;
+      if (i <= 2 || i === 6) {
+        const key = ["master", "music", "sfx"][i], ty = y - ((pitch - 9) >> 1);
+        drawText("-", 14, y, P().order.boneShade); drawText("+", 8 + pw - 12, y, P().order.boneShade);
+        tapTarget(8, ty, 40, pitch, () => { settingsIx = i; if (i === 6) { setPadScale(Math.max(0.7, padScaleCur - 0.1)); } else synth.setVolume(key, synth.volume[key] - 0.1); persist(); });
+        tapTarget(8 + pw - 40, ty, 40, pitch, () => { settingsIx = i; if (i === 6) { setPadScale(Math.min(1.5, padScaleCur + 0.1)); } else synth.setVolume(key, synth.volume[key] + 0.1); persist(); });
+        tapTarget(48, ty, pw - 88, pitch, () => { settingsIx = i; });
+      } else menuRow(8, y, pw, pitch, "set" + i, false, () => { settingsIx = i; });
+    });
+    // live preview of the touch controls at the chosen size and scheme
+    if (settingsIx >= 6 || t) {
+      const L = padGeom().L; for (const b of L) blitPad(b, false);
+      if (touchScheme === "stick") drawStick(true);
+      drawText(`${Math.round(padScaleCur * 100)}%`, W - 40, 12, P().order.illumination, "center");
+    }
+    if (settingsIx === 3) {
+      const msg = fsNoteT > 0 && fsNote ? fsNote : (isIOS() ? TS.fsNoteShort : (fsSupported() ? "" : TS.fsFail));
+      if (msg) { const ls = wrapLines(msg, 250); ls.forEach((ln, i) => drawText(ln, 20, top + rows.length * pitch + 10 + i * LH, P().ground.smoke)); }
+    }
+    if (padUI()) drawText(T().pad.settings, 8 + pw / 2, H - 14, P().ground.smoke, "center");
+  }
+  // ----- pause -----
+  const PAUSE_N = 9;
+  function pauseItems() { return [T().hud.resume, T23().pause.inventory, T22().pause.charms, T22().pause.map, T().hud.fragments, T23().pause.fullscreen, T().hud.settings, T().hud.toHub, T().hud.toTitle]; }
+  function updatePause() {
+    if (pausePage === "fragments") {
+      if (menuBack() || input.pressed("confirm")) { pausePage = "main"; return; }
+      if (input.pressed("up")) fragScroll = Math.max(0, fragScroll - 1);
+      if (input.pressed("down")) fragScroll = Math.min(3, fragScroll + 1);
+      return;
+    }
+    const back = () => { scene = level.kind === "hub" ? "hub" : (level.kind === "traverse" ? "traverse" : "arena"); };
+    if (menuBack()) { pausePage = "main"; back(); return; }
+    const n = PAUSE_N;
+    if (input.pressed("up")) { pauseIx = (pauseIx + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { pauseIx = (pauseIx + 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("confirm")) {
+      synth.sfx("menu");
+      if (pauseIx === 0) back();
+      else if (pauseIx === 1) openInventory("pause");
+      else if (pauseIx === 2) { charmFrom = "pause"; canEquip = level.kind === "hub"; charmIx = 0; popup = null; scene = "charms"; }
+      else if (pauseIx === 3) { scene = "map"; }
+      else if (pauseIx === 4) { pausePage = "fragments"; fragScroll = 0; }
+      else if (pauseIx === 5) toggleFullscreen();
+      else if (pauseIx === 6) openSettings("pause");
+      else if (pauseIx === 7) enterHub();
+      else enterTitle();
+    }
+  }
+  function drawPause() {
+    uiT++;
+    if (pausePage === "fragments") { drawFragmentsPage(); return; }
+    const t = touchUI(), pitch = t ? 22 : 18, items = pauseItems();
+    const ph = 38 + items.length * pitch + (padUI() ? 16 : 4), py = Math.max(2, ((H - ph) / 2) | 0);
+    panel(120, py, W - 240, ph);
+    drawText(T().hud.paused, W / 2, py + 10, P().order.illumination, "center");
+    const top = py + 32;
+    items.forEach((it, i) => {
+      const lab = i === 5 ? it + ": " + ((document.fullscreenElement || document.webkitFullscreenElement) ? T23().set.fsOn : T23().set.fsOff) : it;
+      menuText(lab, W / 2, top + i * pitch, i === pauseIx, "center");
+      menuRow(120, top + i * pitch, W - 240, pitch, "pause" + i, false, () => { pauseIx = i; });
+    });
+    if (pauseIx === 5 && isIOS()) drawText(T23().set.fsNoteShort, W / 2, py + ph + 2 > H - 12 ? H - 12 : py + ph + 2, P().ground.smoke, "center");
+    if (padUI()) drawText(T().pad.pause, W / 2, py + ph - 14, P().ground.smoke, "center");
+  }
+
+  Object.assign(window.SHARDS.debug, {
+    v23() { return JSON.parse(JSON.stringify(save.v23)); },
+    give23(o) { const v = V(); o = o || {}; if (o.aurels != null) v.aurels = o.aurels; if (o.nip != null) { v.nip = o.nip; } if (o.arrows != null) v.arrows = Math.min(v.arrowMax, o.arrows); if (o.flask != null) v.flask = Math.min(v.flaskMax, o.flask); if (o.meter != null) v.meter = o.meter;
+      for (const w of (o.weapons || [])) giveWeapon(w, true); persist(); },
+    claimN(n) { const fo = window.SHARDS.fragmentOrder; for (let i = 0; i < n; i++) save.claimed[fo[i]] = true; persist(); },
+    mainWeapon(id) { const v = V(); if (!v.melee.owned.includes(id)) v.melee.owned.push(id); v.melee.main = id; persist(); },
+    rangedWeapon(id) { const v = V(); if (!v.ranged.owned.includes(id)) v.ranged.owned.push(id); v.ranged.main = id; persist(); },
+    enchant(w, t, k) { V().ench[w] = { t, k }; persist(); },
+    rollArrows(n) { const c = [0, 0, 0]; for (let i = 0; i < n; i++) c[rollArrows()]++; return c; },
+    shopList() { return shopList().map(it => Object.assign({ id: it.id }, shopState(it), { price: it.price })); },
+    buy(id) { const it = shopList().find(x => x.id === id); return it ? buy(it) : false; },
+    coins() { return coins.map(c => ({ x: c.x, y: c.y, kind: c.kind, v: c.v, n: c.n })); },
+    clearCoins() { coins = []; },
+    enemies() { return enemies.map(e => ({ type: e.type, x: e.x, y: e.y, vx: e.vx, vy: e.vy, hp: e.hp, stun: e.stun | 0, dead: e.dead, w: e.w, h: e.h, elite: e.elite, burn: !!e.burn, bleed: !!e.bleed, slowT: e.slowT | 0 })); },
+    spawnEnemy(type, x, y, elite) { const e = makeEnemy({ type, x, y, elite: !!elite }); enemies.push(e); return enemies.length - 1; },
+    clearEnemies() { enemies = []; },
+    hurt(n) { hurtPlayer(n || 1, 1, null); },
+    openSettings(ix) { openSettings("pause"); settingsIx = ix || 0; },
+    freezeEnemy(i) { if (enemies[i]) { enemies[i].stun = 9999; enemies[i].hp = enemies[i].maxHp = 3; } },
+    hitEnemy(i, n) { const e = enemies[i]; if (e) { hitCtx = { ix: 0 }; damageEnemy(e, n || 1); hitCtx = null; } },
+    killEnemy(i) { const e = enemies[i]; if (e) damageEnemy(e, 999); },
+    flask() { const v = V(); return { flask: v.flask, max: v.flaskMax, meter: v.meter, channel: player ? player.channel : 0 }; },
+    hp(n) { if (n != null && player) player.hp = n; return player ? [player.hp, player.maxHp] : null; },
+    pstate() { return player ? { x: player.x, y: player.y, vx: player.vx, vy: player.vy, hp: player.hp, inv: player.inv, facing: player.facing, dodge: player.dodge, onGround: player.onGround } : null; },
+    teleport(zone, id) { const s = litShrines().find(x => x.zone === zone && x.id === id) || litShrines().find(x => x.hub && id === "hub"); if (!s) return false; startTeleport(s); return true; },
+    litShrines() { return litShrines().map(s => ({ zone: s.zone, id: s.id, name: s.name, here: !!s.here, hub: !!s.hub })); },
+    openShrine() { shrineIx = 0; scene = "shrine"; },
+    openTeleport() { openTeleport(); },
+    tpState() { return { ix: tpIx, n: tpList.length, scene }; },
+    lightShrine(zone, id) { const S = save.world[zone] || (save.world[zone] = { seals: {}, doors: {}, broken: {}, items: {}, blocks: {}, elites: {}, levers: {}, cp: null, map: {}, lit: {} }); S.lit = S.lit || {}; S.lit[id] = 1; persist(); },
+    fs() { return { req: fsReq, note: fsNote, supported: fsSupported(), ios: isIOS(), active: fsActive() }; },
+    setPadScale(s) { setPadScale(s); }, setScheme(s) { setScheme(s); },
+    touchState() { return { scale: padScaleCur, scheme: touchScheme, PAD, layout: touchLayout().map(b => ({ name: b.name, x: b.x, y: b.y, size: b.size || PAD })), stick: Object.assign({}, stick) }; },
+    openInventory() { openInventory("pause"); }, openShop() { scene = "shop"; shopIx = 0; }, openLeader() { scene = "leader"; leaderStage = 0; leaderIx = 0; leaderMsg = ""; },
+    lastScene() { return scene; },
+    arrows() { return projectiles.filter(p => p.arrow).map(p => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, kind: p.kind })); },
+    blinkOverlap() { return w22 ? w22.blinks.map(b => ({ x: b.x, y: b.y, on: b.on, off: b.off, ph: b.ph })) : []; },
+    awardBoss(id) { return awardBoss(id); }
+  });
 
   // ---------- loop ----------
   let last = performance.now(), acc = 0;

@@ -40,12 +40,16 @@
         cancel: ["Escape"],
         up: ["ArrowUp", "w"],
         down: ["ArrowDown", "s"],
+        flask: ["f", "q"],
+        shoot: ["g", "b"],
+        shootUp: ["r"],
+        inv: ["i", "Tab"],
       };
       // gamepad buttons (standard mapping)
       this.padMap = {
         // v2 layout (Ryan): A jump + confirm/interact, B dodge + back, X strike, Y skill, Start pause.
         // In play A interacts instead of jumping while a prompt is up (engine padInteract).
-        jump: 0, confirm: 0, dodge: 1, back: 1, strike: 2, skill: 3, cancel: 9,
+        jump: 0, confirm: 0, dodge: 1, back: 1, strike: 2, skill: 3, cancel: 9, flask: 4, shoot: 5, inv: 8,
         // axes and D-pad handled separately
       };
       this._bind();
