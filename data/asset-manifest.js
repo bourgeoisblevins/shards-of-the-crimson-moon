@@ -96,6 +96,8 @@ window.SHARDS.assetManifest = (function () {
     list.push(S("ui/touch-pad.png", n.concat(n.map(x => x + "-on")), 28, 28));
   })();
   list.push(I("ui/rotate-device.png", 72, 40));
+  // v7 controller glyphs (tools/make_pad_glyphs.py): variable-width strip, metrics in data/pad-glyphs.js
+  list.push(I("ui/pad-glyphs.png", 143, 10));
   list.push(I("icons/icon-180.png", 180, 180));
 
   // Parallax — Brand 960×180 (sky|far|mid)

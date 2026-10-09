@@ -22,6 +22,22 @@
    - **Local server:** from this folder run `python3 -m http.server 8080` and visit `http://localhost:8080/`.
 3. If a hosted link is provided, open that URL instead.
 
+## With a controller (Xbox or any standard gamepad)
+
+1. Plug in or pair the controller, then press any button. Browsers only reveal a controller after
+   a button press, so a pad that was connected before the page opened shows up on its first press.
+2. While a controller is connected, the title screen shows its layout. As soon as you use the pad,
+   every on-screen prompt switches to Xbox button icons: the tutorial banners, **A Talk / Travel**,
+   **A Next** on dialogue, **A Skip** on a boss intro, **A Face the bearer** at a gate, and the
+   menu hints (**A Select, B Back**). Press any key, or touch the screen, and the prompts change back
+   to the keyboard or touch ones straight away. Unplugging the pad also switches back.
+3. **Rumble:** a light tick when your strike lands, a stronger pulse when you are hit, a small pulse
+   on a dodge and when you claim a fragment, and a long, fading rumble when a boss changes phase and
+   when it falls. It only rumbles while you are playing on the pad. Turn it off under
+   **Settings > Vibration** (saved with your other settings). Controllers or browsers without rumble
+   support simply stay still.
+4. In menus: stick or D-pad moves, **A** selects, **B** goes back (B still jumps in play). **Start** pauses.
+
 ## Controls
 
 | Action | Keyboard | Gamepad | Touch |
@@ -32,6 +48,7 @@
 | Dodge | C / K / Shift | X | Dodge |
 | Skill | V / L | Y | Skill |
 | Talk / confirm | Enter | A | OK pad, or tap the dialogue / menu row |
+| Back (menus) | Esc | B | Back row |
 | Pause | Esc | Start | II pad (top right) |
 
 Order skill: radiant burst. Cult skill: crimson dash.

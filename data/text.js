@@ -147,6 +147,7 @@ window.SHARDS.text = {
     music: "Music",
     sfx: "SFX",
     fullscreen: "Fullscreen",
+    vibration: "Vibration",
     back: "Back"
   },
   defeat: { heading: "You fall.", sub: "Your claimed fragments are kept.", retry: "Retry arena", toHub: "Return to the hub" },
@@ -183,13 +184,14 @@ window.SHARDS.text = {
       skill: "Tap Skill for your path art",
       done: "Talk to the guide, then Travel."
     },
+    // v7: {A} {B} ... are controller glyphs (assets/ui/pad-glyphs.png, data/pad-glyphs.js)
     gamepad: {
-      move: "Move with the stick or D-pad",
-      jump: "Jump with B",
-      strike: "Strike with A",
-      dodge: "Dodge with X",
-      skill: "Skill with Y",
-      done: "Speak with the guide, then use Travel."
+      move: "Move with {LS} or {DPad}",
+      jump: "Jump with {B}",
+      strike: "Strike with {A}",
+      dodge: "Dodge with {X}",
+      skill: "Skill with {Y}",
+      done: "Talk to the guide with {A}, then Travel."
     }
   },
   // v6 touch copy: replaces key names whenever the touch layer is the active scheme
@@ -209,6 +211,35 @@ window.SHARDS.text = {
     fragBack: "Tap here to go back",
     rotateHead: "Turn your phone",
     rotateBody: "The pilgrimage is played sideways. Hold it in landscape."
+  },
+  // v7 controller copy: replaces key names whenever the gamepad is the active device.
+  // Tokens draw as pixel-art Xbox glyphs: {A} {B} {X} {Y} {LB} {RB} {LT} {RT} {Start} {View} {LS} {DPad}
+  pad: {
+    pressStart: "Press {A}",
+    talk: "{A} Talk",
+    travel: "{A} Travel",
+    altar: "{A} Lay them down",
+    next: "{A} Next",
+    skip: "{A} Skip",
+    gate: "{A} Face the bearer",
+    claimPrompt: "{A} Return to the hub",
+    end: "{A} Title",
+    menu: "{A} Select  {B} Back",
+    title: "{A} Select",
+    path: "{A} Pick  {B} Back",
+    settings: "{DPad} Adjust  {A} Select  {B} Back",
+    pause: "{A} Select  {B} Resume",
+    fragBack: "{B} Back",
+    defeat: "{A} Select",
+    heading: "Controller",
+    layout: [
+      "{LS}{DPad} Move",
+      "{B} Jump",
+      "{A} Strike",
+      "{X} Dodge",
+      "{Y} Skill",
+      "{Start} Pause"
+    ]
   },
   // Who the cult guide names in "Hunt {bearer} {place}."
   hintBearer: {

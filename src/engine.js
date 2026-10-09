@@ -69,7 +69,7 @@
     return {
       path: null, claimed: {}, guideIndex: { order: 0, cult: 0 }, seenIntro: {},
       tutorial: { move: false, jump: false, strike: false, dodge: false, skill: false },
-      settings: { master: 0.7, music: 0.45, sfx: 0.7, fullscreen: false }
+      settings: { master: 0.7, music: 0.45, sfx: 0.7, fullscreen: false, vibration: true }
     };
   }
   let save = defaultSave();
@@ -101,7 +101,8 @@
   function persist() {
     save.settings = {
       master: synth.volume.master, music: synth.volume.music, sfx: synth.volume.sfx,
-      fullscreen: !!document.fullscreenElement
+      fullscreen: !!document.fullscreenElement,
+      vibration: vibrationOn()
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
   }
@@ -110,6 +111,15 @@
     save = defaultSave();
     save.settings = settings;
     persist();
+  }
+  // v7: controller rumble. Saves from before v7 have no flag: on by default.
+  let vibration = !(save.settings && save.settings.vibration === false);
+  function vibrationOn() { return vibration; }
+  function setVibration(on) { vibration = !!on; persist(); if (vibration) rumble("claim"); }
+  // Rumble only for a player holding the pad: Vibration on and the last input came from it.
+  function rumble(kind) {
+    if (!vibration || input.lastDevice !== "gamepad") return false;
+    return input.rumble(kind);
   }
   function applySettings() {
     synth.setVolume("master", save.settings.master);
@@ -137,7 +147,7 @@
   let pausePage = "main"; // main | fragments
   let fragScroll = 0;
   let teleMarks = []; // boss telegraph ground markers
-  let tutPrompt = "", tutTimer = 0;
+  let tutPrompt = "", tutTimer = 0; // tutPrompt: step key; the line is picked per device at draw
   let bossIntroCard = 0;
   let introPages = [""], introPage = 0, introPageTime = 180;
   let musicTrack = null;
@@ -156,17 +166,53 @@
     }
     return gl.a;
   }
+  // v7: "{A}"-style tokens draw controller glyphs inline (data/pad-glyphs.js metrics,
+  // assets/ui/pad-glyphs.png). A glyph advances its width + 1 px, like a letter.
+  const PAD_TOKEN = /\{(A|B|X|Y|LB|RB|LT|RT|Start|View|LS|DPad)\}/g;
+  function textParts(str) {
+    str = String(str);
+    const out = [];
+    let at = 0;
+    PAD_TOKEN.lastIndex = 0;
+    for (let m; (m = PAD_TOKEN.exec(str));) {
+      if (m.index > at) out.push(str.slice(at, m.index));
+      out.push({ pad: m[1] });
+      at = m.index + m[0].length;
+    }
+    if (at < str.length) out.push(str.slice(at));
+    return out;
+  }
+  function padGlyphAdvance(name) {
+    const pg = window.SHARDS.padGlyphs;
+    const gl = pg && pg.g[name];
+    return gl ? gl.w + pg.gap : 0;
+  }
+  function drawPadGlyph(name, x, y) {
+    const pg = window.SHARDS.padGlyphs;
+    const gl = pg && pg.g[name];
+    if (!gl) return 0;
+    const img = atlas.images.get(pg.path);
+    if (img) g.drawImage(img, gl.x, 0, gl.w, pg.h, x | 0, y | 0, gl.w, pg.h);
+    return gl.w + pg.gap;
+  }
   function measure(str) {
     const font = window.SHARDS.font;
     let w = 0;
-    for (const ch of str) w += (font.g[ch] || font.g["?"] || { a: 4 }).a;
+    for (const part of textParts(str)) {
+      if (typeof part !== "string") { w += padGlyphAdvance(part.pad); continue; }
+      for (const ch of part) w += (font.g[ch] || font.g["?"] || { a: 4 }).a;
+    }
     return w;
   }
+  function hasPadGlyph(str) { PAD_TOKEN.lastIndex = 0; return PAD_TOKEN.test(String(str)); }
   function drawText(str, x, y, color, align) {
     if (align === "center") x = (x - measure(str) / 2) | 0;
     if (align === "right") x = (x - measure(str)) | 0;
     let cx = x | 0;
-    for (const ch of str) cx += drawGlyph(ch, cx, y | 0, color);
+    for (const part of textParts(str)) {
+      if (typeof part !== "string") { cx += drawPadGlyph(part.pad, cx, y | 0); continue; }
+      for (const ch of part) cx += drawGlyph(ch, cx, y | 0, color);
+    }
     return cx - x;
   }
   function wrapLines(str, maxW) {
@@ -387,7 +433,7 @@
     if (heldByAlly(frag)) { claimTimer = 0; enterHub(); return; } // never claim what Jeriah holds
     claimTimer = 160;
     save.claimed[frag] = true; persist();
-    synth.sfx("claim");
+    synth.sfx("claim"); rumble("claim");
   }
   function enterDefeat() { scene = "defeat"; menuIx = 0; synth.sfx("death"); }
   function enterEnding() {
@@ -419,7 +465,7 @@
     player.hp -= n; player.inv = 50; flash = 4; shake = 6;
     player.vy = -2.2; player.vx = (kbDir || -player.facing) * 2.4;
     player.anim = "hurt"; player.animT = 0;
-    synth.sfx("hurt"); doHitstop(3);
+    synth.sfx("hurt"); doHitstop(3); rumble("hurt");
     if (player.hp <= 0) { player.dead = true; player.anim = "death"; enterDefeat(); }
   }
 
@@ -489,7 +535,7 @@
     if (p.atk > 0) p.atk--;
 
     if (input.pressed("dodge") && p.dodgeCD === 0 && p.dodge === 0 && p.skill === 0) {
-      p.dodge = 12; p.dodgeCD = 40; synth.sfx("dodge");
+      p.dodge = 12; p.dodgeCD = 40; synth.sfx("dodge"); rumble("dodge");
     }
     if (input.pressed("skill") && p.skillCD === 0 && p.skill === 0 && p.dodge === 0) {
       p.skill = path === "order" ? 22 : 16; p.skillCD = 90;
@@ -524,7 +570,7 @@
     if (e.inv > 0 || e.dead) return;
     e.hp -= n; e.inv = 12; e.vx = player.facing * 2; e.vy = -1.5;
     if (e.behavior === "bound") { e.vx = 0; e.vy = 0; e.attackT = 0; }
-    e.anim = "hurt"; synth.sfx("enemyHurt"); doHitstop(2); shake = 3;
+    e.anim = "hurt"; synth.sfx("enemyHurt"); doHitstop(2); shake = 3; rumble("hit");
     spark(e.x + e.w / 2, e.y + e.h / 2, P().order.light, 5);
     if (e.hp <= 0) { e.dead = true; e.anim = "death"; e.animT = 0; synth.sfx("enemyDeath"); }
   }
@@ -532,14 +578,15 @@
     if (!boss || boss.inv > 0 || boss.dead) return;
     boss.hp -= n; boss.inv = 16;
     boss.vx = player.facing * 2.2; boss.vy = -1.4;
-    boss.anim = "hurt"; synth.sfx("hit"); doHitstop(3); shake = 4; flash = 2;
+    boss.anim = "hurt"; synth.sfx("hit"); doHitstop(3); shake = 4; flash = 2; rumble("hit");
     spark(boss.x + boss.w / 2, boss.y + boss.h / 2, P().order.light, 8);
     if (boss.phase === 1 && boss.hp / boss.maxHp <= boss.phase2At) {
       boss.phase = 2; boss.anim = "phase2"; boss.animT = 0; boss.cd = 30;
       spark(boss.x + 8, boss.y + 8, P().cult.ember, 16); shake = 8;
       if (typeof synth.setBossPhase === "function") synth.setBossPhase(2);
+      if (boss.hp > 0) rumble("phase");
     }
-    if (boss.hp <= 0) { boss.dead = true; boss.anim = "death"; synth.sfx("bossDefeat"); enterClaim(boss.fragment); }
+    if (boss.hp <= 0) { boss.dead = true; boss.anim = "death"; synth.sfx("bossDefeat"); rumble("bossDeath"); enterClaim(boss.fragment); }
   }
 
   function playerStrikeHit() {
@@ -842,6 +889,10 @@
     if (input.lastDevice === "gamepad") return "gamepad";
     return "kb";
   }
+  // v7: the gamepad is the active device -> prompts show controller glyphs.
+  function padUI() { return input.lastDevice === "gamepad"; }
+  // B (and Esc / Start) back out of menus. In play B is jump, so only menu scenes read it.
+  function menuBack() { return input.pressed("cancel") || input.pressed("back"); }
   function tutLine(step) {
     const sch = controlScheme();
     const pack = (T().tutorialBy || {})[sch] || T().tutorial;
@@ -853,17 +904,17 @@
     if (!save.tutorial) save.tutorial = { move: false, jump: false, strike: false, dodge: false, skill: false };
     const t = save.tutorial;
     if (!t.move && (input.held("left") || input.held("right"))) {
-      t.move = true; tutPrompt = tutLine("jump"); tutTimer = 180; persist();
+      t.move = true; tutPrompt = "jump"; tutTimer = 180; persist();
     } else if (t.move && !t.jump && input.pressed("jump")) {
-      t.jump = true; tutPrompt = tutLine("strike"); tutTimer = 180; persist();
+      t.jump = true; tutPrompt = "strike"; tutTimer = 180; persist();
     } else if (t.jump && !t.strike && input.pressed("strike")) {
-      t.strike = true; tutPrompt = tutLine("dodge"); tutTimer = 180; persist();
+      t.strike = true; tutPrompt = "dodge"; tutTimer = 180; persist();
     } else if (t.strike && !t.dodge && input.pressed("dodge")) {
-      t.dodge = true; tutPrompt = tutLine("skill"); tutTimer = 180; persist();
+      t.dodge = true; tutPrompt = "skill"; tutTimer = 180; persist();
     } else if (t.dodge && !t.skill && input.pressed("skill")) {
-      t.skill = true; tutPrompt = tutLine("done"); tutTimer = 210; persist();
+      t.skill = true; tutPrompt = "done"; tutTimer = 210; persist();
     } else if (!t.move && tutTimer <= 0 && !tutPrompt) {
-      tutPrompt = tutLine("move"); tutTimer = 240;
+      tutPrompt = "move"; tutTimer = 240;
     }
     if (tutTimer > 0) tutTimer--;
     else { if (t.skill) tutPrompt = ""; }
@@ -895,7 +946,7 @@
     const n = zones.length + 1;
     if (input.pressed("up")) { travelIx = (travelIx + n - 1) % n; synth.sfx("menuMove"); }
     if (input.pressed("down")) { travelIx = (travelIx + 1) % n; synth.sfx("menuMove"); }
-    if (input.pressed("cancel")) { scene = "hub"; return; }
+    if (menuBack()) { scene = "hub"; return; }
     if (input.pressed("confirm")) {
       synth.sfx("menu");
       if (travelIx === n - 1) { scene = "hub"; return; }
@@ -941,11 +992,12 @@
     if (input.pressed("confirm")) {
       synth.sfx("menu"); path = menuIx === 0 ? "order" : "cult"; save.path = path; normalizeSave(); persist(); enterHub();
     }
-    if (input.pressed("cancel")) enterTitle();
+    if (menuBack()) enterTitle();
   }
+  const SETTINGS_ROWS = 6; // master, music, sfx, fullscreen, vibration (v7), back
   function updateSettings() {
-    if (input.pressed("up")) { settingsIx = (settingsIx + 4) % 5; synth.sfx("menuMove"); }
-    if (input.pressed("down")) { settingsIx = (settingsIx + 1) % 5; synth.sfx("menuMove"); }
+    if (input.pressed("up")) { settingsIx = (settingsIx + SETTINGS_ROWS - 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { settingsIx = (settingsIx + 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
     const adj = (input.pressed("left") ? -0.1 : input.pressed("right") ? 0.1 : 0);
     if (settingsIx === 0 && adj) { synth.setVolume("master", synth.volume.master + adj); persist(); }
     if (settingsIx === 1 && adj) { synth.setVolume("music", synth.volume.music + adj); persist(); }
@@ -955,10 +1007,13 @@
       else document.exitFullscreen?.();
       persist();
     }
-    if (settingsIx === 4 && (input.pressed("confirm") || input.pressed("cancel"))) {
+    if (settingsIx === 4 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) {
+      setVibration(!vibration); synth.sfx("menuMove");
+    }
+    if (settingsIx === 5 && (input.pressed("confirm") || menuBack())) {
       scene = settingsFrom === "pause" ? "pause" : "title";
     }
-    if (input.pressed("cancel") && settingsIx !== 4) scene = settingsFrom === "pause" ? "pause" : "title";
+    if (menuBack() && settingsIx !== 5) scene = settingsFrom === "pause" ? "pause" : "title";
   }
   function updateClaim() {
     claimTimer--;
@@ -984,12 +1039,12 @@
   }
   function updatePause() {
     if (pausePage === "fragments") {
-      if (input.pressed("cancel") || input.pressed("confirm")) { pausePage = "main"; return; }
+      if (menuBack() || input.pressed("confirm")) { pausePage = "main"; return; }
       if (input.pressed("up")) fragScroll = Math.max(0, fragScroll - 1);
       if (input.pressed("down")) fragScroll = Math.min(3, fragScroll + 1);
       return;
     }
-    if (input.pressed("cancel")) {
+    if (menuBack()) {
       pausePage = "main";
       scene = level.kind === "hub" ? "hub" : (level.kind === "traverse" ? "traverse" : "arena");
       return;
@@ -1373,14 +1428,21 @@
     return atlas.images.has(p) ? p : null;
   }
   function drawPrompt(worldXPos, worldYPos, label) {
-    const tw = measure(label) + 10;
+    const glyph = hasPadGlyph(label);
+    const tw = measure(label) + 10, th = glyph ? 14 : 12;
     const px = worldX(worldXPos) - (tw / 2 | 0);
-    const py = (worldYPos - 14) | 0;
+    const py = (worldYPos - th - 2) | 0;
     if (py < 4 || px < 2 || px + tw > W - 2) return;
-    panel(px, py, tw, 12);
-    drawText(label, px + tw / 2, py + 3, P().order.illumination, "center");
+    panel(px, py, tw, th);
+    drawText(label, px + tw / 2, py + (glyph ? 2 : 3), P().order.illumination, "center");
   }
-  function drawDialogue(str, portraitPath) {
+  // v7: a small tab on the top-right edge of a dialogue box: "{A} Next" (gamepad only).
+  function drawPadTab(label, right, boxTop) {
+    const tw = measure(label) + 10;
+    panel(right - tw, boxTop - 13, tw, 14);
+    drawText(label, right - tw / 2, boxTop - 11, P().order.illumination, "center");
+  }
+  function drawDialogue(str, portraitPath, padHint) {
     // Touch (v6): while the player can still move (hub talk, boss gate), the box sits at
     // the top so the pads never cover it; the box itself is a tap-to-confirm target.
     const top = touchUI() && (scene === "hub" || scene === "traverse");
@@ -1393,6 +1455,7 @@
       const yy = top ? y : H - 8 - h;
       panel(16, yy, W - 32, h);
       lines.forEach((ln, i) => drawText(ln, 24, yy + 7 + i * 11, P().order.bone));
+      if (padHint && padUI()) drawPadTab(padHint, W - 20, yy);
       return;
     }
     if (atlas.images.has("ui-dialogue-frame.png")) {
@@ -1403,6 +1466,7 @@
       }
       const lines = paraLines(str, W - tx - 28);
       lines.slice(0, 3).forEach((ln, i) => drawText(ln, tx, y + 10 + i * 11, P().order.bone));
+      if (padHint && padUI()) drawPadTab(padHint, W - 20, y);
     } else {
       const lines = paraLines(str, portraitPath ? W - 80 : W - 48);
       const h = Math.max(40, lines.length * 12 + 12);
@@ -1413,6 +1477,7 @@
         try { atlas.drawImage(g, portraitPath, 20, yy + 4, 32, 32); tx = 56; } catch (_) {}
       }
       lines.forEach((ln, i) => drawText(ln, tx, yy + 6 + i * 12, P().order.bone));
+      if (padHint && padUI()) drawPadTab(padHint, W - 20, yy);
     }
   }
 
@@ -1431,7 +1496,7 @@
     const has = !!save.path;
     const items = has
       ? [T().title.menuNew, T().title.menuContinue, T().title.menuSettings, T().title.menuReset]
-      : [touchUI() ? T().touch.pressStart : T().title.pressStart, T().title.menuSettings];
+      : [touchUI() ? T().touch.pressStart : padUI() ? T().pad.pressStart : T().title.pressStart, T().title.menuSettings];
     const menuTop = 72;
     const lineH = touchUI() ? 20 : 14;
     items.forEach((it, i) => {
@@ -1456,6 +1521,19 @@
 
     // Compact two-column controls below menu — never touches menu
     const ctrlY = menuTop + items.length * lineH + 10;
+    if (input.padConnected) {
+      // v7: a controller is connected -> its layout in glyphs, 3 columns x 2 rows
+      rect(8, ctrlY - 4, W - 16, 1, P().ground.stone);
+      drawText(T().pad.heading, 16, ctrlY, P().order.illumination);
+      if (padUI()) drawText(T().pad.title, W - 16, ctrlY, P().ground.smoke, "right");
+      const lay = T().pad.layout;
+      const rows = 2, rowH = 11, colW = 96;
+      lay.forEach((ln, i) => {
+        const col = (i / rows) | 0, row = i % rows;
+        drawText(ln, 16 + col * colW, ctrlY + 11 + row * rowH, P().ground.smoke);
+      });
+      return;
+    }
     rect(8, ctrlY - 4, W - 16, 1, P().ground.stone);
     drawText(T().controls.heading, 16, ctrlY, P().order.illumination);
     drawText("Gamepad", 170, ctrlY, P().order.illumination);
@@ -1468,6 +1546,7 @@
   function drawPath() {
     rect(0, 0, W, H, P().ground.void);
     drawText(T().pathSelect.heading, W / 2, 8, P().order.illumination, "center");
+    if (padUI()) drawText(T().pad.path, W - 12, 8, P().ground.smoke, "right");
     const rows = [
       { y: 24, key: "order", accent: P().order.nexus, sel: menuIx === 0, nameC: P().order.illumination },
       { y: 92, key: "cult", accent: P().cult.ember, sel: menuIx === 1, nameC: P().cult.emberLight }
@@ -1493,6 +1572,7 @@
       `${T().settings.music}: ${(synth.volume.music * 100) | 0}`,
       `${T().settings.sfx}: ${(synth.volume.sfx * 100) | 0}`,
       `${T().settings.fullscreen}: ${document.fullscreenElement ? "On" : "Off"}`,
+      `${T().settings.vibration}: ${vibration ? "On" : "Off"}`,
       T().settings.back
     ];
     const t = touchUI(), top = t ? 46 : 56, pitch = t ? 22 : 16;
@@ -1510,6 +1590,7 @@
         tapTarget(W / 2, ty, W / 2 - 8, pitch, () => { settingsIx = i; synth.setVolume(key, synth.volume[key] + 0.1); persist(); });
       } else menuRow(8, y, W - 16, pitch, "set" + i, false, () => { settingsIx = i; });
     });
+    if (padUI()) drawText(T().pad.settings, W / 2, 160, P().ground.smoke, "center");
   }
 
   function nextFragmentHint() {
@@ -1611,21 +1692,24 @@
     const dialogueOpen = (nearGuide && hubSaid) || nearAltar;
     // Prompts only when dialogue is closed
     if (!dialogueOpen) {
-      if (nearGuide && !hubSaid) drawPrompt(guide.x + 8, guide.y, T().prompts.talk);
-      if (nearTravel) drawPrompt(pad.x + pad.w / 2, pad.y - 8, T().prompts.travel);
-      if (nearAltar) drawPrompt(level.altar.x + 8, level.altar.y, T().prompts.altar);
+      const pu = padUI();
+      if (nearGuide && !hubSaid) drawPrompt(guide.x + 8, guide.y, pu ? T().pad.talk : T().prompts.talk);
+      if (nearTravel) drawPrompt(pad.x + pad.w / 2, pad.y - 8, pu ? T().pad.travel : T().prompts.travel);
+      if (nearAltar) drawPrompt(level.altar.x + 8, level.altar.y, pu ? T().pad.altar : T().prompts.altar);
     }
     if (nearGuide && hubSaid) {
       const line = T().guideLines[path][lineIx % T().guideLines[path].length];
-      drawDialogue(line + "\n" + nextFragmentHint(), portrait);
+      drawDialogue(line + "\n" + nextFragmentHint(), portrait, T().pad.next);
     } else if (nearAltar) {
-      drawDialogue(path === "order" ? T().hub.allSixOrder : T().hub.allSixCult);
+      drawDialogue(path === "order" ? T().hub.allSixOrder : T().hub.allSixCult, null, T().pad.altar);
     }
     // Tutorial banner — only when title card is gone
     if (tutPrompt && tutTimer > 0 && titleCard <= 0 && !(touchUI() && dialogueOpen)) {
-      const tw = Math.min(W - 24, measure(tutPrompt) + 16);
-      panel(((W - tw) / 2) | 0, 20, tw, 14);
-      drawText(tutPrompt, W / 2, 24, P().order.illumination, "center");
+      const line = tutLine(tutPrompt);
+      const tw = Math.min(W - 24, measure(line) + 16);
+      const glyph = hasPadGlyph(line);
+      panel(((W - tw) / 2) | 0, 20, tw, glyph ? 16 : 14);
+      drawText(line, W / 2, glyph ? 23 : 24, P().order.illumination, "center");
     }
   }
 
@@ -1655,6 +1739,7 @@
     const stay = travelIx === zones.length;
     drawText((stay ? "> " : "  ") + T().hub.travelBack, 28, y + (t ? 0 : 4), stay ? P().order.illumination : P().order.boneShade);
     menuRow(16, y + (t ? 0 : 4), W - 32, pitch, "travelStay", false, () => { travelIx = zones.length; });
+    if (padUI()) drawText(T().pad.menu, W - 28, H - 30, P().ground.smoke, "right");
   }
 
 
@@ -1856,7 +1941,7 @@
     rect(0, 0, W, H, P().ground.obsidian);
     panel(24, 56, W - 48, 52);
     drawWrapped(claimMsg, 36, 68, W - 72, P().order.bone);
-    drawText(touchUI() ? T().touch.claimPrompt : T().zoneClear.prompt, W / 2, 140, P().ground.smoke, "center");
+    drawText(touchUI() ? T().touch.claimPrompt : padUI() ? T().pad.claimPrompt : T().zoneClear.prompt, W / 2, 140, P().ground.smoke, "center");
     tapTarget(0, 0, W, H, () => input.tap("confirm"));
   }
   function drawDefeat() {
@@ -1869,6 +1954,7 @@
       drawText((sel ? "> " : "  ") + it, W / 2, 96 + i * pitch, sel ? P().order.illumination : P().order.boneShade, "center");
       menuRow(60, 96 + i * pitch, W - 120, pitch, "defeat" + i, false, () => { menuIx = i; });
     });
+    if (padUI()) drawText(T().pad.defeat, W / 2, 150, P().ground.smoke, "center");
   }
   function drawEnding() {
     // Final scene: hub altar backdrop + guide + fragments, text in a bottom panel.
@@ -1927,7 +2013,7 @@
     drawText(head, W / 2, py + 8, P().order.illumination, "center");
     let y = py + 8 + 14;
     for (const r of rows) { if (r === null) { y += 3; continue; } drawText(r, 20, y, P().order.bone); y += lh; }
-    if (endingIx >= endingLines.length - 1) drawText(touchUI() ? T().touch.end : T().endings.end, W / 2, py + ph - 14, P().ground.smoke, "center");
+    if (endingIx >= endingLines.length - 1) drawText(touchUI() ? T().touch.end : padUI() ? T().pad.end : T().endings.end, W / 2, py + ph - 14 - (padUI() ? 1 : 0), P().ground.smoke, "center");
     tapTarget(0, 0, W, H, () => input.tap("confirm"));
   }
   function drawFragmentsPage() {
@@ -1958,7 +2044,7 @@
       tapTarget(16, 74, W - 32, H - 118, () => input.tap("down"));
       if (fragScroll > 0) { rect(W - 26, 30, 5, 1, P().order.nexus); rect(W - 25, 29, 3, 1, P().order.nexus); rect(W - 24, 28, 1, 1, P().order.nexus); }
       if (fragScroll < 3) { rect(W - 26, H - 48, 5, 1, P().order.nexus); rect(W - 25, H - 47, 3, 1, P().order.nexus); rect(W - 24, H - 46, 1, 1, P().order.nexus); }
-    } else drawText(T().pause.back + " (Esc/Enter)", W / 2, H - 32, P().ground.smoke, "center");
+    } else drawText(padUI() ? T().pad.fragBack : T().pause.back + " (Esc/Enter)", W / 2, H - 32, P().ground.smoke, "center");
   }
   function drawPause() {
     if (pausePage === "fragments") { drawFragmentsPage(); return; }
@@ -1971,6 +2057,7 @@
       drawText((sel ? "> " : "  ") + it, W / 2, top + i * pitch, sel ? P().order.illumination : P().order.boneShade, "center");
       menuRow(60, top + i * pitch, W - 120, pitch, "pause" + i, false, () => { pauseIx = i; });
     });
+    if (padUI()) drawText(T().pad.pause, W / 2, 138, P().ground.smoke, "center"); // inside the panel
   }
 
   function drawWorld() {
@@ -1991,7 +2078,7 @@
     if (scene === "traverse") {
       const gate = level.bossGate;
       if (gate && aabb(player, gate)) {
-        drawDialogue(touchUI() ? T().touch.gate : T().zoneClear.gate);
+        drawDialogue(touchUI() ? T().touch.gate : padUI() ? T().pad.gate : T().zoneClear.gate);
       }
     }
     if (scene === "arena" && introHold > 0 && boss) {
@@ -2018,7 +2105,7 @@
       tapTarget(0, 0, W, H, () => input.tap("confirm"));
       const intro = introPages[Math.min(introPage, introPages.length - 1)] || "";
       const last = introPage >= introPages.length - 1;
-      drawDialogue(last ? intro + "\n" + T().bossReason[path] : intro, port);
+      drawDialogue(last ? intro + "\n" + T().bossReason[path] : intro, port, last ? T().pad.skip : T().pad.next);
     }
     if (scene === "pause") drawPause();
     // Zone title card on traversal / hub entry only — never over boss bar
@@ -2083,6 +2170,7 @@
     killBoss() {
       if (!boss || boss.dead) return;
       boss.inv = 0; boss.hp = 0; boss.dead = true; boss.anim = "death";
+      rumble("bossDeath");
       enterClaim(boss.fragment);
     },
     damageBoss(n) { if (boss) { boss.inv = 0; damageBoss(n || 1); } },
@@ -2097,11 +2185,14 @@
         targets: drawnTargets.map(t => ({ x: t.x, y: t.y, w: t.w, h: t.h })), dialogueTop: lastTouchDialogue, held: [...padHeld],
         canvas: (() => { const r = canvas.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })() };
     },
-    menu() { return { menuIx, travelIx, pauseIx, settingsIx, pausePage, introHold, endingIx, tutPrompt, tutorial: save.tutorial, volume: Object.assign({}, synth.volume), hubSaid, titleCard }; },
+    menu() { return { menuIx, travelIx, pauseIx, settingsIx, pausePage, introHold, endingIx, tutPrompt: tutPrompt ? tutLine(tutPrompt) : "", tutStep: tutPrompt, tutorial: save.tutorial, volume: Object.assign({}, synth.volume), hubSaid, titleCard }; },
     player() { return player ? { x: player.x, y: player.y, vx: player.vx, vy: player.vy, hp: player.hp, onGround: !!player.onGround, anim: player.anim } : null; },
     setIntro(n) { introHold = n|0; },
     skipIntro() { introHold = 0; introPage = introPages.length - 1; if (level) { save.seenIntro[level.zone || levelId] = true; persist(); } },
     god(on) { godMode = on !== false; if (player) player.inv = godMode ? 9999 : 0; },
+    // v7 controller: active device, glyph prompts, rumble log, Vibration setting
+    pad() { return { lastDevice: input.lastDevice, padUI: padUI(), connected: !!input.padConnected, index: input.padIndex, vibration, rumbleLog: input.rumbleLog.slice() }; },
+    setVibration(on) { setVibration(on); return vibration; },
     isGod() { return !!godMode; }
   };
 

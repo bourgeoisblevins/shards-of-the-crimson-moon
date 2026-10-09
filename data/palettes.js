@@ -37,6 +37,13 @@ window.SHARDS.palettes = {
     snowShade: "#AEB4B6", snow: "#D6D9D4",
     shadeDark: "#4E6470", shade: "#7F98A2", shadeLight: "#B8CACD"
   },
+  // Controller glyphs (tools/make_pad_glyphs.py -> assets/ui/pad-glyphs.png). Muted
+  // Xbox-style face colors tuned to the game: green and steel blue are new; B uses the
+  // cult crimson ramp, Y the Order gold ramp, shoulders/sticks the bone ramp.
+  pad: {
+    greenDark: "#2E4A25", green: "#4F7A3A", greenLight: "#86AE5E",
+    blueDark: "#22384E", blue: "#3F6688", blueLight: "#7898B8"
+  },
   bosses: {
     jeriah:     { fragment: "heart",  ramp: ["#2A0C12", "#5A1420", "#8B1E2D", "#B42334", "#5C5A57", "#8E8A84"] },
     azmardus:   { fragment: "eye",    ramp: ["#1E0C24", "#3E1A40", "#6A2C5E", "#9A4478", "#D07AA4"] },
