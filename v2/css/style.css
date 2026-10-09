@@ -1,0 +1,39 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #050404;
+  color: #E8DCC8;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  position: fixed;
+  inset: 0;
+}
+/* Safe areas (notch, home indicator): the canvas is fitted inside this padding. */
+#frame {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+#game {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #050404;
+  flex: 0 0 auto;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}

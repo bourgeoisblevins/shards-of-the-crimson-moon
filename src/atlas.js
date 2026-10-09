@@ -16,6 +16,7 @@
         if (L.near) out.add(L.near.path);
         for (const f of L.fog || []) out.add(f.path);
       }
+      for (const t of Object.values(A.tiles22 || {})) out.add(t.path);
       for (const u of Object.values(A.ui)) if (u && u.path) out.add(u.path);
       for (const p of Object.values(A.portraits)) out.add(p);
       for (const p of Object.values(A.thumbs)) out.add(p);

@@ -3,6 +3,8 @@
 // tools/audit.mjs fails the build if any other hex appears in src/, data/, css/, or index.html.
 window.SHARDS = window.SHARDS || {};
 window.SHARDS.palettes = {
+  // v2.2 world accents (blink-platform teal, wind streaks) - extend, never replace
+  w22: { tealLight: "#74B49C", teal: "#448A7E", tealDeep: "#2B5C59", windLight: "#CFC2AB", windMid: "#8F7C67" },
   ground: {
     void: "#050404",     // letterbox, deepest shadow
     obsidian: "#0B0A09", // panels, title ground, dark UI ground

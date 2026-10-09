@@ -65,6 +65,19 @@ When the game is served over **http** or **https** (not `file://`):
    It launches full screen, in landscape, with the Serpent's Eye icon.
 3. The PWA caches core files for offline play after the first visit.
 
+## v2.2: longer ruins, charms and powerups
+
+- **Each traverse is now a ruin of three levels, 3200 px wide.** The gate to the boss needs **three sigils** (Order sigils or cult sigils). They lie on different branches: a vault past a breakable wall, a high ledge reached by a spring, and a locked elite room. The HUD shows `Seals n/3`.
+- **Shrines and braziers** heal you, set your respawn, and let you change charms. If you fall you wake at the last one; foes return, but sigils, opened shortcuts and broken walls stay.
+- **Levers** far from the start open a shortcut back. **Cracked walls** (strike them) and **? blocks** (jump into them from below) hold charms, notches, vessels and powerups.
+- **Moves:** double jump and wall cling come from charms. Hold Jump to glide with the Gale Feather. Press Down + Jump on a thin ledge to drop through.
+- **Charms** (Pause > Charms): 14 charms, each costs notches (3 at the start, up to 6 by finding notch upgrades). Equip them at a shrine or in the hub. On touch, tap a charm once to select and again to equip.
+- **Powerups** are temporary: Ember Flask (Y throws fire), Gale Feather (higher jump, glide), Warding Sigil (unharmed for a time), Guard Bubble (blocks one hit), Speed Rite (run faster). Their timers show under your health.
+- **Map** (Pause > Map) fills in as you explore. Shrine, seal and gate marks are shown.
+- **Difficulty** (Settings): Pilgrim, Standard, Penitent. Standard is harder than v2.
+- **Zone hazards:** Vespera falling masonry and crumbling floors; the Deep darkness (follow the glowing caps); the Deep's fortresses swinging blades and trap doors; Aurelion wind and crumbling spires; the Monastery ice and bells (strike a bell to raise its platforms); the frozen mountains slippery ice and falling icicles.
+- Fragments you claim show on your body: Heart pulse, Eye sigil, Bone pauldrons, Blaze hands, Shadow trail, Claw gauntlets.
+
 ## Paths
 
 - **Order of the Golden Serpent** (warrior monk): take all six fragments from the Apostles of the Shattered, General Jeriah included, so Ryan can keep them apart, or destroy them if it can be done. Six bosses.

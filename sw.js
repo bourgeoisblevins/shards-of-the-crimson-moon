@@ -1,5 +1,5 @@
 /* Service worker — cache-first for offline play. */
-const CACHE = "shards-v2-1";
+const CACHE = "shards-v2-2";
 const CORE = [
   "./",
   "./index.html",
@@ -7,6 +7,10 @@ const CORE = [
   "./css/style.css",
   "./data/palettes.js",
   "./data/art.js",
+  "./data/art22.js",
+  "./data/text22.js",
+  "./data/world22.js",
+  "./data/levels22.js",
   "./data/text.js",
   "./data/zones.js",
   "./data/levels.js",
@@ -35,7 +39,7 @@ self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
     // drop older v2 caches and the old root v1 cache; the archived v1 at /v1/ keeps its own
-    await Promise.all(keys.filter((k) => k !== CACHE && !k.startsWith("shards-v1-archive")).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== CACHE && !k.startsWith("shards-v1-archive") && !k.startsWith("shards-v2-archive")).map((k) => caches.delete(k)));
     self.clients.claim();
   })());
 });
@@ -43,8 +47,8 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
-  // the archived v1 build under /v1/ is served by its own worker (or the network)
-  if (new URL(req.url).pathname.includes("/v1/")) return;
+  // the archived v1 and v2 builds under /v1/ and /v2/ are served by its own worker (or the network)
+  if (/\/v[12]\//.test(new URL(req.url).pathname)) return;
   e.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;

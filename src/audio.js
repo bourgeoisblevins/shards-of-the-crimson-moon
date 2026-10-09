@@ -881,6 +881,31 @@
       tone(A, o, t, { wave: "p50", f: 110, f2: 52, dur: 0.32, vol: 0.11 });
       tone(A, o, t, { wave: "tri", f: 84, f2: 38, dur: 0.38, vol: 0.42 });
     },
+    // ---- v2.2 world sfx ----
+    jump(A, o, t) { tone(A, o, t, { wave: "p25", f: 300, f2: 620, dur: 0.09, vol: 0.07 }); },
+    jump2(A, o, t) { tone(A, o, t, { wave: "p12", f: 520, f2: 980, dur: 0.1, vol: 0.07 }); noise(A, o, t, { dur: 0.06, vol: 0.08, type: "highpass", fq: 2600 }); },
+    spring(A, o, t) { tone(A, o, t, { wave: "tri", f: 200, f2: 900, dur: 0.16, vol: 0.3 }); tone(A, o, t + 0.04, { wave: "p25", f: 700, f2: 1500, dur: 0.1, vol: 0.06 }); },
+    checkpoint(A, o, t) { nT(A, o, t, [60, 67, 72, 79], 0.09, { wave: "tri", dur: 0.5, vol: 0.2, vib: { rate: 5, depth: 12 } }); noise(A, o, t, { dur: 0.5, vol: 0.06, type: "bandpass", fq: 1800, fq2: 900, Q: 1 }); },
+    lever(A, o, t) { tone(A, o, t, { wave: "tri", f: 140, f2: 70, dur: 0.12, vol: 0.4 }); noise(A, o, t + 0.02, { dur: 0.08, vol: 0.22, metal: true, rate: 1.4, type: "bandpass", fq: 1200, Q: 2 }); tone(A, o, t + 0.14, { wave: "p25", f: 330, dur: 0.08, vol: 0.08 }); },
+    door(A, o, t) { noise(A, o, t, { dur: 0.7, vol: 0.28, type: "lowpass", fq: 700, fq2: 240 }); tone(A, o, t, { wave: "tri", f: 90, f2: 45, dur: 0.7, vol: 0.4 }); },
+    locked(A, o, t) { tone(A, o, t, { wave: "p50", f: 150, dur: 0.07, vol: 0.12 }); tone(A, o, t + 0.09, { wave: "p50", f: 120, dur: 0.1, vol: 0.12 }); },
+    crumble(A, o, t) { noise(A, o, t, { dur: 0.25, vol: 0.25, type: "bandpass", fq: 900, fq2: 400, Q: 1.2 }); tone(A, o, t, { wave: "tri", f: 110, f2: 80, dur: 0.2, vol: 0.2 }); },
+    crumbleFall(A, o, t) { noise(A, o, t, { dur: 0.5, vol: 0.3, type: "lowpass", fq: 1800, fq2: 200 }); tone(A, o, t, { wave: "tri", f: 120, f2: 40, dur: 0.4, vol: 0.4 }); },
+    faller(A, o, t) { tone(A, o, t, { wave: "p12", f: 900, f2: 400, dur: 0.08, vol: 0.06 }); noise(A, o, t, { dur: 0.1, vol: 0.12, type: "bandpass", fq: 2200, Q: 1.6 }); },
+    fallerLand(A, o, t) { noise(A, o, t, { dur: 0.22, vol: 0.34, type: "lowpass", fq: 2600, fq2: 300 }); tone(A, o, t, { wave: "tri", f: 160, f2: 50, dur: 0.18, vol: 0.4 }); },
+    hazard(A, o, t) { tone(A, o, t, { wave: "p50", f: 330, f2: 90, dur: 0.2, vol: 0.14 }); noise(A, o, t, { dur: 0.15, vol: 0.3, type: "bandpass", fq: 2800, fq2: 600, Q: 1.4 }); },
+    seal(A, o, t) { nT(A, o, t, [67, 72, 76, 79, 84], 0.07, { wave: "p25", dur: 0.28, vol: 0.09 }); tone(A, o, t + 0.1, { wave: "tri", f: mtof(79), dur: 0.8, vol: 0.2, vib: { rate: 5, depth: 18 } }); },
+    breakHit(A, o, t) { noise(A, o, t, { dur: 0.1, vol: 0.3, type: "bandpass", fq: 1500, fq2: 700, Q: 1.2 }); tone(A, o, t, { wave: "tri", f: 180, f2: 90, dur: 0.1, vol: 0.3 }); },
+    breakWall(A, o, t) { noise(A, o, t, { dur: 0.6, vol: 0.4, type: "lowpass", fq: 3200, fq2: 220 }); tone(A, o, t, { wave: "tri", f: 140, f2: 36, dur: 0.5, vol: 0.5 }); nT(A, o, t + 0.2, [72, 76, 79], 0.06, { wave: "p12", dur: 0.2, vol: 0.06 }); },
+    block(A, o, t) { tone(A, o, t, { wave: "p50", f: 220, f2: 330, dur: 0.07, vol: 0.14 }); tone(A, o, t + 0.07, { wave: "p25", f: 660, f2: 880, dur: 0.12, vol: 0.09 }); },
+    bell(A, o, t) { tone(A, o, t, { wave: "tri", f: mtof(55), dur: 1.4, vol: 0.28 }); tone(A, o, t, { wave: "p12", f: mtof(67.2), dur: 0.9, vol: 0.07 }); noise(A, o, t, { dur: 0.05, vol: 0.2, metal: true, rate: 1.3, type: "highpass", fq: 1800 }); },
+    fire(A, o, t) { noise(A, o, t, { dur: 0.25, vol: 0.3, type: "bandpass", fq: 400, fq2: 2600, Q: 1.1, a: 0.01 }); tone(A, o, t, { wave: "p25", f: 300, f2: 720, dur: 0.14, vol: 0.09 }); },
+    guard(A, o, t) { tone(A, o, t, { wave: "p25", f: 880, f2: 1320, dur: 0.18, vol: 0.12 }); tone(A, o, t + 0.05, { wave: "tri", f: 440, dur: 0.3, vol: 0.2 }); },
+    power(A, o, t) { nT(A, o, t, [64, 68, 71, 76, 80, 83], 0.045, { wave: "p12", dur: 0.16, vol: 0.075 }); tone(A, o, t + 0.1, { wave: "tri", f: mtof(88), dur: 0.5, vol: 0.14 }); },
+    powerEnd(A, o, t) { nT(A, o, t, [79, 74, 69, 62], 0.07, { wave: "p25", dur: 0.18, vol: 0.08 }); },
+    charmGet(A, o, t) { nT(A, o, t, [60, 64, 67, 72, 76, 79, 84], 0.065, { wave: "p25", dur: 0.3, vol: 0.085 }); tone(A, o, t + 0.2, { wave: "tri", f: mtof(84), dur: 1.0, vol: 0.2, vib: { rate: 6, depth: 20 } }); },
+    charmEquip(A, o, t) { tone(A, o, t, { wave: "p50", f: 440, dur: 0.05, vol: 0.1 }); tone(A, o, t + 0.05, { wave: "p25", f: 880, f2: 1320, dur: 0.14, vol: 0.1 }); },
+    charmOff(A, o, t) { tone(A, o, t, { wave: "p50", f: 660, f2: 330, dur: 0.12, vol: 0.1 }); },
     heal(A, o, t) {
       nT(A, o, t, [72, 76, 79, 84, 88], 0.05, { wave: "p12", dur: 0.18, vol: 0.075 });
       tone(A, o, t + 0.06, { wave: "tri", f: mtof(84), dur: 0.55, vol: 0.2, vib: { rate: 6, depth: 20 } });
