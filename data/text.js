@@ -3,6 +3,7 @@ window.SHARDS.text = {
   title: {
     wordmark: "SHARDS OF THE CRIMSON MOON",
     subline: "After the Shattering",
+    migrated: "Your earlier pilgrimage carried over.",
     framing: "The Cult hunts the fragments so the soul in the Crimson Moon can return.",
     pressStart: "Press Enter / A",
     menuNew: "New pilgrimage",
@@ -25,9 +26,9 @@ window.SHARDS.text = {
     ],
     pad: [
       "Move: Left stick / D-pad",
-      "Jump: B",
-      "Strike: A",
-      "Dodge: X",
+      "Jump / interact: A",
+      "Dodge: B",
+      "Strike: X",
       "Skill: Y",
       "Pause: Start"
     ]
@@ -87,7 +88,7 @@ window.SHARDS.text = {
     vespera:  { name: "Vespera", sub: "The Crimson Ruins", hint: "in Vespera", note: "The abandoned Cult town, also called the Hollow. Collapsed houses, ruined shrines, and the old entrance to the Deep." },
     deep:     { name: "The Deep", sub: "", hint: "in the Deep", note: "Blevins' unfinished creation. No Nexus holds its laws." },
     aurelion: { name: "Aurelion", sub: "The Towering Ruins", hint: "in Aurelion", note: "The Golden City of the first great age. Its people vanished, seemingly overnight. How it fell is unknown." },
-    deepLairs:{ name: "The Deep", sub: "Empty fortresses", hint: "in the Deep's forts", note: "Further in, where the Cult's war migrants built fortresses and castles that now stand empty." },
+    deepLairs:{ name: "The Deep", sub: "Empty fortresses", travel: "The Deep's fortresses", hint: "in the Deep's forts", note: "Further in, where the Cult's war migrants built fortresses and castles that now stand empty." },
     // Retired from travel in shards-v5 (the Shadow moved to the monastery); kept for old builds.
     saffrika: { name: "Saffrika", sub: "Northern jungle", hint: "in Saffrika", note: "The last great stretch of jungle, in the north. Much of the rest died in the war." },
     monastery:{ name: "Mountain Monastery", sub: "The silent monastery", hint: "in the monastery", hintBy: { cult: "at the summit" }, travel: "Mountain Monastery", note: "The Order's training ground for centuries. The Silent Dark Apostle killed every monk, and their shades never left." },
@@ -187,9 +188,9 @@ window.SHARDS.text = {
     // v7: {A} {B} ... are controller glyphs (assets/ui/pad-glyphs.png, data/pad-glyphs.js)
     gamepad: {
       move: "Move with {LS} or {DPad}",
-      jump: "Jump with {B}",
-      strike: "Strike with {A}",
-      dodge: "Dodge with {X}",
+      jump: "Jump with {A}",
+      strike: "Strike with {X}",
+      dodge: "Dodge with {B}",
       skill: "Skill with {Y}",
       done: "Talk to the guide with {A}, then Travel."
     }
@@ -234,9 +235,9 @@ window.SHARDS.text = {
     heading: "Controller",
     layout: [
       "{LS}{DPad} Move",
-      "{B} Jump",
-      "{A} Strike",
-      "{X} Dodge",
+      "{A} Jump / Use",
+      "{X} Strike",
+      "{B} Dodge",
       "{Y} Skill",
       "{Start} Pause"
     ]
@@ -278,10 +279,10 @@ window.SHARDS.text = {
   },
   endings: {
     order: {
-      heading: "The fragments are sealed",
+      heading: "The fragments are kept apart",
       lines: [
-        "Ryan seals the six fragments: Heart, Eye, Bone, Blaze, Shadow, and Claw.",
-        "Each is kept apart, or destroyed if it can be.",
+        "The Order keeps the six fragments apart: Heart, Eye, Bone, Blaze, Shadow, and Claw.",
+        "Each is guarded, or destroyed if it can be.",
         "They will never be reunited. The Shattered One is not restored.",
         "The Nexus is guarded. Labor is sacred."
       ]

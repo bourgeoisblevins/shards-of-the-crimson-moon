@@ -43,9 +43,9 @@
       };
       // gamepad buttons (standard mapping)
       this.padMap = {
-        strike: 0, jump: 1, dodge: 2, skill: 3,
-        confirm: 0, cancel: 9,
-        back: 1, // B backs out of menus (only menu scenes read "back"; in play B is jump)
+        // v2 layout (Ryan): A jump + confirm/interact, B dodge + back, X strike, Y skill, Start pause.
+        // In play A interacts instead of jumping while a prompt is up (engine padInteract).
+        jump: 0, confirm: 0, dodge: 1, back: 1, strike: 2, skill: 3, cancel: 9,
         // axes and D-pad handled separately
       };
       this._bind();

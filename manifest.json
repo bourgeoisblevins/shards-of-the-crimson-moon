@@ -1,7 +1,7 @@
 {
   "name": "Shards of the Crimson Moon",
   "short_name": "Shards",
-  "description": "After the Shattering. Two paths. Six fragments.",
+  "description": "After the Shattering. Two paths. Six fragments. (v2, 480x270)",
   "start_url": "./index.html",
   "display": "fullscreen",
   "background_color": "#050404",
@@ -31,13 +31,13 @@
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-192.png",
+      "src": "assets/icons/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "assets/icons/icon-512.png",
+      "src": "assets/icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

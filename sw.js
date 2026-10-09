@@ -1,12 +1,12 @@
 /* Service worker — cache-first for offline play. */
-const CACHE = "shards-v7";
+const CACHE = "shards-v2-1";
 const CORE = [
   "./",
   "./index.html",
   "./manifest.json",
   "./css/style.css",
   "./data/palettes.js",
-  "./data/asset-manifest.js",
+  "./data/art.js",
   "./data/text.js",
   "./data/zones.js",
   "./data/levels.js",
@@ -34,7 +34,8 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    // drop older v2 caches and the old root v1 cache; the archived v1 at /v1/ keeps its own
+    await Promise.all(keys.filter((k) => k !== CACHE && !k.startsWith("shards-v1-archive")).map((k) => caches.delete(k)));
     self.clients.claim();
   })());
 });
@@ -42,6 +43,8 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
+  // the archived v1 build under /v1/ is served by its own worker (or the network)
+  if (new URL(req.url).pathname.includes("/v1/")) return;
   e.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;

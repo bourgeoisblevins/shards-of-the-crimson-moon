@@ -43,12 +43,15 @@
 | Action | Keyboard | Gamepad | Touch |
 |---|---|---|---|
 | Move | Arrows / A D | Stick / D-pad | Left pads |
-| Jump | Z / Space / W | B | Jump |
-| Strike | X / J | A | Strike |
-| Dodge | C / K / Shift | X | Dodge |
+| Jump | Z / Space / W | A | Jump |
+| Strike | X / J | X | Strike |
+| Dodge | C / K / Shift | B | Dodge |
 | Skill | V / L | Y | Skill |
 | Talk / confirm | Enter | A | OK pad, or tap the dialogue / menu row |
 | Back (menus) | Esc | B | Back row |
+
+On a controller, A is both jump and interact: while a prompt is showing (guide, travel pad,
+gate, altar) A interacts; anywhere else it jumps. B dodges in play and backs out of menus.
 | Pause | Esc | Start | II pad (top right) |
 
 Order skill: radiant burst. Cult skill: crimson dash.
