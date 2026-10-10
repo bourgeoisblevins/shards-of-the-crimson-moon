@@ -148,6 +148,14 @@ Pilgrim's Staff / Ash-Wood Staff (starter, balanced), Harvest Scythe / Reaper's 
 
 Boss claims also hand over the listed charm if you do not own it. Charm damage bonuses are capped at +3 (before Glass Cannon).
 
+## v2.5: new stages, new foes, bonus stages
+- **Travel menu**: after the six apostle zones you will find **Saffrika: Slum Waterways** (unlocks after 2 fragment claims) and **Sandria: Gonduras Pyramids** (after 4). They are optional: they never count toward the fragments you need.
+- **Water**: wade or swim in Saffrika's canals. Press **Jump while under water to swim**. Docks, rope lines and stairs keep you out of it.
+- **Seal gate**: in both new stages, 3 seals lift the gate (press A at the gate). Beat the elite behind it (the Pirate Captain, the Gonduran Warden) to clear the stage. First clears pay aurels and NIP; replays pay a little aurels.
+- **Sheriff Dandy** waits near the start of Saffrika: press A to talk.
+- **Foes**: Deep pigs charge. **Ash griffins** (Aurelion, Sakura) telegraph, leap and dive diagonally; dodge the dive and hit them while they are stunned. Sandria: snakes lunge, mummies are slow and heavy, **tumbleweeds** roll through the streets (strike them or jump). Mushroom caps are platforms, bounce shrooms launch you, spore clouds hurt and slow.
+- **Bonus stages**: three hidden keys sit behind breakable walls in the Deep, the Deep's forts and the Monastery. Each opens a stage in **Travel > Bonus Stages**: the Belfry of Echoes, the Ember Pit and the Spore Hollow. Replay them any time.
+
 ## Paths
 
 - **Order of the Golden Serpent** (warrior monk): take all six fragments from the Apostles of the Shattered, General Jeriah included, so Ryan can keep them apart, or destroy them if it can be done. Six bosses.

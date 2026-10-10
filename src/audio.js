@@ -572,6 +572,57 @@
       order: ["A", "B", "C"]
     },
 
+    // v2.5 Sandria: the desert city beside the pyramids. E Phrygian dominant, a slow caravan pulse, a reedy lead.
+    sandria: {
+      gain: 1.3,
+      title: "Caravans of Sandria", mode: "E Phrygian dominant", bpm: 94, spb: 4, zone: true,
+      echo: { beats: 0.75, fb: 0.25, mix: 0.2, lp: 2200 },
+      inst: {
+        lead: I(LEAD25, { vol: 0.1, vib: { depth: 20, rate: 5.5, delay: 0.1 } }), harm: I(STAB, { wave: "p25", vol: 0.05 }),
+        arp: I(ARP, { vol: 0.035 }), bass: I(BASS, { gate: 0.8 }), drums: I(KIT, { vol: 0.4 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "Em F Em F Em Dm F Em",
+          lead: "E4:4 F4:4 Gs4:4 B4:4 | C5:8 B4:4 Gs4:4 | E4:4 F4:4 Gs4:4 B4:4 | C5:4 B4:4 A4:4 Gs4:4 | B4:4 C5:4 D5:4 E5:4 | F5:8 E5:4 C5:4 | B4:4 Gs4:4 F4:4 E4:4 | E4:16",
+          harm: gen("2..2..2.2..2..2.", 4), arp: gen("0102010301020103", 4), bass: gen("0.......0...0...", 2),
+          drums: "k...t...k.t.t..."
+        },
+        B: {
+          bars: 8, chords: "Am Em F E Am Em F E",
+          lead: "A4:8 C5:4 E5:4 | Gs5:8 E5:4 B4:4 | F5:8 E5:4 C5:4 | B4:8 Gs4:4 B4:4 | A4:4 C5:4 E5:4 A5:4 | Gs5:4 E5:4 B4:4 Gs4:4 | F4:4 A4:4 C5:4 F5:4 | E5:16",
+          harm: gen("2..2..2.2..2..2.", 4), arp: gen("0102010301020103", 4), bass: gen("0.......0...0...", 2),
+          drums: "k.h.t...k.h.t.t."
+        }
+      },
+      order: ["A", "B"]
+    },
+
+    // v2.5 bonus stages: a quick, bright A Mixolydian run.
+    bonus: {
+      gain: 1.25,
+      title: "Hidden Hours", mode: "A Mixolydian", bpm: 148, spb: 4, zone: true,
+      inst: {
+        lead: I(LEAD50, { vol: 0.1 }), harm: I(STAB, { wave: "p25", vol: 0.05 }),
+        arp: I(ARP, { vol: 0.045 }), bass: I(BASS, { gate: 0.6 }), drums: I(KIT, { vol: 0.42 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "A G D A A G D E",
+          lead: "A4:2 Cs5:2 E5:4 A5:4 E5:4 | G4:2 B4:2 D5:4 G5:4 D5:4 | D5:2 Fs5:2 A5:4 D6:4 A5:4 | A4:2 Cs5:2 E5:4 A5:8 | A4:2 Cs5:2 E5:4 A5:4 E5:4 | G4:2 B4:2 D5:4 G5:8 | D5:2 Fs5:2 A5:4 D6:4 A5:4 | E5:4 Gs5:4 B5:4 E6:4",
+          harm: gen("2..2..2.2..2..2.", 4), arp: gen("0102010301020103", 4), bass: gen("0..0..0.0..0..3.", 2),
+          drums: "k.h.s.h.k.h.s.hs"
+        },
+        B: {
+          bars: 8, chords: "D A G E D A G E",
+          lead: "D5:4 Fs5:4 A5:8 | E5:4 A5:4 Cs6:8 | D5:4 G5:4 B5:8 | E5:4 Gs5:4 B5:8 | D5:2 Fs5:2 A5:4 D6:8 | Cs6:4 A5:4 E5:8 | B4:4 D5:4 G5:8 | E5:16",
+          harm: gen("2..2..2.2..2..2.", 4), arp: gen("0102010301020103", 4), bass: gen("0..0..0.0..0..3.", 2),
+          drums: "k.h.s.h.k.h.s.hs"
+        }
+      },
+      order: ["A", "B"]
+    },
+
     // Mountain Monastery (shards-v5): the Shadow's zone. Cold, sparse, chant-like:
     // a slow plainchant line doubled a fifth below (organum) over an open-fifth
     // drone, a low bronze bell, wind. Title from the shades' entry in the archive.
@@ -833,6 +884,12 @@
   // ======================================================================
   const nT = (A, o, t, notes, gap, opts) => notes.forEach((m, i) => tone(A, o, t + i * gap, Object.assign({ f: mtof(m) }, opts)));
   const SFX = {
+    // ---- v2.5 ----
+    swim(A, o, t) { noise(A, o, t, { dur: 0.14, vol: 0.12, type: "bandpass", fq: 500, fq2: 1100, Q: 1.2, a: 0.01 }); tone(A, o, t, { wave: "sine", f: 200, f2: 340, dur: 0.1, vol: 0.1 }); },
+    griffinCry(A, o, t) { tone(A, o, t, { wave: "sq", f: 1300, f2: 780, dur: 0.22, vol: 0.12 }); tone(A, o, t + 0.05, { wave: "saw", f: 900, f2: 520, dur: 0.2, vol: 0.08 }); noise(A, o, t, { dur: 0.1, vol: 0.1, type: "highpass", fq: 3000, fq2: 5000, Q: 1, a: 0.01 }); },
+    griffinDive(A, o, t) { noise(A, o, t, { dur: 0.3, vol: 0.22, type: "bandpass", fq: 3200, fq2: 700, Q: 1.2, a: 0.01 }); tone(A, o, t, { wave: "saw", f: 700, f2: 160, dur: 0.28, vol: 0.14 }); },
+    thud(A, o, t) { tone(A, o, t, { wave: "sine", f: 120, f2: 45, dur: 0.18, vol: 0.4 }); noise(A, o, t, { dur: 0.1, vol: 0.18, type: "lowpass", fq: 700, fq2: 300, Q: 1, a: 0.002 }); },
+    stageClear(A, o, t) { [523, 659, 784, 1047].forEach((f, i) => tone(A, o, t + i * 0.12, { wave: "tri", f: f, dur: 0.22, vol: 0.2 })); tone(A, o, t + 0.5, { wave: "p25", f: 1568, dur: 0.5, vol: 0.12 }); },
     // ---- v2.4 ----
     chargeReady(A, o, t) {
       tone(A, o, t, { wave: "tri", f: 520, f2: 880, dur: 0.12, vol: 0.2 });

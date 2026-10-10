@@ -16,7 +16,7 @@
   let invFrom = "play", invTab = 0, invIx = 0, loreScroll = 0, shopIx = 0, leaderStage = 0, leaderIx = 0, leaderMsg = "", enchW = 0, enchE = 0, shrineIx = 0, tpList = [], tpIx = 0, tele = null, teleArrive = 0;
   let fsReq = false, fsNote = "", fsNoteT = 0, padScaleCur = 1, touchScheme = "buttons"; const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 }; const stickBlocked = new Set();
   let cameraY = 0, camPy = 0, w22 = null, stats = null, powers = {};
-  let charmIx = 0, charmFrom = "pause", canEquip = false, popup = null, readText = null, difficulty = "standard";
+  let charmIx = 0, charmFrom = "pause", canEquip = false, popup = null, readText = null, readQ = [], difficulty = "standard";
 
   const canvas = document.getElementById("game");
   const fb = document.createElement("canvas");
@@ -144,7 +144,9 @@
     if ((save.version | 0) === 22 && !save.migratedFrom) save.migratedFrom = "v2.2";
     normV23();
     if ((save.version | 0) === 23 && !save.migratedFrom) save.migratedFrom = "v2.3";
-    save.version = 24;
+    if ((save.version | 0) === 24 && !save.migratedFrom) save.migratedFrom = "v2.4";
+    normV25();
+    save.version = 25;
   }
   normalizeSave();
   function persist() {
@@ -159,7 +161,7 @@
     const settings = save.settings;
     save = defaultSave();
     save.settings = settings;
-    normV23();
+    normV23(); normV25();
     persist();
   }
   // v7: controller rumble. Saves from before v7 have no flag: on by default.
@@ -449,6 +451,8 @@
     for (const it of E(L.items)) if (!S.items[it.id]) w22.items.push(Object.assign({ w: 14, h: 14, taken: false }, it));
     for (const d of E(L.enemies)) if (d.elite && d.id && S.elites[d.id] && d.drop && !S.items[d.drop.id]) w22.items.push(Object.assign({ w: 14, h: 14, taken: false }, d.drop, { x: d.x, y: d.y }));
     w22.camLook = 0;
+    for (const m of E(L.shrooms)) w22.fungi.push({ x: m.x, y: m.y - 2, shroom: true });
+    if (L.arena) for (const it of w22.items) if (it.id === L.arena.prize.id) it.hidden = true;
   }
   function eliteDoors() { return w22.doors.filter(d => d.kind === "elite"); }
   function buildCur() {
@@ -513,7 +517,12 @@
     for (const c of w22.cps) if (Math.abs(pc.x - (c.x + c.w / 2)) < 22 && Math.abs(pc.y - (c.y + c.h / 2)) < 28) return { kind: "rest", obj: c };
     for (const l of w22.levers) if (Math.abs(pc.x - (l.x + 8)) < 20 && Math.abs(pc.y - (l.y - 8)) < 26) return { kind: "lever", obj: l };
     for (const t of w22.tablets) if (Math.abs(pc.x - (t.x + 8)) < 20 && Math.abs(pc.y - (t.y - 10)) < 28) return { kind: "tablet", obj: t };
-    if (level.bossGate && aabb(player, level.bossGate)) return { kind: "gate", obj: level.bossGate };
+    for (const t of (level.talk || [])) if (Math.abs(pc.x - (t.x + 8)) < 36 && Math.abs(pc.y - (t.y - 24)) < 34) return { kind: "talk", obj: t };
+    if (level.bossGate && aabb(player, level.bossGate)) {
+      const od = level.bossGate.opens && w22.doors.find(d => d.id === level.bossGate.opens);
+      if (od && od.open) return null;
+      return { kind: "gate", obj: level.bossGate };
+    }
     return null;
   }
   function pullLever(l, silent) {
@@ -538,6 +547,12 @@
     if (n.kind === "rest") { restAt(n.obj); return true; }
     if (n.kind === "lever") { pullLever(n.obj); return true; }
     if (n.kind === "tablet") { V().tablets[level.zone + ":" + (n.obj.i | 0)] = 1; persist(); readText = n.obj.text || (T22().tablets[level.zone] || [])[n.obj.i | 0] || ""; synth.sfx("dialogue"); return true; }
+    if (n.kind === "talk") { readQ = T25().dandy.slice(); readText = readQ.shift(); synth.sfx("dialogue"); return true; }
+    if (n.kind === "gate" && level.bossGate.opens) {
+      if (sealCount() >= sealNeed()) { for (const d of w22.doors) if (d.id === level.bossGate.opens) { d.open = true; w22.S.doors[d.id] = 1; } synth.sfx("gate"); toast(T25().gate.open); persist(); }
+      else { synth.sfx("locked"); const m = sealNeed() - sealCount(); toast(m === 1 ? T25().gate.lockedOne : T25().gate.locked.replace("{n}", m)); }
+      return true;
+    }
     if (n.kind === "gate") {
       if (sealCount() >= sealNeed()) { const zid = level.zone; synth.sfx("gate"); toast(T22().seals.open); goScene(() => enterArena(zid)); }
       else { synth.sfx("locked"); const m = sealNeed() - sealCount(); toast(m === 1 ? T22().seals.lockedOne : T22().seals.locked.replace("{n}", m)); }
@@ -567,6 +582,9 @@
     else if (it.type === "heal") { player.hp = Math.min(player.maxHp, player.hp + 2 + diffRules().heal); synth.sfx("pickup"); spark(it.x, it.y, P().order.nexus, 8); }
     else if (it.type === "pw") { givePower(it.ref); }
     else if (it.type === "weapon") { giveWeapon(it.ref); }
+    else if (it.type === "aurels") { V().aurels += it.n | 0; synth.sfx("coin"); toast(T23().got.aurels.replace("{n}", it.n | 0)); }
+    else if (it.type === "bonuskey") { save.bonus[it.ref] = true; synth.sfx("charmGet"); const sd = S25().find(q => q.key === it.ref); toast(T25().ui.keyGot.replace("{name}", T25().zones[sd.id].name)); }
+    else if (it.type === "bonusprize") { synth.sfx("seal"); const sid = level.zone; setTimeout(() => { if (scene === "traverse" && level.zone === sid) finishStage(sid); }, 500); }
     persist();
   }
   function givePower(id) {
@@ -585,6 +603,7 @@
       if (e.id) w22.S.elites[e.id] = 1;
       for (const d of eliteDoors()) { d.open = true; }
       w22.eliteLock = null; toast(T22().elite.slain); synth.sfx("door");
+      if (e.clearStage) { const sid = level.zone; setTimeout(() => { if (scene === "traverse" && level.zone === sid) finishStage(sid); }, 1400); }
       if (e.drop) { const it = Object.assign({ w: 14, h: 14, taken: false, y: e.y }, e.drop); it.x = e.x; it.y = e.y - 6; w22.items.push(it); }
       persist(); return;
     }
@@ -614,7 +633,7 @@
   // ---------- player / world interplay (called after updatePlayer in tiled levels) ----------
   function updateWorld22Post() {
     const p = player; if (p.dead) return;
-    revealMap(); updateCheckpointsAuto();
+    revealMap(); updateCheckpointsAuto(); worldTick25();
     // springs
     for (const s of w22.springs) {
       if (s.anim > 0) s.anim--;
@@ -634,7 +653,7 @@
     // (applied in updatePlayer via windFor)
     // pickups: items (world), drops (dynamic)
     for (const it of w22.items) {
-      if (it.taken) continue;
+      if (it.taken || it.hidden) continue;
       const mag = 1;
       if (aabb(p, { x: it.x, y: it.y, w: 14, h: 14 })) takeItem(it);
     }
@@ -790,7 +809,7 @@
         else { const px_ = wx(wd.x + sx), py_ = wy(wd.y + sy); rect(px_, py_, 1, 5, "#CFC2AB"); rect(px_ + 1, py_ + 2, 1, 3, "#8F7C67"); }
       }
     }
-    for (const s of w22.springs) if (onScr(s.x, s.y - 16, 16, 20)) blitFrame("w22-spring", s.anim > 6 ? "up" + (s.anim > 9 ? 0 : 1) : (s.anim > 0 ? "press0" : "idle0"), wx(s.x + 8), wy(s.y), false);
+    for (const s of w22.springs) if (s.skin === "shroom") { if (onScr(s.x, s.y - 20, 16, 24)) blitFrame("w25-bounce", "bounce" + (s.anim > 6 ? 2 : s.anim > 0 ? 3 : (((k / 14) | 0) % 2)), wx(s.x + 8), wy(s.y + 1), false); } else if (onScr(s.x, s.y - 16, 16, 20)) blitFrame("w22-spring", s.anim > 6 ? "up" + (s.anim > 9 ? 0 : 1) : (s.anim > 0 ? "press0" : "idle0"), wx(s.x + 8), wy(s.y), false);
     for (const l of w22.levers) if (onScr(l.x, l.y - 20, 16, 24)) blitFrame("w22-lever", l.on ? "on0" : "off0", wx(l.x + 8), wy(l.y), false);
     for (const t of w22.tablets) if (onScr(t.x, t.y - 20, 16, 24)) blitFrame("w22-tablet", "idle" + ((k / 40 | 0) % 2), wx(t.x + 8), wy(t.y), false);
     for (const b of w22.bells) if (onScr(b.x - 14, b.y, 28, 34)) blitFrame("w22-bell", b.ring > 0 ? "ring" + ((b.ring / 4 | 0) % 4) : "idle0", wx(b.x), wy(b.y), false);
@@ -822,8 +841,11 @@
   function drawWorldItems() {
     const k = animT, pk = path === "cult" ? "cult" : "order";
     const one = (it) => {
-      if (it.taken || !onScr(it.x - 8, it.y - 8, 30, 30)) return;
+      if (it.taken || it.hidden || !onScr(it.x - 8, it.y - 8, 30, 30)) return;
       const f = (k / 8 | 0) % 4;
+      if (it.type === "aurels") { drawActor("w23-world", "coinb" + f, it.x + 7, it.y + 14, false); return; }
+      if (it.type === "bonuskey") { blitFrame("w22-pickup", "pw-ward" + f, wx(it.x + 7), wy(it.y + 14 + Math.round(Math.sin(k / 10) * 2)), false); return; }
+      if (it.type === "bonusprize") { blitFrame("w22-pickup", "vessel" + f, wx(it.x + 7), wy(it.y + 14 + Math.round(Math.sin(k / 10) * 2)), false); return; }
       if (it.type === "seal") blitFrame("w22-seal-" + pk, "spin" + f, wx(it.x + 7), wy(it.y + 15), false);
       else if (it.type === "charm") blitFrame("w22-pickup", "charm" + f, wx(it.x + 7), wy(it.y + 14), false);
       else if (it.type === "notch") blitFrame("w22-pickup", "notch" + f, wx(it.x + 7), wy(it.y + 14), false);
@@ -1082,7 +1104,7 @@
     const hp0 = Math.max(1, Math.round(st.hp * (T22L ? DR.hp : 1) * (el ? 3.2 : 1)));
     const dmg0 = st.damage + (T22L && (st.behavior === "charger" || st.behavior === "jumper") ? 1 : 0) + (el ? 1 : 0);
     return {
-      type: def.type, x: def.x, y: def.y, w: st.w, h: st.h, elite: el, id: def.id || null, drop: def.drop || null, lockRoom: def.room || null,
+      type: def.type, x: def.x, y: def.y, w: st.w, h: st.h, elite: el, clearStage: !!def.clear, id: def.id || null, drop: def.drop || null, lockRoom: def.room || null,
       vx: 0, vy: 0, onGround: false, facing: -1,
       hp: hp0, maxHp: hp0, speed: st.speed * (el ? 1.2 : 1), damage: dmg0,
       ranged: !!st.ranged, behavior: st.behavior || (st.ranged ? "ranged" : "melee"),
@@ -1142,18 +1164,187 @@
     lineIx = save.guideIndex[path] || 0;
     setMusic(path === "order" ? "orderHub" : "cultHub");
   }
+
+  // ---------- v2.5: side stages, bonus stages, water, tumbleweeds, arena waves ----------
+  function S25() { return window.SHARDS.stages25 || []; }
+  function T25() { return window.SHARDS.text25; }
+  function stageDef(id) { return S25().find(q => q.id === id); }
+  function normV25() {
+    if (!save.stages || typeof save.stages !== "object") save.stages = {};
+    if (!save.bonus || typeof save.bonus !== "object") save.bonus = {};
+    for (const k of Object.keys(save.bonus)) if (!S25().some(q => q.key === k)) delete save.bonus[k];
+    for (const k of Object.keys(save.stages)) if (!stageDef(k)) delete save.stages[k];
+  }
+  function stageUnlocked(q) { return q.kind === "bonus" ? !!save.bonus[q.key] : claimedCount() >= q.need; }
+  let clearT = 0, clearLines = [], clearTitle = "", bonusIx = 0;
+  function finishStage(id) {
+    const q = stageDef(id); if (!q || !save.stages) return;
+    const St = save.stages[id] || (save.stages[id] = {}), first = !St.cleared, v = V(), R = q.reward, lines = [], U = T25().ui.reward;
+    St.cleared = true; St.n = (St.n | 0) + 1;
+    if (first) {
+      if (R.aurels) { v.aurels += R.aurels; lines.push(U.aurels.replace("{n}", R.aurels)); }
+      if (R.nip) { v.nip += R.nip; v.nipTotal += R.nip; lines.push(U.nip.replace("{n}", R.nip)); }
+      if (R.notch && save.notches < 6) { save.notches++; lines.push(U.notch); }
+      if (R.weapon) { giveWeapon(R.weapon, true); lines.push(U.weapon.replace("{name}", weaponName(R.weapon))); }
+    } else if (R.replay) { v.aurels += R.replay; lines.push(U.replay.replace("{n}", R.replay)); }
+    clearTitle = T25().clear[id] || ""; clearLines = lines; clearT = 0; scene = "stageclear"; synth.sfx("stageClear"); persist();
+  }
+  function updateStageClear() { clearT++; if ((clearT > 50 && input.pressed("confirm")) || clearT > 900) goScene(() => enterHub()); }
+  function drawStageClear() {
+    const h = 56 + clearLines.length * 14, y = ((H - h) / 2) | 0;
+    panel(110, y, W - 220, h);
+    drawText(clearTitle, W / 2, y + 12, P().order.illumination, "center");
+    clearLines.forEach((ln, i) => drawText(ln, W / 2, y + 30 + i * 14, P().order.bone, "center"));
+    if (clearT > 50) { drawText(touchUI() ? T25().ui.clearHintTouch : padUI() ? T25().ui.clearHintPad : T25().ui.clearHint, W / 2, y + h - 14, P().ground.smoke, "center"); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
+  }
+  // water: wade/swim physics for level.waters rects
+  function waterAt(en) {
+    const ws = level && level.waters; if (!ws) return 0;
+    const cx = en.x + en.w / 2;
+    for (const w of ws) if (cx > w.x && cx < w.x + w.w && en.y + en.h > w.y && en.y < w.y + w.h) return (en.y + en.h * 0.45 > w.y + 2) ? 2 : 1;
+    return 0;
+  }
+  function waterTick(p, wt) {
+    const was = p.wt | 0; p.wt = wt;
+    const w = wt && level.waters.find(q => p.x + p.w / 2 > q.x && p.x + p.w / 2 < q.x + q.w && p.y + p.h > q.y && p.y < q.y + q.h);
+    if (wt && !was && w) { fx24.push({ sh: "fx25-splash", nm: "splash", n: 6, x: p.x + p.w / 2, y: w.y + 2, t: 0, rate: 3 }); synth.sfx("splash"); }
+    else if (!wt && was && p.vy < 0) { fx24.push({ sh: "fx25-splash", nm: "splash", n: 6, x: p.x + p.w / 2, y: p.y + p.h, t: 0, rate: 3 }); }
+    if (wt === 2 && w) {
+      if (((animT + 7) % 38) === 0) fx24.push({ sh: "fx25-bubble", nm: "bubble", n: 4, x: p.x + p.w / 2 + (Math.random() * 6 - 3), y: p.y + 4, t: 0, rate: 8 });
+      if ((Math.abs(p.vx) > 0.3) && (animT % 18) === 0) fx24.push({ sh: "fx25-ripple", nm: "ripple", n: 4, x: p.x + p.w / 2, y: w.y + 1, t: 0, rate: 4 });
+    } else if (wt === 1 && Math.abs(p.vx) > 0.3 && (animT % 14) === 0 && w) fx24.push({ sh: "fx25-ripple", nm: "ripple", n: 4, x: p.x + p.w / 2, y: w.y + 1, t: 0, rate: 4 });
+  }
+  const wpat = {};
+  function wPattern(col, dense) {
+    const k = col + dense; if (wpat[k]) return wpat[k];
+    const c = document.createElement("canvas"); c.width = c.height = 2; const x = c.getContext("2d"); x.fillStyle = col;
+    x.fillRect(0, 0, 1, 1); if (dense) x.fillRect(1, 1, 1, 1);
+    return (wpat[k] = g.createPattern(c, "repeat"));
+  }
+  function drawWaters() {
+    for (const w of (level.waters || [])) {
+      if (!onScr(w.x, w.y, w.w, w.h)) continue;
+      const x0 = Math.max(0, wx(w.x)), x1 = Math.min(W, wx(w.x + w.w)), y0 = wy(w.y), y1 = Math.min(H, wy(w.y + w.h));
+      if (x1 <= x0 || y1 <= 0) continue;
+      const ya = Math.max(0, y0);
+      g.fillStyle = wPattern("#3F6688", true); g.fillRect(x0, ya, x1 - x0, y1 - ya);
+      const dy = Math.min(y1, y0 + 28);
+      if (dy > ya) { g.fillStyle = wPattern("#7898B8", true); g.fillRect(x0, ya, x1 - x0, Math.max(0, dy - ya)); }
+      g.fillStyle = wPattern("#22384E", true); g.fillRect(x0, Math.max(ya, y0 + 70), x1 - x0, Math.max(0, y1 - Math.max(ya, y0 + 70)));
+      if (y0 >= 0 && y0 < H) { for (let x = x0 - (x0 % 8); x < x1; x += 8) { const ph = Math.sin((x + animT * 0.9) * 0.35) > 0 ? 0 : 1; rect(Math.max(x, x0), y0 + ph, Math.min(5, x1 - Math.max(x, x0)), 2, "#B8CACD"); } }
+    }
+  }
+  function drawDecor(zl) {
+    for (const d of (level.decor || [])) if (d.z === zl && onScr(d.x - 50, d.y - 90, 100, 100)) blitFrame(d.sheet, d.frame || "f0", wx(d.x), wy(d.y), false);
+  }
+  // tumbleweeds + spore clouds + arena waves (Sandria, the Deep bonus, the Ember Pit)
+  function worldTick25() {
+    const p = player;
+    if (level.tumbles) {
+      if (!w22.tw) w22.tw = [];
+      for (const sp of level.tumbles) {
+        sp.t = (sp.t | 0) + 1;
+        if (sp.t % sp.every === 1 && Math.abs(p.x - sp.start) < 640 && w22.tw.length < 6) w22.tw.push({ x: sp.start, y: sp.y - 18, by: sp.y - 18, vx: sp.dir * (1.2 + Math.random() * 0.5), x0: sp.x0, x1: sp.x1, t: 0, hp: 1 });
+      }
+      for (const tw of w22.tw) {
+        tw.x += tw.vx; tw.t++; tw.y = tw.by - Math.abs(Math.sin(tw.t * 0.11)) * 7;
+        if (tw.x < tw.x0 || tw.x > tw.x1) tw.hp = 0;
+        const box = { x: tw.x + 2, y: tw.y + 2, w: 14, h: 14 };
+        if (p.atk > 0 && Math.abs(tw.x + 9 - (p.x + p.w / 2)) < 30 && Math.abs(tw.y - p.y) < 22) { tw.hp = 0; spark(tw.x + 9, tw.y + 9, "#A8703F", 8); synth.sfx("breakHit"); }
+        else if (aabb(p, box) && p.inv === 0 && p.dodge === 0 && !(powers.ward > 0)) { hurtPlayer(1, Math.sign(p.x - tw.x) || 1); tw.hp = 0; spark(tw.x + 9, tw.y + 9, "#A8703F", 8); }
+      }
+      w22.tw = w22.tw.filter(tw => tw.hp > 0);
+    }
+    for (const z of (level.hazardZones || [])) {
+      const ph = (w22.t + (z.ph | 0)) % z.per;
+      if (ph < z.on && aabb(p, z) && p.inv === 0 && p.dodge === 0 && !(powers.ward > 0)) { hurtPlayer(1, -p.facing); p.slowT = 90; synth.sfx("hazard"); }
+    }
+    const A = level.arena;
+    if (A) {
+      if (!w22.ar) w22.ar = { wave: -1, done: false };
+      const ar = w22.ar;
+      if (ar.wave === -1 && p.x > A.x && p.x < A.x + A.w) { ar.wave = 0; spawnWave(A.waves[0]); toast("Wave 1 / " + A.waves.length); }
+      else if (ar.wave >= 0 && !ar.done && enemies.every(e => e.dead)) {
+        if (ar.wave + 1 < A.waves.length) { ar.wave++; spawnWave(A.waves[ar.wave]); toast("Wave " + (ar.wave + 1) + " / " + A.waves.length); synth.sfx("door"); }
+        else { ar.done = true; for (const it of w22.items) if (it.hidden) it.hidden = false; synth.sfx("seal"); toast(T25().ui.prize); }
+      }
+    }
+  }
+  function spawnWave(list) { enemies = list.map(d => makeEnemy(Object.assign({}, d))); for (const e of enemies) { e.alert = 600; } }
+  function drawWorld25() {
+    const k = animT;
+    for (const t of (level.talk || [])) if (onScr(t.x - 20, t.y - 70, 60, 80)) {
+      const near = player && Math.abs(player.x - t.x) < 40, flip = player && player.x < t.x;
+      blitFrame("npc-dandy", animFrame("npc-dandy", near ? "talk" : "idle", k, 14), wx(t.x + 8), wy(t.y), !!flip);
+    }
+    for (const m of (level.shrooms || [])) if (onScr(m.x - 20, m.y - 40, 40, 44)) blitFrame("w25-glow", "glow" + (((k + (m.x | 0)) / 10 | 0) % 4), wx(m.x), wy(m.y), false);
+    for (const q of (level.platforms || [])) if (q.skin === "cap" && onScr(q.x - 8, q.y - 8, q.w + 16, 24)) blitFrame("w25-cap", "f0", wx(q.x + q.w / 2), wy(q.y), false);
+    for (const z of (level.hazardZones || [])) if (onScr(z.x - 20, z.y - 20, z.w + 40, z.h + 40)) {
+      const ph = (w22.t + (z.ph | 0)) % z.per;
+      if (ph < z.on) for (let i = 0; i < 3; i++) blitFrame("w25-spore", "spore" + ((((k / 6) | 0) + i) % 5), wx(z.x + z.w * (i + 0.5) / 3), wy(z.y + z.h - 2 - ((k + i * 9) % 12)), false);
+      else if (ph > z.per - 36) blitFrame("w25-spore", "spore0", wx(z.x + z.w / 2), wy(z.y + z.h), false);
+    }
+    for (const tw of (w22.tw || [])) blitFrame("w25-tumble", "roll" + (((tw.t / 4) | 0) % 4), wx(tw.x + 9), wy(tw.y + 9), tw.vx > 0);
+  }
+  // ---------- travel rows ----------
+  function travelRows() {
+    const rows = pathZones().map(z => ({ k: "zone", z }));
+    for (const q of S25().filter(q => q.kind === "side")) rows.push({ k: "stage", s: q });
+    rows.push({ k: "bonusmenu" }); rows.push({ k: "back" });
+    return rows;
+  }
+  function updateBonus() {
+    const list = S25().filter(q => q.kind === "bonus"), n = list.length + 1;
+    if (input.pressed("up")) { bonusIx = (bonusIx + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { bonusIx = (bonusIx + 1) % n; synth.sfx("menuMove"); }
+    if (menuBack()) { scene = "travel"; return; }
+    if (input.pressed("confirm")) {
+      synth.sfx("menu");
+      if (bonusIx === n - 1) { scene = "travel"; return; }
+      const q = list[bonusIx]; if (!stageUnlocked(q)) { synth.sfx("locked"); return; }
+      goScene(() => enterTraverse(q.id));
+    }
+  }
+  function drawBonus() {
+    uiT++;
+    rect(0, 0, W, H, P().ground.void);
+    const t = touchUI(), list = S25().filter(q => q.kind === "bonus"), U = T25().ui;
+    if (t) panel(6, 4, W - 12, H - 8); else panel(16, 14, W - 32, H - 28);
+    drawText(U.bonus, t ? W / 2 : 150, t ? 10 : 24, P().order.illumination, "center");
+    const pitch = t ? 34 : 26; let y = t ? 34 : 50;
+    list.forEach((q, i) => {
+      const un = stageUnlocked(q), done = !!(save.stages[q.id] && save.stages[q.id].cleared), sel = i === bonusIx;
+      const label = un ? T25().zones[q.id].name + "  " + (done ? U.bonusDone : U.bonusNew) : U.bonusLocked;
+      drawText(label, 40, y + 4, sel ? P().order.illumination : un ? P().order.boneShade : P().ground.ash);
+      if (sel) cursor(24, y + 5);
+      menuRow(12, y + 4, t ? W - 24 : 270, pitch, "bonus" + i, false, () => { bonusIx = i; });
+      y += pitch;
+    });
+    menuText(U.back, 40, y + 4, bonusIx === list.length, "left");
+    menuRow(12, y + 4, t ? W - 24 : 270, pitch, "bonusBack", false, () => { bonusIx = list.length; });
+    if (!t) {
+      const q = list[Math.min(bonusIx, list.length - 1)], px = 300, py = 46, un = q && stageUnlocked(q);
+      const th = q && ART().thumbs[q.id];
+      drawImg(ART().ui.thumbFrame.path, px - 4, py - 4); if (th && un) drawImg(th, px, py);
+      if (q) { drawText(un ? T25().zones[q.id].name : "???", px + 76, py + 98, P().order.bone, "center"); drawText(un ? T25().zones[q.id].note.slice(0, 34) : "", px + 76, py + 114, P().ground.smoke, "center"); }
+      drawText(U.bonusHelp, W / 2, H - 34, P().ground.smoke, "center");
+    }
+  }
   function enterTravel() { scene = "travel"; travelIx = 0; }
   function liveZone(zoneId) {
     const retired = window.SHARDS.retiredZones || {};
     return retired[zoneId] || zoneId;
   }
   function enterTraverse(zoneId, opts) {
-    zoneId = liveZone(zoneId);
-    const def = window.SHARDS.zones.find(z => z.id === zoneId);
-    if (!def || !window.SHARDS.levels[zoneId + "_traverse"]) { enterHub(); return; }
+    zoneId = stageDef(zoneId) ? zoneId : liveZone(zoneId);
+    const sdef = stageDef(zoneId);
+    const def = window.SHARDS.zones.find(z => z.id === zoneId) || sdef;
+    levelId = sdef && sdef.kind === "bonus" ? zoneId : zoneId + "_traverse";
+    if (!def || !window.SHARDS.levels[levelId]) { enterHub(); return; }
     if (path === "cult" && def && def.cultHeldBy) { enterHub(); return; } // Order-only zone
-    levelId = zoneId + "_traverse";
     level = window.SHARDS.levels[levelId];
+    readQ = [];
+    if (sdef && !(opts && opts.respawn) && (sdef.kind === "bonus" || (save.stages[zoneId] && save.stages[zoneId].cleared))) delete save.world[zoneId];   // replays start fresh
     recomputeStats(); powers = {};
     player = makePlayer(level.spawn.x, level.spawn.y);
     boss = null;
@@ -1175,7 +1366,7 @@
     ensureWeapons(); coins = []; efx = []; readText = null; if (opts && opts.respawn) flaskRefill(true);
     titleCard = (opts && opts.respawn) ? 0 : 90; titleCardText = level.title || "";
     fade = 16; fadeDir = -1;
-    setMusic(zoneId);
+    setMusic(sdef && sdef.music || zoneId);
   }
   function enterArena(zoneId) {
     zoneId = liveZone(zoneId);
@@ -1253,7 +1444,8 @@
     rift_spitter: { ek: "rift", w: 7, h: 7, sp: 1.5, up: -1.15, grav: 0.05, life: 120, land: "puddle", nm: 3 },
     blaze_imp: { ek: "ember", w: 7, h: 6, sp: 2.0, wob: 1, life: 100, fxk: "burn", nm: 3 },
     vine_spitter: { ek: "seed", w: 6, h: 6, sp: 1.7, up: -0.95, grav: 0.04, life: 120, land: "cloud", nm: 2 },
-    ice_archer: { ek: "shard", w: 9, h: 4, sp: 2.8, life: 80, fxk: "slow", nm: 2 }
+    ice_archer: { ek: "shard", w: 9, h: 4, sp: 2.8, life: 80, fxk: "slow", nm: 2 },
+    pirate_gunner: { ek: "bolt", w: 6, h: 3, sp: 3.6, life: 60 }
   };
   function fireBolt(from, dir, color) {
     const E = EPROJ[from.type];
@@ -1341,6 +1533,8 @@
     }
     if (wind.fx && p.dodge === 0) p.vx += wind.fx;
     if (p.wjLock > 4) p.vx = p.wjVx;
+    const wt = tiled ? waterAt(p) : 0; if (wt || p.wt) waterTick(p, wt);
+    if (wt) p.vx *= wt === 2 ? 0.72 : 0.88;
 
     // jumping: coyote, buffer, drop-through, wall jump, double jump
     if (input.pressed("jump")) p.jumpBuf = 10;
@@ -1361,6 +1555,7 @@
     if (p.vy >= 0) p.jumping = false;
     p.vy = Math.min(stats.sparrow ? W24().charm.sparrow.fall : 4.5, p.vy + GRAV);
     if (wind.fy) p.vy += wind.fy;
+    if (wt) { p.vy = Math.min(p.vy, wt === 2 ? 1.6 : 3.4); if (wt === 2) { p.vy -= GRAV * 0.55; if (!p.onGround && input.pressed("jump") && p.dodge === 0) { p.vy = -2.1; synth.sfx("swim"); fx24.push({ sh: "fx25-bubble", nm: "bubble", n: 4, x: p.x + p.w / 2, y: p.y + 6, t: 0, rate: 6 }); } } }
     // glide (Gale Feather) and wall slide / cling
     if (powers.gale > 0 && !p.onGround && p.vy > 0.55 && input.held("jump")) p.vy = 0.55;
     if (tiled && !p.onGround && p.wall && p.vy > 0 && mx === p.wall) p.vy = stats.grip ? 0 : Math.min(p.vy, 0.6);
@@ -1713,6 +1908,28 @@
             e.cd = 64; e.attackT = 16; e.anim = "attack"; synth.sfx("telegraph");
           }
         }
+      } else if (beh === "dive") {
+        // v2.5 ash griffin: patrol, telegraph, flap up, angled dive at where the player stood; a miss lands it in a recoverable stun
+        e.dv = e.dv | 0;
+        if (e.dv === 0) {
+          e.vx = e.facing * e.speed * 0.5; e.anim = "walk";
+          if (e.cd <= 0 && Math.abs(dx) < 190 && Math.abs(dx) > 36 && Math.abs(player.y - e.y) < 100) { e.dv = 1; e.dt = 26; e.vx = 0; e.anim = "tele"; synth.sfx("griffinCry"); }
+        } else if (e.dv === 1) {
+          e.dt--; e.vx = 0; e.anim = "tele"; e.facing = dx < 0 ? -1 : 1;
+          if (e.dt <= 0) { e.dv = 2; e.dt = 22; e.vy = -3.4; }
+        } else if (e.dv === 2) {
+          e.dt--; e.anim = "walk"; e.vy = Math.min(e.vy, -1.5); e.vx = -e.facing * e.speed * 0.5; e.onGround = false;
+          if (e.dt <= 0) {
+            const ax = player.x + player.w / 2 - (e.x + e.w / 2), ay = Math.max(40, player.y + player.h - (e.y + e.h)), Ln = Math.hypot(ax, ay) || 1;
+            e.dvx = ax / Ln * 3.2; e.dvy = Math.max(1.8, ay / Ln * 3.2); e.dv = 3; e.dt = 80; e.facing = ax < 0 ? -1 : 1; synth.sfx("griffinDive");
+          }
+        } else {
+          e.dt--; e.anim = "dive"; e.vx = e.dvx; e.vy = e.dvy;
+          if (e.onGround || e.dt <= 0) {
+            e.dv = 0; e.cd = 120; e.vx = 0;
+            if (e.onGround) { e.stun = 70; e.anim = "stun"; synth.sfx("thud"); shake = Math.max(shake, 2); fxAdd("dust", e.x + e.w / 2, e.y + e.h, {}); }
+          }
+        }
       } else if (beh === "jumper") {
         e.vx = e.facing * e.speed; e.anim = "walk";
         if (e.onGround && e.cd <= 0 && Math.abs(dx) < 100) {
@@ -1722,10 +1939,10 @@
         e.vx = e.facing * e.speed; e.anim = "walk";
         if (e.cd <= 0 && Math.abs(dx) < 28) { e.cd = 50; e.anim = "attack"; }
       }
-      if (level.tiled && e.onGround && e.ground && e.behavior !== "jumper") { const nx = e.x + e.w / 2 + e.vx * 12; if (nx < e.ground.x + 2 || nx > e.ground.x + e.ground.w - 2) e.vx = 0; }
+      if (level.tiled && e.onGround && e.ground && e.behavior !== "jumper" && e.behavior !== "dive") { const nx = e.x + e.w / 2 + e.vx * 12; if (nx < e.ground.x + 2 || nx > e.ground.x + e.ground.w - 2) e.vx = 0; }
       if (e.slowT > 0) e.vx *= 1 - (e.slowM || 0.4);
       resolve(e, plats()); separate(e);
-      if (contactHurt(e)) hurtPlayer(e.damage, Math.sign(player.x - e.x) || -player.facing, e);
+      if (contactHurt(e)) { hurtPlayer(e.damage, Math.sign(player.x - e.x) || -player.facing, e); if (e.dv === 3) { e.dv = 0; e.cd = 100; e.vy = -2; e.vx = -e.facing * 1.4; } }
     }
   }
 
@@ -1893,15 +2110,17 @@
     if (nearTravel && input.pressed("confirm")) { synth.sfx("menu"); enterTravel(); }
   }
   function updateTravel() {
-    const zones = pathZones();
-    const n = zones.length + 1;
+    const rows = travelRows(), n = rows.length;
     if (input.pressed("up")) { travelIx = (travelIx + n - 1) % n; synth.sfx("menuMove"); }
     if (input.pressed("down")) { travelIx = (travelIx + 1) % n; synth.sfx("menuMove"); }
     if (menuBack()) { scene = "hub"; return; }
     if (input.pressed("confirm")) {
       synth.sfx("menu");
-      if (travelIx === n - 1) { scene = "hub"; return; }
-      const z = zones[travelIx];
+      const r = rows[Math.min(travelIx, n - 1)];
+      if (r.k === "back") { scene = "hub"; return; }
+      if (r.k === "bonusmenu") { scene = "bonus"; bonusIx = 0; return; }
+      if (r.k === "stage") { if (!stageUnlocked(r.s)) { synth.sfx("locked"); return; } goScene(() => enterTraverse(r.s.id)); return; }
+      const z = r.z;
       if (save.claimed[z.fragment] || !zoneUnlocked(z)) return;
       goScene(() => enterTraverse(z.id));
     }
@@ -1909,7 +2128,7 @@
   function updateTraverse() {
     for (const e of enemies) if (e.flashT > 0) e.flashT--;
     if (level.tiled && w22) {
-      if (readText) { if (input.pressed("confirm") || menuBack()) readText = null; input.clearJust(); return; }
+      if (readText) { if (input.pressed("confirm") || menuBack()) readText = readQ.length ? readQ.shift() : null; input.clearJust(); return; }
       updateWorld22Pre();
       if (updateInteract()) return;
       updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updateWorld22Post(); updateAmbient(); updateCamera(); updateCoins(); updateEfx();
@@ -2035,6 +2254,8 @@
       else if (introHold === 0) updateArena();
       else { updateBoss(); }
     } else if (scene === "claim") updateClaim();
+    else if (scene === "stageclear") updateStageClear();
+    else if (scene === "bonus") updateBonus();
     else if (scene === "defeat") updateDefeat();
     else if (scene === "ending") updateEnding();
     else if (scene === "pause") updatePause();
@@ -2325,6 +2546,7 @@
     const sh = "enemy-" + e.type;
     if (e.dead) return animFrame(sh, "death", e.animT, 6, false);
     if (e.anim === "hurt" && e.inv > 4) return "hurt0";
+    if (e.anim === "tele" || e.anim === "dive" || e.anim === "stun") return animFrame(sh, e.anim, e.animT, 7);
     if (e.anim === "attack") return animFrame(sh, "attack", e.animT, 8);
     if (e.anim === "walk") return animFrame(sh, "walk", e.animT, 7);
     return animFrame(sh, "idle", e.animT, 12);
@@ -2601,42 +2823,46 @@
   function drawTravel() {
     uiT++;
     rect(0, 0, W, H, P().ground.void);
-    const t = touchUI();
-    const zones = pathZones();
+    const t = touchUI(), rows = travelRows(), U = T25().ui;
     if (t) panel(6, 4, W - 12, H - 8); else panel(16, 14, W - 32, H - 28);
     drawText(T().hub.travelHeading, t ? W / 2 : 150, t ? 10 : 24, P().order.illumination, "center");
-    const pitch = t ? Math.min(36, Math.floor((H - 30) / (zones.length + 1))) : 24;
-    let y = t ? 30 : 48;
+    const pitch = t ? Math.min(36, Math.floor((H - 30) / rows.length)) : (rows.length > 8 ? 19 : 24);
+    let y = t ? 30 : 44;
     const listW = t ? W - 24 : 270;
-    zones.forEach((z, i) => {
-      const zt = T().zones[z.id];
-      const claimed = !!save.claimed[z.fragment];
-      const unlocked = zoneUnlocked(z);
-      const sel = i === travelIx;
-      let label = zt.travel || (t ? zt.name + (zt.sub ? " - " + zt.sub : "") : zt.name); // desktop: the preview card shows the subtitle
-      let c = P().order.boneShade;
-      if (!unlocked) { label += "  [" + T().hub.travelLocked + "]"; c = P().ground.ash; }
-      if (claimed) { label += "  [" + T().hub.travelClaimed + "]"; c = P().order.temple; }
+    const nUn = S25().filter(q => q.kind === "bonus" && stageUnlocked(q)).length;
+    rows.forEach((r, i) => {
+      const sel = i === travelIx, ty = y + (t ? 4 : 0);
+      let label = "", c = P().order.boneShade;
+      if (r.k === "zone") {
+        const z = r.z, zt = T().zones[z.id], claimed = !!save.claimed[z.fragment], unlocked = zoneUnlocked(z);
+        label = zt.travel || (t ? zt.name + (zt.sub ? " - " + zt.sub : "") : zt.name);
+        if (!unlocked) { label += "  [" + T().hub.travelLocked + "]"; c = P().ground.ash; }
+        if (claimed) { label += "  [" + T().hub.travelClaimed + "]"; c = P().order.temple; }
+        blitFrame("ui-frag16", claimed ? z.fragment : z.fragment + "-dim", 30, ty - 3, false);
+      } else if (r.k === "stage") {
+        const q = r.s, un = stageUnlocked(q), cl = !!(save.stages[q.id] && save.stages[q.id].cleared);
+        label = T().zones[q.id].travel;
+        if (!un) { label += "  " + U.side.replace("{need}", q.need); c = P().ground.ash; } else if (cl) { label += "  " + U.cleared; c = P().order.temple; }
+        blitFrame("ui-frag16", "claw-dim", 30, ty - 3, false);
+      } else if (r.k === "bonusmenu") label = U.bonusRow.replace("{n}", nUn);
+      else label = T().hub.travelBack;
       if (sel) c = P().order.illumination;
-      blitFrame("ui-frag16", claimed ? z.fragment : z.fragment + "-dim", 30, y + (t ? 4 : 0) - 3, false);
-      drawText(label, 52, y + (t ? 4 : 0), c);
-      if (sel) cursor(18, y + (t ? 5 : 1));
-      menuRow(12, y + (t ? 4 : 0), listW, pitch, "travel" + i, false, () => { travelIx = i; });
+      drawText(label, 52, ty, c);
+      if (sel) cursor(18, ty + 1);
+      menuRow(12, ty, listW, pitch, "travel" + i, false, () => { travelIx = i; });
       y += pitch;
     });
-    const stay = travelIx === zones.length;
-    menuText(T().hub.travelBack, 52, y + (t ? 4 : 4), stay, "left");
-    menuRow(12, y + (t ? 4 : 4), listW, pitch, "travelStay", false, () => { travelIx = zones.length; });
     if (!t) {
-      // preview of the selected destination
-      const z = zones[Math.min(travelIx, zones.length - 1)];
-      const th = ART().thumbs[z.id];
+      const r = rows[Math.min(travelIx, rows.length - 1)];
+      const id = r.k === "zone" ? r.z.id : r.k === "stage" ? r.s.id : null;
       const px = 300, py = 46;
-      if (th) { drawImg(ART().ui.thumbFrame.path, px - 4, py - 4); drawImg(th, px, py); }
-      const zt = T().zones[z.id];
-      const nm = zt.name;
-      drawText(nm, px + 76, py + 98, P().order.bone, "center");
-      if (zt.sub) drawText(zt.sub, px + 76, py + 114, P().ground.smoke, "center");
+      if (id) {
+        const th = ART().thumbs[id];
+        if (th) { drawImg(ART().ui.thumbFrame.path, px - 4, py - 4); drawImg(th, px, py); }
+        const zt = T().zones[id];
+        drawText(zt.name, px + 76, py + 98, P().order.bone, "center");
+        if (zt.sub) drawText(zt.sub, px + 76, py + 114, P().ground.smoke, "center");
+      }
       if (padUI()) drawText(T().pad.menu, W - 30, H - 34, P().ground.smoke, "right");
     }
   }
@@ -2896,7 +3122,7 @@
     animT++;
     camPx = Math.round(cameraX * WS); camPy = Math.round(cameraY * WS);
     const tl = !!(level.tiled && w22);
-    if (tl) { drawTiledBG(); drawWorldTiles(); drawWorldProps(); } else drawBG();
+    if (tl) { drawTiledBG(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); } else drawBG();
     drawInteractables();
     if (tl) drawWorldItems();
     drawPickups();
@@ -2905,7 +3131,9 @@
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
     if (player) drawPlayer();
     drawProjectiles();
+    if (tl && level.waters) drawWaters();
     drawFx(); drawEfx();
+    if (tl) drawDecor("front");
     drawParticles();
     drawTeleFx();
     if (!tl) drawFront();
@@ -2919,8 +3147,9 @@
       const n = nearInteract();
       if (readText) { drawDialogue(readText, null); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
       else if (n) {
-        const key = n.kind === "rest" ? T22().rest : n.kind === "lever" ? T22().lever : n.kind === "tablet" ? T22().tablet : null;
+        const key = n.kind === "rest" ? T22().rest : n.kind === "lever" ? T22().lever : n.kind === "tablet" ? T22().tablet : n.kind === "talk" ? T25().talk : null;
         if (key) drawPrompt(n.obj.x + (n.obj.w || 16) / 2, n.obj.y - 4, touchUI() ? key.promptTouch : padUI() ? key.promptPad : key.prompt);
+        else if (level.bossGate && level.bossGate.opens) { const G = T25().gate; drawDialogue(sealCount() >= sealNeed() ? (touchUI() ? G.keyTouch : padUI() ? G.keyPad : G.key) : G.have.replace("{n}", sealCount()).replace("{need}", sealNeed())); }
         else if (sealCount() >= sealNeed()) drawDialogue(touchUI() ? T().touch.gate : padUI() ? T().pad.gate : T().zoneClear.gate);
         else drawDialogue(T22().seals.hud.replace("{n}", sealCount()).replace("{need}", sealNeed()) + (touchUI() ? "  OK" : padUI() ? "  {A}" : "  Enter"));
       }
@@ -2977,6 +3206,8 @@
     else if (scene === "path") drawPath();
     else if (scene === "settings") drawSettings();
     else if (scene === "claim") drawClaim();
+    else if (scene === "stageclear") { drawWorld(); drawStageClear(); }
+    else if (scene === "bonus") drawBonus();
     else if (scene === "defeat") drawDefeat();
     else if (scene === "ending") drawEnding();
     else if (level) drawWorld();
@@ -4200,6 +4431,16 @@
   }
 
   Object.assign(window.SHARDS.debug, {
+    v25() { const A = level && level.arena; return { scene, level: levelId, stages: JSON.parse(JSON.stringify(save.stages || {})), bonus: Object.assign({}, save.bonus || {}), wt: player ? player.wt | 0 : 0, water: level && level.waters ? level.waters.length : 0, tumbles: w22 && w22.tw ? w22.tw.length : 0, arena: w22 && w22.ar ? Object.assign({}, w22.ar) : null, arenaWaves: A ? A.waves.length : 0, enemies: enemies.map(e => ({ type: e.type, x: e.x | 0, y: e.y | 0, dead: !!e.dead, dv: e.dv | 0, stun: e.stun | 0, anim: e.anim, elite: e.elite })), seals: w22 ? sealCount() : 0, need: sealNeed(), clearLines: clearLines.slice(), aurels: V().aurels, nip: V().nip, notches: save.notches, rows: travelRows().map(r => r.k + ":" + (r.z ? r.z.id : r.s ? r.s.id : "")), unlocked: S25().filter(q => stageUnlocked(q)).map(q => q.id), readText: readText, travelIx, bonusIx, version: save.version }; },
+    openMapFull() { for (let i = 0; i <= Math.ceil(level.w / 80); i++) for (let j = 0; j <= Math.ceil(level.h / 60); j++) w22.S.map[i + "," + j] = 1; scene = "map"; },
+    unlockBonus(k) { save.bonus[k] = true; persist(); },
+    clearStage(id) { finishStage(id); },
+    spawnEnemy25(type, x, y, o) { const e = makeEnemy(Object.assign({ type, x, y }, o || {})); enemies.push(e); return enemies.length - 1; },
+    openTravel() { enterTravel(); },
+    openBonus() { scene = "bonus"; bonusIx = 0; },
+    setEnemy(i, o) { Object.assign(enemies[i], o); },
+    takeItemId(id) { for (const it of w22.items) if (it.id === id) { it.hidden = false; takeItem(it); } },
+    killAll() { for (const e of enemies) if (!e.dead) { e.hp = 0; damageEnemy(e, 999); } },
     v24() { return { dodgeGrace: stats.dodgeGrace, dodgeI: stats.dodgeI, deathLoss, lossMsg, cap: flaskCap(), chan: flaskChan(), per: flaskPer(), confirm: confirmBox ? { ix: confirmBox.ix, title: confirmBox.title } : null, shades: shades24.length, flames: flames24.length, fx: fx24.map(f => f.nm), snake: player ? player.snake | 0 : 0, sgT: player ? player.sgT | 0 : 0, sgCD: player ? player.sgCD | 0 : 0, faithT: player ? player.faithT | 0 : 0, chargeT: player ? player.chargeT | 0 : 0, slowT: player ? player.slowT | 0 : 0, burnT: player ? player.burnT | 0 : 0, starMode: player ? player.starMode | 0 : 0, regenT: V().regenT, hungerN, popup: popup ? popup.text : null, scene, inv: player ? player.inv : 0, dodge: player ? player.dodge : 0, atk: player ? player.atk | 0 : 0, charged: player ? !!player.charged : false, skill: player ? player.skill | 0 : 0 }; },
     title() { enterTitle(); },
     setMenu(n) { menuIx = n; },
