@@ -833,6 +833,56 @@
   // ======================================================================
   const nT = (A, o, t, notes, gap, opts) => notes.forEach((m, i) => tone(A, o, t + i * gap, Object.assign({ f: mtof(m) }, opts)));
   const SFX = {
+    // ---- v2.4 ----
+    chargeReady(A, o, t) {
+      tone(A, o, t, { wave: "tri", f: 520, f2: 880, dur: 0.12, vol: 0.2 });
+      tone(A, o, t + 0.07, { wave: "p12", f: 1320, f2: 1760, dur: 0.1, vol: 0.1 });
+    },
+    chargeRelease(A, o, t) {
+      noise(A, o, t, { dur: 0.22, vol: 0.34, type: "bandpass", fq: 700, fq2: 3200, Q: 1.4, a: 0.004 });
+      tone(A, o, t, { wave: "saw", f: 180, f2: 70, dur: 0.2, vol: 0.28 });
+    },
+    snakeHiss(A, o, t) {
+      noise(A, o, t, { dur: 0.45, vol: 0.2, type: "highpass", fq: 3800, fq2: 6200, Q: 1, a: 0.05 });
+      tone(A, o, t, { wave: "sq", f: 260, f2: 420, dur: 0.12, vol: 0.08 });
+    },
+    magikBoom(A, o, t) {
+      tone(A, o, t, { wave: "sine", f: 220, f2: 40, dur: 0.4, vol: 0.5 });
+      noise(A, o, t, { dur: 0.35, vol: 0.3, type: "lowpass", fq: 2200, fq2: 200, Q: 1, a: 0.004 });
+      tone(A, o, t + 0.02, { wave: "p12", f: 1100, f2: 330, dur: 0.3, vol: 0.12 });
+    },
+    magikCast(A, o, t) {
+      tone(A, o, t, { wave: "tri", f: 330, f2: 990, dur: 0.18, vol: 0.28 });
+      noise(A, o, t, { dur: 0.2, vol: 0.12, type: "bandpass", fq: 2400, fq2: 900, Q: 2, a: 0.01 });
+    },
+    hunger(A, o, t) {
+      tone(A, o, t, { wave: "sq", f: 140, f2: 90, dur: 0.12, vol: 0.18 });
+      tone(A, o, t + 0.07, { wave: "tri", f: 330, f2: 520, dur: 0.1, vol: 0.14 });
+    },
+    shadowBurst(A, o, t) {
+      tone(A, o, t, { wave: "saw", f: 150, f2: 35, dur: 0.35, vol: 0.38 });
+      noise(A, o, t, { dur: 0.3, vol: 0.28, type: "lowpass", fq: 1600, fq2: 120, Q: 1, a: 0.003 });
+    },
+    shadowMark(A, o, t) { tone(A, o, t, { wave: "p12", f: 300, f2: 140, dur: 0.1, vol: 0.16 }); },
+    guardUp(A, o, t) {
+      tone(A, o, t, { wave: "tri", f: 392, dur: 0.08, vol: 0.22 }); tone(A, o, t + 0.08, { wave: "tri", f: 587, dur: 0.14, vol: 0.2 });
+    },
+    faithPing(A, o, t) {
+      tone(A, o, t, { wave: "sine", f: 880, dur: 0.3, vol: 0.28 }); tone(A, o, t + 0.04, { wave: "sine", f: 1320, dur: 0.3, vol: 0.18 }); tone(A, o, t + 0.1, { wave: "sine", f: 1760, dur: 0.26, vol: 0.1 });
+    },
+    starLaunch(A, o, t) { noise(A, o, t, { dur: 0.2, vol: 0.2, type: "bandpass", fq: 500, fq2: 2600, Q: 1.5, a: 0.01 }); tone(A, o, t, { wave: "tri", f: 200, f2: 700, dur: 0.18, vol: 0.2 }); },
+    starSlam(A, o, t) {
+      tone(A, o, t, { wave: "sine", f: 130, f2: 35, dur: 0.38, vol: 0.55 });
+      noise(A, o, t, { dur: 0.4, vol: 0.4, type: "lowpass", fq: 3000, fq2: 160, Q: 1, a: 0.002 });
+    },
+    fireBounce(A, o, t) {
+      noise(A, o, t, { dur: 0.1, vol: 0.22, type: "bandpass", fq: 1400, fq2: 600, Q: 2, a: 0.002 }); tone(A, o, t, { wave: "tri", f: 360, f2: 180, dur: 0.08, vol: 0.18 });
+    },
+    regenTick(A, o, t) { tone(A, o, t, { wave: "p12", f: 988, dur: 0.07, vol: 0.14 }); tone(A, o, t + 0.07, { wave: "tri", f: 1480, dur: 0.18, vol: 0.14 }); },
+    slowHit(A, o, t) { tone(A, o, t, { wave: "tri", f: 700, f2: 180, dur: 0.3, vol: 0.2 }); },
+    burnHit(A, o, t) { noise(A, o, t, { dur: 0.3, vol: 0.22, type: "bandpass", fq: 2400, fq2: 900, Q: 1.2, a: 0.01 }); },
+    splash(A, o, t) { noise(A, o, t, { dur: 0.16, vol: 0.22, type: "bandpass", fq: 900, fq2: 400, Q: 1.8, a: 0.003 }); tone(A, o, t, { wave: "tri", f: 260, f2: 110, dur: 0.1, vol: 0.14 }); },
+    confirmOpen(A, o, t) { tone(A, o, t, { wave: "tri", f: 330, dur: 0.1, vol: 0.2 }); },
     // ---- v2.3 ----
     bowShot(A, o, t) {
       noise(A, o, t, { dur: 0.05, vol: 0.2, type: "bandpass", fq: 900, fq2: 1800, Q: 2, a: 0.002 });
@@ -1007,7 +1057,7 @@
     }
   };
   // loudness trims (dB-matched against the music bus in the offline renders)
-  const SFX_GAIN = { bowShot: 2.4, coin: 2, buy: 2, menu: 2.6, flaskHeal: 1.6, flaskStart: 1.6, teleport: 1.4, enchant: 1.3, strike1: 2.6, strike2: 2.8, strike3: 1.2, hit: 1.3, enemyHurt: 2.8, enemyDeath: 1.1, playerHurt: 2, dodge: 2,
+  const SFX_GAIN = { chargeReady: 2, chargeRelease: 2, snakeHiss: 2, magikBoom: 1.6, magikCast: 2, hunger: 2, shadowBurst: 1.6, shadowMark: 2, guardUp: 2, faithPing: 2.2, starLaunch: 1.8, starSlam: 1.5, fireBounce: 2, regenTick: 2, slowHit: 2, burnHit: 2, splash: 2, confirmOpen: 2, bowShot: 2.4, coin: 2, buy: 2, menu: 2.6, flaskHeal: 1.6, flaskStart: 1.6, teleport: 1.4, enchant: 1.3, strike1: 2.6, strike2: 2.8, strike3: 1.2, hit: 1.3, enemyHurt: 2.8, enemyDeath: 1.1, playerHurt: 2, dodge: 2,
     radiant: 1.4, crimsonDash: 1.4, heal: 1.8, menuMove: 4, menuSelect: 2.6, blip: 4, dialogue: 3, telegraph: 1.6, playerDeath: 1.5 };
   function fireSfx(A, out, key, t) {
     const k = SFX_GAIN[key] || 1;

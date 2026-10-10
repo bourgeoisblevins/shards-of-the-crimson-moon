@@ -90,7 +90,7 @@ When the game is served over **http** or **https** (not `file://`):
 
 **Health flask.** You start with 3 charges (shop upgrades raise it to 6). Kills fill the meter: one charge per 5 kills on Standard (4 Pilgrim, 6 Penitent; elites count extra). Resting at a shrine refills it. Channelling roots you; any hit interrupts it and spends nothing. It will not start at full health.
 
-**Aurels** are the coin of the temples and the ash-camps. Enemies drop 1-3 small aurels, elites 5+, bosses 60. They fly to you inside a magnet range. Death never costs you aurels.
+**Aurels** are the coin of the temples and the ash-camps. Enemies drop 1-3 small aurels, elites 5+, bosses 60. They fly to you inside a magnet range. Death costs 1-7 aurels (see v2.4).
 
 **Shops.** In each hub a merchant (Order: temple almoner; cult: ash-peddler) sells max-HP and flask upgrades, a notch, quiver size, arrows, charms (Shoving Palm, Alms Magnet and others) and weapons. Some stock unlocks as you claim fragments.
 
@@ -110,6 +110,43 @@ Pilgrim's Staff / Ash-Wood Staff (starter, balanced), Harvest Scythe / Reaper's 
 **Redesigns.** Ryan, General Jeriah, Azmardus and the Silent Dark Apostle were redrawn from their archive portraits (bearded Ryan with the golden blade; Jeriah with the burning Heart in black plate; Azmardus pale and black-haired with the eye-staff; the Silent Apostle in horned black plate).
 
 **Platforms.** Blinking and crumbling platforms now overlap (the next one is up at least half a second before the last one leaves; no gaps) and flicker faster as they are about to change.
+
+## v2.4: charms, charged strike, Magik Staff, bouncing fire
+
+**New control.** Hold Strike (X / Square / touch Strike) for about half a second: a ring fills at your feet and chimes when ready; release for a charged blow (+1 damage, 1.4x reach, 1.8x knockback; short cooldown). Tapping still does the normal combo.
+
+**Dodge** now has +50% invulnerability frames (8 -> 12). **Death** costs 1-7 aurels: 70% chance of 1-4 (uniform), 30% chance of 5-7 (uniform), never more than you hold; "-N aurels" shows on respawn.
+
+**Enchanting.** Replacing an enchantment with a different one refunds its full NIP cost. Upgrading the same enchantment pays only the difference (the ladder is 1/2/3, so tier n costs n).
+
+**New Pilgrimage / Forget** ask first: Yes/No, default No (Enter or A confirms, Esc or B cancels, or tap).
+
+**Magik Staff** (ranged; 180 aurels at the shop, tier 2): bolt does 3 damage and costs 2 arrows per cast (HUD shows x2). Won't fire with fewer than 2.
+
+**Ember Flask rework.** Slower bouncing fireball (up to 3 bounces off floor and walls, 2 damage per hit, leaves a flame for ~1.7 s that deals 1).
+
+**Enemy projectiles** differ by shooter: ruin archer (fast straight arrow), rift spitter (arcing slow orb), ice archer (slows), blaze imp (burns), vine spitter (arcing seed, spore puddle), and others. Slow and burn show on your HUD.
+
+**Charms (notches, source).** 31 charms, shown on two pages (Left/Right past the edge, L/R, or tap the page arrows).
+| Charm | Notch | Effect | Source |
+|---|---|---|---|
+| Fleet Sigil | 1 | dodge 40% farther | shop |
+| Deep Phial | 2 | +1 flask charge | shop |
+| Quickfill Sigil | 2 | flask fills in fewer kills | shop |
+| Swift Draw | 1 | flask channel 40% shorter | shop |
+| Sparrow Feathers | 1 | mild slow-fall (small wings) | shop |
+| Starfall | 2 | replaces your skill with a leaping star slam (area damage) | shop |
+| Pilgrim's Hourglass | 2 | +1 flask charge every 90 s (timer ring on the HUD) | shop |
+| Snake Charmer | 2 | heal as a fast snake, still channelling (2.5 s) | cult shop, Nezradeem |
+| Magik Explosion | 2 | heal bursts: 2 damage and slow nearby | cult shop, Azmardus |
+| Crimson Hunger | 2 | every 2 kills heal 1, flask heals 1 less | cult shop, Jeriah |
+| Shattered Shadow | 2 | dodging through an enemy leaves a shadow that explodes | cult shop, Silent Apostle |
+| Ashen Covenant | 1 | +1 damage and +1 damage taken at half HP or less | cult shop, Orchalsius |
+| Serpent's Guard | 2 | after a hit, 2.5 s of damage reduction (25 s cooldown) | Order shop |
+| Purifying Flame | 2 | charged kill refills half a flask charge | Order shop, cult gift |
+| Unbroken Faith | 1 | near-miss dodge grants 4 s defence (2 s cooldown) | Order shop, Gladius |
+
+Boss claims also hand over the listed charm if you do not own it. Charm damage bonuses are capped at +3 (before Glass Cannon).
 
 ## Paths
 
