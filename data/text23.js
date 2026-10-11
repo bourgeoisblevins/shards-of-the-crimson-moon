@@ -96,8 +96,8 @@ window.SHARDS.text23 = {
     pause: "Fullscreen" },
   pause: { inventory: "Inventory", fullscreen: "Fullscreen" },
   pad: { flask: "LB: Flask", shoot: "RB: Shoot", inv: "View: Inventory" },
-  titleKb: ["Move: A D  Jump: Z", "Strike X  Dodge C  Skill V", "Flask F  Shoot G (R: up)", "Inventory I  Pause Esc", "Confirm: Enter"],
-  titlePad: ["Move: stick  Jump: A", "X Strike  B Dodge  Y Skill", "LB Flask  RB Shoot", "View Bag  Start Pause", "A Confirm  B Back"],
+  titleKb: ["Move: A D  Jump: Z", "Strike X  Dodge C  Skill V", "Flask F  Shoot G (R: up)", "Hook T  Guard E  Bag I", "Pause Esc  Confirm Enter"],
+  titlePad: ["Move: stick  Jump: A", "X Strike  B Dodge  Y Skill", "LB Flask  RB Shoot", "LT Guard  RT Hook", "View Bag  Start Pause"],
   controls: { flask: "F / LB  Flask", shoot: "G / RB  Shoot", inv: "I / View  Inventory", up: "R  Shoot up" }
 };
 (function () {

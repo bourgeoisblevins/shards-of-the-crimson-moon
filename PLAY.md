@@ -47,6 +47,7 @@
 | Strike | X / J | X | Strike |
 | Dodge | C / K / Shift | B | Dodge |
 | Skill | V / L | Y | Skill |
+| Hook / grapple (v2.7) | T / N | RT | HOOK pad (right cluster, left of Shoot) |
 | Talk / confirm | Enter | A | OK pad, or tap the dialogue / menu row |
 | Back (menus) | Esc | B | Back row |
 
@@ -193,3 +194,18 @@ Your path and claimed fragments are saved in the browser (`localStorage`). Older
 Each weapon fights differently: spear = long thrusts, a lunging third thrust, and a vaulting plunge when you strike in the air; hammer = two slow slams with armor and shockwaves; daggers = four-hit flurry ending in a back-step; sword = 1-2 then a launcher; scythe = long sweeps, pull-in finisher; staff = two arcs then a spinning guard; whip = long angled lashes, hook finisher; katana = quick cuts, crit-bleed third hit, draw-strike when you strike during a dodge. Full table in docs/V26.md.
 ## Blessed skills
 In the Skills tab (right-hand "Blessed" column) learn Scorching Winds, Petal Slash, Vine Stun or Lightning Summon; press the Skill key (V / L / Y button, or tap the panel) on a learned one to make it your Y special.
+
+## v2.7: the hook, hook ledges and swing rings
+
+- **Hook (T / N, pad RT, touch HOOK pad).** Shoots a line at the best marked target in front of or above you: a **hook ledge** (a gold chevron appears over it when it is in range) or a **swing ring** (it glows, brighter when in range). Hold Left or Right to prefer that side. With nothing in range the line just whips out and back.
+- **With a whip** (Sunthread Whip / Embercord Lash): longer reach (132 vs 98), a fast pull, a hop when you land on the ledge, and +14% launch speed off a swing.
+- **Without a whip** you always have a substitute: the Order's **Pilgrim's Rope-Hook**, the Cult's **Chain-Anchor**. Same jobs, shorter reach, slower reel, no landing hop. You are never locked out of a route for lacking a whip, and equipping the whip switches over at once.
+- **Ledge pull.** Hook a ledge to be reeled to it and stand on top. Jump or Dodge while reeling to let go. A few ledges (marked with a chevron) are tall walls you must climb this way.
+- **Swing rings.** Jump, then press Hook near a ring (or just press Jump in mid-air when you are right next to one: it latches automatically). You swing as a pendulum. **Left/Right pump the swing** (only in the direction you are already moving), **Jump lets go** (you keep the speed and fly), **Down drops** you. Time the release near the top of the arc, toward where you want to land. Enemies can still hit you on the rope (a hit knocks you off). Bumping a wall or landing on a ledge ends the swing.
+- **Where.** Swing rings and hook ledges are in all six traverses, Saffrika, Sandria, the Capital of the Plains and the bonus stages (see docs/V27.md for the full list). Rings are themed per place: iron rings (Vespera), roots (the Deep), gold rings (Aurelion), sconces (the Fortress), branches (Saffrika), ice hooks (Sakura), bells (the Monastery), bone hoops (Sandria), serpent rings (the Capital), embers (the Ember Pit).
+- **Required vs optional.** Some gaps cannot be crossed without a ring or a wall without a ledge pull; every one of them is solvable with the substitute rope-hook alone. Others lead to caches of aurels and are optional. The first ring you meet shows a short tooltip.
+
+## v2.7 notes: menus and dialogue
+- **Inventory tabs, in order:** Weapons, **Charms, Skills, Lore**. Left/Right (D-pad on a pad, tap the tab on touch) walk them; on the Skills tab, moving past the first or last skill column steps to Charms or Lore.
+- **Dialogue always waits for you.** Boss intros, last words, claim and stage-clear cards and cutscene lines advance only on Enter / A / a tap (a "next" prompt is always shown). Only short non-story hints are timed.
+- **Touch:** the new HOOK pad sits in the right-hand cluster; the Guard pad (once learned) and HOOK are both held-button pads.

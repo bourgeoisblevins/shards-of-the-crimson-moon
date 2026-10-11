@@ -200,7 +200,7 @@ window.SHARDS.text = {
     pressStart: "Begin",
     controls: [
       "Left pads: move",
-      "Right pads: jump, strike",
+      "Right pads: jump, strike, hook",
       "Upper pads: dodge, skill",
       "OK: talk, travel, gates"
     ],
@@ -241,6 +241,8 @@ window.SHARDS.text = {
       "{Y} Skill",
       "{LB} Flask",
       "{RB} Shoot",
+      "{LT} Guard",
+      "{RT} Hook",
       "{View} Bag",
       "{Start} Pause"
     ]

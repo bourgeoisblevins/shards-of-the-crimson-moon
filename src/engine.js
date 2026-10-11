@@ -146,8 +146,9 @@
     normV23();
     if ((save.version | 0) === 23 && !save.migratedFrom) save.migratedFrom = "v2.3";
     if ((save.version | 0) === 24 && !save.migratedFrom) save.migratedFrom = "v2.4";
-    normV25(); normV26();
-    save.version = 26;
+    normV25(); normV26(); normV27();
+    if ((save.version | 0) === 26 && !save.migratedFrom) save.migratedFrom = "v2.6";
+    save.version = 27;
   }
   normalizeSave();
   function persist() {
@@ -201,7 +202,7 @@
   let fragScroll = 0;
   let teleMarks = []; // boss telegraph ground markers
   let tutPrompt = "", tutTimer = 0; // tutPrompt: step key; the line is picked per device at draw
-  let bossIntroCard = 0;
+  let bossIntroCard = 0, speech27 = null;
   let introPages = [""], introPage = 0, introPageTime = 180;
   let musicTrack = null;
   let bootError = null;
@@ -1173,6 +1174,10 @@
   // ---------- v2.6: boss identities, arena mechanics, Blevins (4 forms), secret routes, replay rematches ----------
   const W26 = () => window.SHARDS.w26, T26 = () => window.SHARDS.text26;
   let A26 = null, story26 = null, endHead26 = "", endSecret26 = "", secretRoute26 = null;
+  function normV27() {
+    if (!save.tut27 || typeof save.tut27 !== "object") save.tut27 = {};
+    if (!save.hooks27 || typeof save.hooks27 !== "object") save.hooks27 = { used: 0, swings: 0, ledges: 0 };
+  }
   function normV26() {
     if (!save.secret || typeof save.secret !== "object") save.secret = {};
     save.secret.glass = !!save.secret.glass;
@@ -1454,8 +1459,8 @@
   function updateSkills26() {
     if (input.pressed("up")) skMove26(0, -1);
     if (input.pressed("down")) skMove26(0, 1);
-    if (input.pressed("left") && !skMove26(-1, 0)) { invTab = 2; synth.sfx("menuMove"); }
-    if (input.pressed("right") && !skMove26(1, 0)) { invTab = 0; skIx = 0; synth.sfx("menuMove"); }
+    if (input.pressed("left") && !skMove26(-1, 0)) { invTab = 1; synth.sfx("menuMove"); }
+    if (input.pressed("right") && !skMove26(1, 0)) { invTab = 3; synth.sfx("menuMove"); }
     if (input.pressed("confirm")) skillClick26(SK().nodes[skIx].id);
     if (input.pressed("skill")) setActive26(SK().nodes[skIx].id);
   }
@@ -1737,7 +1742,7 @@
     const col = { jeriah: P().cult.ember, azmardus: P().bosses.azmardus.ramp[3], nezradeem: P().order.bone, orchalsius: P().cult.emberLight, silent: P().ground.smoke, gladius: P().monastery.snow, blevins: P().cult.emberLight }[id] || P().cult.ember;
     if (dt % 4 === 0) particles.push({ x: b.x + Math.random() * b.w, y: b.y + Math.random() * b.h, vx: (Math.random() - 0.5) * 1.6, vy: id === "silent" ? -1.1 : id === "gladius" || id === "nezradeem" ? 0.5 : -0.6, life: 30, color: col });
     const line = { jeriah: "lastJeriah", azmardus: "lastAz", nezradeem: "lastNez", orchalsius: "lastOrch", silent: "lastSilent", gladius: "lastGlad" }[id];
-    if (line && dt === 56) toast(T26().lines[line]);
+    if (line && dt === 56) { speech27 = { text: T26().lines[line], who: portraitPathForBoss(id), t: 0 }; }
     if (id === "azmardus" && dt === 60) for (const d of A26.decoys) { d.dead = true; A26.fx.push({ k: "poof", x: d.x + 8, y: d.y + 30, t: 0 }); }
     if (id === "silent" && dt === 60) { for (const z of A26.braz) z.lit = 400; A26.lit = 400; if (A26.dark) A26.dark.tgt = 220; }
     if (id === "orchalsius" && dt === 40) { A26.lava = null; shake = 10; }
@@ -1862,7 +1867,7 @@
     if (glassNow) { save.secret.glass = true; v.nip += 3; v.nipTotal += 3; lines.push(T26().lines.glass); }
     clearTitle = T25().clear[id] || ""; clearLines = lines; clearT = 0; scene = "stageclear"; synth.sfx("stageClear"); persist();
   }
-  function updateStageClear() { clearT++; if ((clearT > 50 && input.pressed("confirm")) || clearT > 900) goScene(() => enterHub()); }
+  function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confirm")) goScene(() => enterHub()); }
   function drawStageClear() {
     const h = 56 + clearLines.length * 14, y = ((H - h) / 2) | 0;
     panel(110, y, W - 220, h);
@@ -2016,7 +2021,7 @@
     if (!def || !window.SHARDS.levels[levelId]) { enterHub(); return; }
     if (path === "cult" && def && def.cultHeldBy) { enterHub(); return; } // Order-only zone
     level = window.SHARDS.levels[levelId];
-    readQ = []; A26 = null; gTrig26 = false;
+    readQ = []; A26 = null; gTrig26 = false; tip27 = null; hookFx27 = [];
     if (sdef && !(opts && opts.respawn) && (sdef.kind === "bonus" || (save.stages[zoneId] && save.stages[zoneId].cleared))) delete save.world[zoneId];   // replays start fresh
     recomputeStats(); powers = {};
     player = makePlayer(level.spawn.x, level.spawn.y);
@@ -2151,6 +2156,7 @@
     if (stats.regen) regenTick(p);
     const jumpV = JUMP_V * (powers.gale > 0 ? 1.1 : 1);
     guardTick26(p, snk); blessTick26();
+    if (hookTick27(p, snk)) return;
     let mx = 0;
     if (input.held("left")) mx -= 1;
     if (input.held("right")) mx += 1;
@@ -2202,6 +2208,8 @@
           if (tiled) worldStrike(bx);
         }
       }
+    } else if (p.carry27 > 0) {
+      p.vx += (mx * spd - p.vx) * (mx ? 0.06 : 0.012); if (mx) p.facing = mx; p.carry27--;
     } else if (onIce) {
       const target = mx * spd;
       p.vx += (target - p.vx) * (mx ? 0.07 : 0.025);
@@ -2296,7 +2304,7 @@
     const prevDodge = p.dodge;
     rs(p, plats());
     if (p.inv > 0) p.inv--;
-    if (wasAir && p.onGround && fallV > 2.2) { p.landT = 7; fxAdd("dust", p.x + p.w / 2, p.y + p.h, {}); }
+    if (wasAir && p.onGround && fallV > 2.2) { p.landT = 7; fxAdd("puff", p.x + p.w / 2, p.y + p.h, {}); }
     if (p.landT > 0) p.landT--;
     if (p.hurtT > 0) p.hurtT--;
     if (p.dodge === 11 && prevDodge === 11 && p.onGround) fxAdd("dust", p.x + p.w / 2 - p.facing * 4, p.y + p.h, { flip: p.facing < 0 });
@@ -2334,7 +2342,7 @@
     const D = diffRules();
     n = Math.max(1, Math.round(n * D.dmg));
     if (scene === "arena") n = Math.max(1, Math.round(n * D.bossDmg));
-    player.channel = 0;
+    player.channel = 0; if (player.hook) hookCancel27();
     if (powers.guard > 0) { delete powers.guard; synth.sfx("guard"); player.inv = 40; flash = 2; spark(player.x + 6, player.y + 8, P().order.light, 10); return; }
     if (level && level.tiled && stats.ward && !w22.warded) { w22.warded = true; synth.sfx("guard"); player.inv = 40; spark(player.x + 6, player.y + 8, P().order.light, 8); return; }
     const Cc = W24().charm;
@@ -2394,6 +2402,176 @@
   }
 
   // =====================================================================================
+  // v2.7: hook (whip or substitute rope-hook / chain-anchor), ledge pulls and pendulum swing rings
+  // =====================================================================================
+  const H27 = () => window.SHARDS.hook27;
+  const T27 = () => window.SHARDS.hook27.text;
+  let hookFx27 = [], tip27 = null, hookLog27 = [];
+  function hookKind27() { return wpnId() === "whip" ? "whip" : "rope"; }
+  function hookTheme27() { return (level && level.swingTheme) || (H27().themes && H27().themes[level && level.zone]) || "ring"; }
+  function hookTargets27(p) {
+    const K = H27()[hookKind27()], cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+    const side = input.held("left") ? -1 : input.held("right") ? 1 : p.facing, out = [];
+    const pen = (dx) => (Math.sign(dx) === side || Math.abs(dx) < 14) ? 0 : 70;
+    if (!(p.onGround))
+      for (const s of (level.swings || [])) { const dx = s.x - cx, dy = s.y - cy, d = Math.hypot(dx, dy); if (dy < -10 && d <= K.swing) out.push({ t: "swing", x: s.x, y: s.y, d, ref: s, sc: d + pen(dx) }); }
+    for (const l of (level.ledges || [])) {
+      const ax = Math.max(l.x, Math.min(l.x + l.w, cx)), ay = l.y, d = Math.hypot(ax - cx, ay - cy);
+      if (ay < p.y + p.h - 6 && d <= K.ledge) out.push({ t: "ledge", x: ax, y: ay, d, ref: l, sc: d + pen(ax - cx) });
+    }
+    out.sort((a, b) => a.sc - b.sc);
+    return out;
+  }
+  function hookInRange27(r) { if (!player || !level || !(level.swings || level.ledges)) return false; return hookTargets27(player).some(t => t.ref === r); }
+  function hookStart27(p) {
+    if (p.hook || p.dead || p.hookCD > 0 || p.guard > 0 || p.snake > 0 || p.dodge > 0 || p.channel > 0 || p.skill > 0) return;
+    const kind = hookKind27(), K = H27()[kind], tg = hookTargets27(p)[0];
+    p.hookCD = K.cd;
+    if (!tg) { p.hook = { ph: "miss", t: 0, kind, dx: p.facing, up: input.held("up") }; synth.sfx("hookMiss"); hookLog27.push({ ev: "miss", kind }); return; }
+    p.facing = (tg.x - (p.x + p.w / 2)) >= 0 ? 1 : -1;
+    p.hook = { ph: "shoot", t: 0, T: K.shoot, kind, tg }; synth.sfx(kind === "whip" ? "hookShotW" : "hookShot"); hookLog27.push({ ev: "shoot", kind, target: tg.t });
+  }
+  function hookHand27(p) { return { x: p.x + p.w / 2 + p.facing * 4, y: p.y + 5 }; }
+  function hookLatch27(p, s, auto) {
+    const kind = hookKind27(), K = H27()[kind], v = { vx: p.vx, vy: p.vy };
+    const st = H27().start(s.x, s.y, p.x + p.w / 2, p.y + p.h / 2, v.vx, v.vy, K.swing + 6);
+    p.hook = { ph: "swing", kind, s: st, ref: s, prev: { x: p.x, y: p.y }, creak: 0 };
+    p.onGround = false; p.jumping = false; p.vx = p.vy = 0; p.carry27 = 0; p.airJumps = Math.max(p.airJumps | 0, stats.airJumps | 0);
+    synth.sfx(kind === "whip" ? "hookLatchW" : "hookLatch"); flash = Math.max(flash, 1);
+    spark(s.x, s.y, path === "cult" ? P().cult.emberLight : P().order.illumination, 8);
+    hookLog27.push({ ev: "latch", kind, auto: !!auto, L: Math.round(st.L) });
+    save.tut27 = save.tut27 || {}; if (tip27 && tip27.id) { save.tut27[tip27.id] = true; persist(); tip27 = null; }
+  }
+  function hookRelease27(p, drop) {
+    const h = p.hook; if (!h || h.ph !== "swing") return;
+    const r = drop ? H27().vel(h.s) : H27().release(h.s, h.kind);
+    p.vx = r.vx; p.vy = r.vy; p.carry27 = 90; p.noGrab27 = H27().SOLO; p.hook = null; p.onGround = false;
+    if (Math.abs(r.vx) > 0.3) p.facing = r.vx > 0 ? 1 : -1;
+    p.jumping = false; p.coyote = 0; p.jumpBuf = 0;
+    synth.sfx("hookRelease");
+    for (let i = 0; i < 6; i++) hookFx27.push({ x: p.x + 6, y: p.y + 8, vx: (Math.random() - 0.5) * 1.6, vy: (Math.random() - 0.7) * 1.2, t: 0, life: 14 });
+    hookLog27.push({ ev: drop ? "drop" : "release", vx: +r.vx.toFixed(2), vy: +r.vy.toFixed(2), kind: h.kind });
+  }
+  function hookCancel27() { if (player && player.hook) { player.hook = null; player.noGrab27 = 8; } }
+  function hookTimers27(p) {
+    if (p.atkCD > 0) p.atkCD--; if (p.skillCD > 0) p.skillCD--; if (p.dodgeCD > 0) p.dodgeCD--; if (p.inv > 0) p.inv--; if (p.hurtT > 0) p.hurtT--;
+    if (p.comboTimer > 0) p.comboTimer--; p.animT++;
+  }
+  function hookTick27(p, snk) {
+    if (!level || !level.tiled || !w22) { p.hook = null; return false; }
+    if (p.hookCD > 0) p.hookCD--; if (p.noGrab27 > 0) p.noGrab27--;
+    if (p.carry27 > 0 && p.onGround) p.carry27 = 0;
+    if (!p.hook && input.pressed("hook") && !snk) hookStart27(p);
+    if (!p.hook && !p.onGround && input.pressed("jump") && !(p.noGrab27 > 0) && level.swings) {
+      const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+      for (const s of level.swings) if (Math.hypot(s.x - cx, s.y - cy) <= H27().GRAB && s.y < cy + 4) { hookLatch27(p, s, true); break; }
+    }
+    const h = p.hook; if (!h) return false;
+    const K = H27()[h.kind];
+    if (h.ph === "miss") { if (++h.t >= 9) p.hook = null; return false; }
+    if (h.ph === "shoot") {
+      h.t++;
+      if (h.t >= h.T) {
+        const tg = h.tg;
+        if (tg.t === "swing") { if (!p.onGround) hookLatch27(p, tg.ref, false); else { p.hook = null; } }
+        else {
+          const l = tg.ref, cx = p.x + p.w / 2, ax = Math.max(l.x, Math.min(l.x + l.w, cx));
+          if (Math.hypot(ax - cx, l.y - (p.y + p.h / 2)) > K.ledge + 30) { p.hook = null; return false; }
+          const standY = l.y - p.h, outside = cx < l.x ? l.x - 8 - p.w / 2 : cx > l.x + l.w ? l.x + l.w + 8 - p.w / 2 : cx - p.w / 2;
+          const finalX = Math.max(l.x + 2, Math.min(l.x + l.w - p.w - 2, cx < l.x ? l.x + 6 : cx > l.x + l.w ? l.x + l.w - p.w - 6 : cx - p.w / 2));
+          p.hook = { ph: "reel", kind: h.kind, l, pts: [{ x: outside, y: standY }, { x: finalX, y: standY }], i: 0, t: 0, ax: ax, ay: l.y };
+          synth.sfx(h.kind === "whip" ? "hookLatchW" : "hookLatch"); spark(ax, l.y, path === "cult" ? P().cult.emberLight : P().order.illumination, 6);
+          hookLog27.push({ ev: "ledge", kind: h.kind });
+        }
+      }
+      return false;
+    }
+    if (h.ph === "reel") {
+      h.t++;
+      if (input.pressed("jump") || input.pressed("dodge") || h.t > 160) { p.hook = null; p.vy = -1; hookTimers27(p); return true; }
+      const tgt = h.pts[h.i], dx = tgt.x - p.x, dy = tgt.y - p.y, d = Math.hypot(dx, dy), sp = K.reel;
+      if (d <= sp) { p.x = tgt.x; p.y = tgt.y; h.i++; if (h.i >= h.pts.length) { p.vx = 0; p.vy = -K.pop; p.hook = null; p.inv = Math.max(p.inv, 8); p.noGrab27 = 6; synth.sfx("hookMantle"); fxAdd("puff", p.x + p.w / 2, p.y + p.h, {}); hookLog27.push({ ev: "mantle", kind: h.kind }); } }
+      else { p.x += dx / d * sp; p.y += dy / d * sp; }
+      p.vx = p.vy = 0; p.onGround = false; p.anim = "jump"; p.facing = (h.ax - (p.x + p.w / 2)) >= 0 ? 1 : -1;
+      hookTimers27(p); return true;
+    }
+    if (h.ph === "swing") {
+      const dir = (input.held("right") ? 1 : 0) - (input.held("left") ? 1 : 0);
+      H27().step(h.s, dir);
+      const pos = H27().pos(h.s), nx = pos.x - p.w / 2, ny = pos.y - p.h / 2;
+      const box = { x: nx, y: ny, w: p.w, h: p.h };
+      if (blockedBox(box)) {
+        const v = H27().vel(h.s); p.x = h.prev.x; p.y = h.prev.y; p.vx = v.vx * 0.3; p.vy = Math.max(0, v.vy * 0.3); p.hook = null; p.carry27 = 20; p.noGrab27 = 10;
+        synth.sfx("hookRelease"); hookLog27.push({ ev: "bump" }); hookTimers27(p); return true;
+      }
+      h.prev = { x: p.x, y: p.y }; p.x = nx; p.y = ny; p.onGround = false;
+      const v = H27().vel(h.s); p.vx = v.vx; p.vy = v.vy; if (Math.abs(v.vx) > 0.4) p.facing = v.vx > 0 ? 1 : -1;
+      p.anim = "jump"; h.creak++;
+      if (h.creak % 30 === 0 && Math.abs(h.s.om) > 0.012) synth.sfx("swingCreak");
+      if (input.pressed("jump")) { hookRelease27(p, false); hookTimers27(p); return true; }
+      if (input.pressed("down")) { hookRelease27(p, true); hookTimers27(p); return true; }
+      hookTimers27(p); return true;
+    }
+    return false;
+  }
+  function drawRope27(x0, y0, x1, y1, kind, t) {
+    const cult = path === "cult", n = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / 3));
+    const a = cult ? P().cult.ember : P().order.illumination, b = cult ? P().cult.emberLight : P().order.light;
+    for (let i = 0; i <= n; i++) {
+      const s = i / n; let x = x0 + (x1 - x0) * s, y = y0 + (y1 - y0) * s;
+      if (kind === "whip") { const w = Math.sin(s * 9 + t * 0.6) * 2.2 * Math.sin(s * Math.PI); x += w * 0.4; y += w; rect(wx(x), wy(y), 2, 2, i % 3 ? a : b); }
+      else if (kind === "chain") rect(wx(x), wy(y), 2, i % 2 ? 2 : 3, i % 2 ? P().ground.stone3 : P().order.boneShade);
+      else { rect(wx(x), wy(y), 2, 2, P().order.boneShade); if (i % 4 === 0) rect(wx(x) - 1, wy(y) - 1, 3, 3, P().ground.ash); }
+    }
+  }
+  function ropeLook27() { const k = hookKind27(); return k === "whip" ? "whip" : (path === "cult" ? "chain" : "rope"); }
+  function drawHook27() {
+    if (!level || !level.tiled || !player) return;
+    const p = player, K = H27()[hookKind27()], T = animT;
+    // swing rings + ledge markers
+    const th = hookTheme27();
+    for (const s of (level.swings || [])) {
+      if (s.x < cameraX - 20 || s.x > cameraX + VW + 20 || s.y < cameraY - 20 || s.y > cameraY + VH + 20) continue;
+      const on = !p.dead && hookInRange27(s);
+      blitFrame("w27-swing", (s.theme || th) + (on ? "-on" : "") + ((T >> 3) & 3), wx(s.x), wy(s.y), false);
+    }
+    for (const l of (level.ledges || [])) {
+      if (l.x + l.w < cameraX - 20 || l.x > cameraX + VW + 20 || l.y < cameraY - 30 || l.y > cameraY + VH + 20) continue;
+      const on = !p.dead && hookInRange27(l);
+      blitFrame("w27-ledge", (on ? "on" : "idle") + ((T >> 3) & 3), wx(l.x + l.w / 2), wy(l.y), false);
+    }
+    // the line
+    const h = p.hook, hand = hookHand27(p), look = ropeLook27();
+    if (h) {
+      const head = look === "whip" ? "whip-tip" : look === "chain" ? "chain-head" : "rope-head";
+      if (h.ph === "miss") { const u = h.t / 9, len = 54 * Math.sin(Math.min(1, u * 1.6) * Math.PI * 0.9), ang = h.up ? -1.1 : -0.45; const ex = hand.x + Math.cos(ang) * len * p.facing, ey = hand.y + Math.sin(ang) * len; drawRope27(hand.x, hand.y, ex, ey, look, T); blitFrame("fx27", head, wx(ex), wy(ey), p.facing < 0); }
+      else if (h.ph === "shoot") { const u = Math.min(1, (h.t + 1) / h.T), ex = hand.x + (h.tg.x - hand.x) * u, ey = hand.y + (h.tg.y - hand.y) * u; drawRope27(hand.x, hand.y, ex, ey, look, T); blitFrame("fx27", head, wx(ex), wy(ey), p.facing < 0); }
+      else if (h.ph === "reel") { drawRope27(hand.x, hand.y, h.ax, h.ay, look, T); blitFrame("fx27", head, wx(h.ax), wy(h.ay), p.facing < 0); }
+      else if (h.ph === "swing") { drawRope27(hand.x, hand.y - 2, h.ref.x, h.ref.y, look, T); }
+    }
+    for (const f of hookFx27) { f.t++; f.x += f.vx; f.y += f.vy; f.vy += 0.05; rect(wx(f.x), wy(f.y), 2, 2, path === "cult" ? P().cult.emberLight : P().order.light); }
+    hookFx27 = hookFx27.filter(f => f.t < f.life);
+  }
+  // teaching tooltips
+  function tipTick27() {
+    if (!level || !level.tips27 || !player || scene !== "traverse") { tip27 = null; return; }
+    save.tut27 = save.tut27 || {};
+    if (tip27 && (tip27.t-- <= 0 || (player.hook && player.hook.ph === "swing" && tip27.k === "hook"))) { if (tip27.t <= 0) { /* shown out */ } tip27 = null; }
+    if (tip27) return;
+    for (const q of level.tips27) {
+      if (save.tut27[q.id]) continue;
+      if (Math.abs(player.x - q.x) < q.r && Math.abs(player.y - q.y) < 90) { tip27 = { id: q.id, k: q.k, t: 420 }; break; }
+    }
+  }
+  function drawTip27() {
+    if (!tip27) return;
+    const sch = controlScheme(), pack = H27().text.tips[sch] || H27().text.tips.kb, a = pack[tip27.k], b = tip27.k === "hook" ? pack.swing : "";
+    const lines = [a].concat(b ? [b] : []), w = Math.min(W - 40, Math.max(...lines.map(measure)) + 20), x = (W - w) >> 1, y = titleCard > 0 ? 76 : 44, h = 10 + lines.length * 12;
+    panel(x, y, w, h, "plate");
+    lines.forEach((ln, i) => drawText(ln, W / 2, y + 6 + i * 12, i ? P().order.boneShade : P().order.illumination, "center"));
+  }
+
+  // =====================================================================================
   // v2.6: weapon movesets, plunge / slam, shockwaves, smears, and the blessed special skills
   // =====================================================================================
   const BZ = () => window.SHARDS.blessed26;
@@ -2421,7 +2599,7 @@
     p.plungeT++;
     if (p.onGround && p.plungeT > 2 || p.plungeT > 90 || p.dead || p.hurtT > 12 && !p.hit26.armor) {
       if (p.onGround && p.plunge === 2) shockwave26(p.x + p.w / 2, p.y + p.h, 0, 56, 2);
-      else if (p.onGround) { shake = 3; fxAdd("dust", p.x + p.w / 2, p.y + p.h, {}); }
+      else if (p.onGround) { shake = 3; fxAdd("puff", p.x + p.w / 2, p.y + p.h, {}); }
       p.plunge = 0; p.atk = 0; p.hit26 = null; return;
     }
     p.vy = Math.max(p.vy, p.plunge === 2 ? 4.4 : 4.0); p.vx = 0; p.atk = Math.max(p.atk, 2); p.anim = "attack3";
@@ -3003,7 +3181,7 @@
     for (const e of enemies) if (e.flashT > 0) e.flashT--;
     if (level.tiled && w22) {
       if (readText) { if (input.pressed("confirm") || menuBack()) readText = readQ.length ? readQ.shift() : null; input.clearJust(); return; }
-      updateWorld22Pre();
+      updateWorld22Pre(); tipTick27();
       if (level.guardianGate && !gTrig26 && aabb(player, level.guardianGate)) { gTrig26 = true; synth.sfx("gate"); goScene(() => enterGuardian26()); }
       if (updateInteract()) return;
       updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updateWorld22Post(); updateAmbient(); updateCamera(); updateCoins(); updateEfx();
@@ -3061,8 +3239,8 @@
     if (menuBack()) enterTitle();
   }
   function updateClaim() {
-    claimTimer--;
-    if (claimTimer <= 0 || input.pressed("confirm")) enterHub();
+    claimT++;
+    if (claimT > 30 && input.pressed("confirm")) enterHub();   // v2.7: the claim text waits for a press
   }
   function updateDefeat() {
     if (input.pressed("up") || input.pressed("down")) menuIx ^= 1;
@@ -3095,8 +3273,10 @@
     updateFx();
     if (flash > 0) flash--;
     if (shake > 0) shake--;
+    if (speech27) { speech27.t++; if (speech27.t > 18 && input.pressed("confirm")) { speech27 = null; synth.sfx("dialogue"); } input.clearJust(); return; }
     if (introHold > 0) {
-      introHold--;
+      const talk = introPages.some(t => t && String(t).trim());   // v2.7: story text never times out; it waits for a press
+      if (!talk || introHold > 1) introHold--;
       if (input.pressed("confirm") || introHold === 0) {
         // multi-page intros (Azmardus) advance a page; the last page starts the fight
         if (introPage < introPages.length - 1) { introPage++; introHold = introPageTime; }
@@ -3582,6 +3762,7 @@
     if (portraitP) drawPortrait(portraitP, 32, y + ((d.h - 56) >> 1));
     d.lines.forEach((ln, i) => drawText(ln, d.tx, y + 10 + i * LH, P().order.bone));
     if (padHint && padUI()) drawPadTab(padHint, W - 28, y);
+    if (!padUI()) { const tx = touchUI() ? T27().advTouch : T27().advKb, w = measure(tx) + 8; if ((uiT >> 4) & 1 || true) { rect(W - 28 - w, y - 11, w, 11, P().ground.void); drawText(tx + ((animT >> 4) & 1 ? " >" : "  "), W - 28 - w + 4, y - 9, P().order.illumination); } }
   }
 
   // ----- screens -----
@@ -3820,7 +4001,7 @@
   // ---------- touch layer (v6, v2 scale) ----------
   // Pads: 42x42 plates (>= 44 CSS px at the ~1.1x+ fit every phone gets in landscape).
   // Multi-touch: every active finger maps to a pad on each touchstart/move/end.
-  const PAD_ACTS = ["left", "right", "jump", "strike", "dodge", "skill", "cancel", "confirm", "up", "down", "flask", "shoot", "inv"];
+  const PAD_ACTS = ["left", "right", "jump", "strike", "dodge", "skill", "cancel", "confirm", "up", "down", "flask", "shoot", "inv", "guard", "hook"];
   let PAD = 42;
   let tapTargets = [], drawnTargets = [], padHeld = new Set(), touchDialogue = false, lastTouchDialogue = false;
   let armedKey = "", fsTried = false;
@@ -4043,6 +4224,7 @@
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
     drawArenaFront26();
     if (player) drawPlayer();
+    drawHook27();
     drawShadows26(); drawAlly26(); drawBless26();
     drawProjectiles(); drawArenaLava26();
     if (tl && level.waters) drawWaters();
@@ -4055,6 +4237,7 @@
     if (tl && level.dark) drawDarkness();
     drawArenaDark26();
     if (player) drawHUD();
+    drawTip27();
     if (save.secret && save.secret.glass && scene === "hub") blitFrame("fx26-moonglass", "moonglass" + ((animT >> 3) % 4), W - 14, 92, false);
     if (boss && (scene === "arena" || scene === "pause")) drawBossBar();
     if (scene === "hub" || (scene === "pause" && level.kind === "hub")) drawHubUI();
@@ -4089,6 +4272,7 @@
       const last = introPage >= introPages.length - 1;
       drawDialogue(last ? intro + "\n" + T().bossReason[path] : intro, null, last ? T().pad.skip : T().pad.next);
     }
+    if (speech27) { drawDialogue(speech27.text, speech27.who || null, T().pad.next); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
     if (scene === "pause") drawPause();
     if (scene !== "arena") {
       if (touchDialogue && titleCard > 0) titleCard--;
@@ -4782,9 +4966,9 @@
   function updateInventory() {
     if (menuBack()) { scene = invFrom === "pause" ? "pause" : (level.kind === "hub" ? "hub" : level.kind === "traverse" ? "traverse" : "arena"); return; }
     if (input.pressed("inv") && invFrom !== "pause") { scene = level.kind === "hub" ? "hub" : level.kind === "traverse" ? "traverse" : "arena"; return; }
-    if (invTab === 3) { updateSkills26(); return; }
+    if (invTab === 2) { updateSkills26(); return; }   // tab order: Weapons, Charms, Skills, Lore
     if (input.pressed("left")) { invTab = (invTab + 3) % 4; invIx = 0; synth.sfx("menuMove"); }
-    if (input.pressed("right")) { invTab = (invTab + 1) % 4; invIx = 0; synth.sfx("menuMove"); if (invTab === 3) skIx = 0; }
+    if (input.pressed("right")) { invTab = (invTab + 1) % 4; invIx = 0; synth.sfx("menuMove"); if (invTab === 2) skIx = 0; }
     if (invTab === 0) {
       const n = invMelee().length + W23().ranged.length;
       if (input.pressed("up")) { invIx = (invIx + n - 1) % n; synth.sfx("menuMove"); }
@@ -5012,7 +5196,7 @@
   function drawInventory() {
     const TT = T23().inv, v = V(), t = touchUI();
     screenFrame(TT.heading);
-    const tabs = [TT.tabs[0], T22().pause.charms, TT.tabs[2], SKT().ui.tab];
+    const tabs = [TT.tabs[0], T22().pause.charms, SKT().ui.tab, TT.tabs[2]];
     let tx = 120;
     tabs.forEach((n, i) => { const w = measure(n) + 16; if (i === invTab) { rect(tx, 28, w, 14, P().ground.stone2); rect(tx, 41, w, 1, P().order.illumination); } drawText(n, tx + 8, 31, i === invTab ? P().order.illumination : P().order.boneShade); const ix = i; tapTarget(tx, 26, w, 18, () => { invTab = ix; invIx = 0; synth.sfx("menuMove"); }); tx += w + 4; });
     // counters
@@ -5056,13 +5240,13 @@
       const lbl = TT.open; panel(300, 120, 150, 24, "plate"); drawText(lbl, 375, 128, P().order.illumination, "center"); tapTarget(300, 120, 150, 24, () => input.tap("confirm"));
       panel(300, 52, 150, 60, "plate"); drawText(T22().charms.notches, 308, 58, P().order.boneShade);
       for (let i = 0; i < save.notches; i++) blitFrame("ui22-hud", i < used ? "notch-empty" : "notch", 308 + i * 14, 72, false);
-    } else if (invTab === 3) { drawSkills26(); }
+    } else if (invTab === 2) { drawSkills26(); }
     else {
       const L = loreList(); drawText(TT.tabletsRead + ": " + L.length, 24, 50, P().order.boneShade);
       if (!L.length) drawText(TT.noLore, 24, 70, P().ground.smoke);
       L.slice(loreScroll, loreScroll + 4).forEach((e, i) => { panel(24, 64 + i * 30, W - 48, 28, "plate"); drawWrapped(e.text, 32, 70 + i * 30, W - 66, P().order.bone); });
     }
-    hintLine(invTab === 3 ? (padUI() ? SKT().ui.hint : (t ? SKT().ui.hintTouch : SKT().ui.hintKb)) : padUI() ? TT.hint : (t ? TT.hintTouch : TT.hintKb));
+    hintLine(invTab === 2 ? (padUI() ? SKT().ui.hint : (t ? SKT().ui.hintTouch : SKT().ui.hintKb)) : padUI() ? TT.hint : (t ? TT.hintTouch : TT.hintKb));
   }
   function drawShop() {
     const S = T23().shop, v = V(), list = shopList(), t = touchUI();
@@ -5184,6 +5368,7 @@
     L.push({ name: "dodge", act: "dodge", x: rx - P_ - g_, y: by - P_ - g_, size: P_ });
     L.push({ name: "skill", act: "skill", x: rx, y: by - P_ - g_, size: P_ });
     L.push({ name: "flask", act: "flask", x: rx - 2 * (P_ + g_), y: by - P_ - g_, size: P_, sheet: "ui23-touch" });
+    L.push({ name: "hook", act: "hook", x: rx - 3 * (P_ + g_), y: by, size: P_, sheet: "hook27" });
     if (sk26("guard")) L.push({ name: "guard", act: "guard", x: rx - 3 * (P_ + g_), y: by - P_ - g_, size: P_, sheet: "guard26" });
     if (touchScheme !== "stick") {
       L.push({ name: "left", act: "left", x: 6, y: by, size: P_ });
@@ -5206,6 +5391,7 @@
     return L;
   }
   function blitPad(b, on) {
+    if (b.sheet === "hook27") { const c = path === "cult" ? P().cult.ember : P().order.illumination; panel(Math.round(b.x), Math.round(b.y), b.size, b.size, "plate"); blitFrame("ui27-icons", on ? "hook-on" : "hook", Math.round(b.x + b.size / 2 - 8), Math.round(b.y + b.size / 2 - 8), false); return; }
     if (b.sheet === "guard26") { const c = path === "cult" ? P().cult.ember : P().order.illumination; panel(Math.round(b.x), Math.round(b.y), b.size, b.size, "plate"); blitFrame("skill26-" + (path === "cult" ? "cult" : "order"), "guard", Math.round(b.x + b.size / 2 - 8), Math.round(b.y + b.size / 2 - 8), false, on ? c : undefined); return; }
     const sheet = b.sheet || "ui-touch", s = sheetOf(sheet); if (!s) return;
     const img = atlas.images.get(s.path); if (!img) return;
@@ -5427,7 +5613,7 @@
     v23() { return JSON.parse(JSON.stringify(save.v23)); },
     give23(o) { const v = V(); o = o || {}; if (o.aurels != null) v.aurels = o.aurels; if (o.nip != null) { v.nip = o.nip; } if (o.arrows != null) v.arrows = Math.min(v.arrowMax, o.arrows); if (o.flask != null) v.flask = Math.min(v.flaskMax, o.flask); if (o.meter != null) v.meter = o.meter;
       for (const w of (o.weapons || [])) giveWeapon(w, true); persist(); },
-    setNip(n) { V().nip = n; persist(); }, unclaim(f) { delete save.claimed[f]; persist(); }, giveCrown() { save.crown = true; save.claimed.heart = true; persist(); }, clearSkillCD() { if (player) player.skillCD = 0; }, moves26(id) { return MS26(id); }, strikeLog() { return strikeLog26.slice(); }, clearStrikeLog() { strikeLog26 = []; }, cast26(k) { cast26(k); }, special() { return activeSpecial26(); }, setSpecial(k) { V().special26 = k; }, blessN() { return { b: bl26.length, p: petals26.length, s: shock26.length }; }, comboAnims() { return player ? { og: player.onGround, vy: player.vy, plunge: player.plunge, cd: player.atkCD, combo: player.combo, atk: player.atk, hit: player.hit26 } : null; }, skill(id) { skillClick26(id); }, invTabSet(n) { invTab = n; skIx = 0; }, enchList(w) { return enchList(w); }, disenchant(w) { const b = V().nip; disenchant26(w); return V().nip - b; }, outline() { return enchOutline26(); }, statusTest() { const e = { x: 0, y: 0, w: 10, h: 10, burn: { n: 3, t: 0, gap: 10 }, slowT: 5, mark26: { t: 20, type: 'holy' } }; try { drawStatus26(e); return true; } catch (x) { return String(x); } },
+    setNip(n) { V().nip = n; persist(); }, addSwing(x, y, theme) { (level.swings = level.swings || []).push({ x, y, theme }); }, addLedge(x, y, w) { (level.ledges = level.ledges || []).push({ x, y, w }); level.platforms.push({ x, y, w, h: 12, oneWay: true }); buildCur(); }, invTab() { return invTab; }, invTabNames() { return [T23().inv.tabs[0], T22().pause.charms, SKT().ui.tab, T23().inv.tabs[2]]; }, resetTips() { save.tut27 = {}; tip27 = null; }, introState() { return { hold: introHold, page: introPage, n: introPages.length }; }, speech() { return speech27 ? speech27.text : null; }, story() { return story26 ? { i: story26.i, n: story26.lines.length, done: !!story26.done } : null; }, claimState() { return { scene, claimT, claimTimer }; }, hookLog() { return hookLog27.slice(); }, clearHookLog() { hookLog27 = []; }, hookState() { const h = player && player.hook; return h ? { ph: h.ph, kind: h.kind, th: h.s ? h.s.th : null, om: h.s ? h.s.om : null, L: h.s ? h.s.L : null } : null; }, hookKind() { return hookKind27(); }, tip() { return tip27 ? tip27.id : null; }, pstate27() { return player ? { x: player.x, y: player.y, vx: player.vx, vy: player.vy, onGround: player.onGround, carry: player.carry27 | 0, hp: player.hp } : null; }, swings() { return level ? (level.swings || []).slice() : []; }, ledges() { return level ? (level.ledges || []).slice() : []; }, target27() { return player ? hookTargets27(player).map(t => ({ t: t.t, x: t.x, y: t.y })) : []; }, unclaim(f) { delete save.claimed[f]; persist(); }, giveCrown() { save.crown = true; save.claimed.heart = true; persist(); }, clearSkillCD() { if (player) player.skillCD = 0; }, moves26(id) { return MS26(id); }, strikeLog() { return strikeLog26.slice(); }, clearStrikeLog() { strikeLog26 = []; }, cast26(k) { cast26(k); }, special() { return activeSpecial26(); }, setSpecial(k) { V().special26 = k; }, blessN() { return { b: bl26.length, p: petals26.length, s: shock26.length }; }, comboAnims() { return player ? { og: player.onGround, vy: player.vy, plunge: player.plunge, cd: player.atkCD, combo: player.combo, atk: player.atk, hit: player.hit26 } : null; }, skill(id) { skillClick26(id); }, invTabSet(n) { invTab = n; skIx = 0; }, enchList(w) { return enchList(w); }, disenchant(w) { const b = V().nip; disenchant26(w); return V().nip - b; }, outline() { return enchOutline26(); }, statusTest() { const e = { x: 0, y: 0, w: 10, h: 10, burn: { n: 3, t: 0, gap: 10 }, slowT: 5, mark26: { t: 20, type: 'holy' } }; try { drawStatus26(e); return true; } catch (x) { return String(x); } },
     claimFrags(list) { for (const f of list) save.claimed[f] = true; persist(); }, stealthTest() {
       const lv = { stealth: true, shadows: [{ x: 0, y: 0, w: 9999, h: 9999 }] }, keep = level; const e = { facing: 1 };
       const open = (ddx) => { level = { stealth: true }; return stealthSees26(e, ddx, 0); };
