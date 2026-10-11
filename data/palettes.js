@@ -52,6 +52,9 @@ window.SHARDS.palettes = {
     nezradeem:  { fragment: "bone",   ramp: ["#4A443C", "#8A7E6A", "#B8AA92", "#E8DCC8", "#6E5A22"] },
     orchalsius: { fragment: "blaze",  ramp: ["#5A1420", "#B42334", "#E0604A", "#F2A65A", "#FFE3A3"] },
     silent:     { fragment: "shadow", ramp: ["#050404", "#0B0A09", "#1C1814", "#2E2924", "#B42334"] }, // ember is the only accent
-    gladius:    { fragment: "claw",   ramp: ["#2A1A12", "#4E2E1C", "#7A4A2A", "#A8703F", "#D2A070"] }
+    gladius:    { fragment: "claw",   ramp: ["#2A1A12", "#4E2E1C", "#7A4A2A", "#A8703F", "#D2A070"] },
+    guardian:   { fragment: null, ramp: ["#3A2A10", "#6E5A22", "#8A6E1F", "#C9A227", "#E8C547"] },
+    noah:       { fragment: null, ramp: ["#2E2418", "#6E5A32", "#C9A227", "#E8C547", "#E8DCC8"] },
+    blevins:    { fragment: null,     ramp: ["#2A0C12", "#8B1E2D", "#B42334", "#C9A227", "#E8DCC8"] }
   }
 };

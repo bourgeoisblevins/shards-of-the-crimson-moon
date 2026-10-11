@@ -731,6 +731,57 @@
       order: ["A", "B", "C"]
     },
 
+    // v2.6 Blevins: the Shattered One. D harmonic minor, a heavy slow pulse that accelerates in his later forms.
+    blevins: {
+      gain: 1.15,
+      title: "The Shattered One", mode: "D harmonic minor", bpm: 138, spb: 4,
+      phase2: { bpm: 158 },
+      inst: {
+        lead: I(LEAD25, { vol: 0.12, gate: 0.88, vib: { depth: 16, rate: 6, delay: 0.1 } }),
+        harm: I(PAD, { wave: "p25", a: 0.02, vol: 0.045 }),
+        bass: I(BASS, { gate: 0.7, vol: 0.22 }),
+        drums: I(KIT, { vol: 0.48 }),
+        arp_p2: I(ARP, { vol: 0.04, gate: 0.6 }),
+        low_p2: I(LEAD50, { vol: 0.06, vib: null, gate: 0.8 }),
+        hat_p2: I(KIT, { vol: 0.3 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "Dm Bb Gm A Dm Bb Gm:8 A:8 A",
+          lead: "D5:4 A4:4 D5:4 F5:4 | E5:8 Cs5:4 A4:4 | D5:4 F5:4 A5:4 G5:4 | F5:4 E5:4 Cs5:8 | Bb4:4 D5:4 F5:4 Bb5:4 | A5:8 G5:4 F5:4 | G5:4 F5:4 E5:4 D5:4 | Cs5:8 A4:8",
+          harm: gen("2---------------", 4), bass: gen("0.00.0300.00.032", 2), drums: "k.h.s.hkk.h.s.hh",
+          arp_p2: gen("0123012301230123", 5), low_p2: "D4:16 | A3:16 | G3:16 | A3:16 | D4:16 | Bb3:16 | G3:16 | A3:16", hat_p2: "hhHhhhHhhhHhhhHh"
+        },
+        B: {
+          bars: 8, chords: "Gm Dm Bb A Gm Dm Bb A",
+          lead: "G5:4 Bb5:4 D6:8 | A5:4 F5:4 D5:8 | Bb5:4 D6:4 F6:8 | E6:4 Cs6:4 A5:8 | G5:2 A5:2 Bb5:4 D6:4 G6:4 | F6:4 D6:4 A5:8 | Bb5:4 A5:4 G5:4 F5:4 | E5:8 Cs5:8",
+          harm: gen("2---------------", 4), bass: gen("0.0.0.300.0.0.32", 2), drums: "k.h.s.hkk.hks.hS",
+          arp_p2: gen("0123210301232103", 5), low_p2: "G3:16 | D4:16 | Bb3:16 | A3:16 | G3:16 | D4:16 | Bb3:16 | A3:16", hat_p2: "hhHhhhHhhhHhhhHh"
+        }
+      },
+      order: ["A", "B", "A", "B"]
+    },
+
+    // v2.6 secret endings: the Penitent / the Crown-Bearer. D Dorian, slow and unresolved.
+    endingSecret: {
+      title: "What the Moon Kept", mode: "D Dorian", bpm: 64, spb: 4,
+      echo: { beats: 1, fb: 0.35, mix: 0.32, lp: 2800 },
+      inst: {
+        lead: I(LEAD50, { vol: 0.1, a: 0.05, r: 0.4, vib: { depth: 12, rate: 4.4, delay: 0.3 }, echo: 0.5 }),
+        alto: I(PAD, { wave: "p25", vol: 0.045, a: 0.1 }),
+        bass: I(BASS, { vol: 0.19, r: 0.3 }),
+        bell: I(BELL, { echo: 0.6 })
+      },
+      sections: {
+        H: {
+          bars: 8, chords: "Dm Bb C Am Dm Bb C Dm",
+          lead: "A4:8 D5:4 F5:4 | G5:8 F5:4 D5:4 | E5:8 G5:4 C6:4 | C6:8 A5:8 | A4:8 D5:4 F5:4 | G5:8 Bb5:8 | A5:4 G5:4 E5:8 | D5:16",
+          alto: gen("2---------------", 4), bass: gen("0...............", 2), bell: gen("0...2...4...2...", 5)
+        }
+      },
+      order: ["H", "H"]
+    },
+
     endingOrder: {
       title: "Hymn of the Restored Light", mode: "F Ionian (major)", bpm: 72, spb: 4,
       echo: { beats: 1, fb: 0.3, mix: 0.3, lp: 3000 },
@@ -884,6 +935,27 @@
   // ======================================================================
   const nT = (A, o, t, notes, gap, opts) => notes.forEach((m, i) => tone(A, o, t + i * gap, Object.assign({ f: mtof(m) }, opts)));
   const SFX = {
+    // ---- v2.6 ----
+    phase3(A, o, t) { tone(A, o, t, { wave: "p25", f: 90, f2: 200, dur: 0.5, vol: 0.2 }); noise(A, o, t, { dur: 0.4, vol: 0.18, type: "lowpass", fq: 1200, fq2: 200, Q: 1, a: 0.01 }); [392, 523, 659].forEach((f, i) => tone(A, o, t + 0.1 + i * 0.1, { wave: "p50", f, dur: 0.2, vol: 0.1 })); },
+    limbBreak(A, o, t) { noise(A, o, t, { dur: 0.2, vol: 0.28, type: "bandpass", fq: 900, fq2: 300, Q: 1.4, a: 0.002 }); tone(A, o, t, { wave: "tri", f: 260, f2: 70, dur: 0.22, vol: 0.2 }); },
+    decoyPop(A, o, t) { tone(A, o, t, { wave: "p25", f: 880, f2: 220, dur: 0.16, vol: 0.14 }); noise(A, o, t, { dur: 0.08, vol: 0.1, type: "highpass", fq: 2400, fq2: 2400, Q: 1, a: 0.002 }); },
+    decoySpawn(A, o, t) { tone(A, o, t, { wave: "sine", f: 300, f2: 900, dur: 0.22, vol: 0.12 }); tone(A, o, t + 0.06, { wave: "p25", f: 450, f2: 1200, dur: 0.18, vol: 0.08 }); },
+    beam(A, o, t) { tone(A, o, t, { wave: "p25", f: 220, f2: 110, dur: 0.4, vol: 0.2 }); tone(A, o, t, { wave: "p50", f: 880, f2: 440, dur: 0.35, vol: 0.09 }); noise(A, o, t, { dur: 0.3, vol: 0.12, type: "bandpass", fq: 2000, fq2: 800, Q: 1, a: 0.01 }); },
+    regrow(A, o, t) { tone(A, o, t, { wave: "tri", f: 120, f2: 360, dur: 0.35, vol: 0.18 }); noise(A, o, t, { dur: 0.2, vol: 0.14, type: "bandpass", fq: 600, fq2: 1400, Q: 1.2, a: 0.01 }); },
+    crash(A, o, t) { noise(A, o, t, { dur: 0.5, vol: 0.34, type: "lowpass", fq: 1400, fq2: 120, Q: 1, a: 0.002 }); tone(A, o, t, { wave: "sine", f: 110, f2: 32, dur: 0.45, vol: 0.45 }); },
+    lavaRise(A, o, t) { noise(A, o, t, { dur: 0.9, vol: 0.2, type: "lowpass", fq: 300, fq2: 900, Q: 0.8, a: 0.2 }); tone(A, o, t, { wave: "p25", f: 55, f2: 80, dur: 0.9, vol: 0.14 }); },
+    snuff(A, o, t) { noise(A, o, t, { dur: 0.25, vol: 0.16, type: "highpass", fq: 1800, fq2: 400, Q: 1, a: 0.005 }); tone(A, o, t, { wave: "tri", f: 400, f2: 80, dur: 0.25, vol: 0.12 }); },
+    ignite(A, o, t) { noise(A, o, t, { dur: 0.3, vol: 0.2, type: "bandpass", fq: 700, fq2: 2400, Q: 1, a: 0.01 }); [330, 494, 659].forEach((f, i) => tone(A, o, t + i * 0.05, { wave: "tri", f, dur: 0.18, vol: 0.12 })); },
+    iceGrow(A, o, t) { [1318, 1568, 1976, 2349].forEach((f, i) => tone(A, o, t + i * 0.05, { wave: "p12", f, dur: 0.14, vol: 0.1 })); noise(A, o, t, { dur: 0.25, vol: 0.1, type: "highpass", fq: 3000, fq2: 3000, Q: 1, a: 0.01 }); },
+    howl(A, o, t) { tone(A, o, t, { wave: "p25", f: 180, f2: 420, dur: 0.5, vol: 0.16, vib: { depth: 30, rate: 7 } }); tone(A, o, t + 0.2, { wave: "p25", f: 420, f2: 150, dur: 0.4, vol: 0.12 }); noise(A, o, t, { dur: 0.5, vol: 0.08, type: "bandpass", fq: 900, fq2: 500, Q: 1, a: 0.1 }); },
+    command(A, o, t) { [196, 294, 392].forEach((f, i) => tone(A, o, t + i * 0.09, { wave: "p50", f, dur: 0.2, vol: 0.12 })); noise(A, o, t, { dur: 0.15, vol: 0.12, type: "lowpass", fq: 900, fq2: 300, Q: 1, a: 0.002 }); },
+    transform(A, o, t) { tone(A, o, t, { wave: "p25", f: 60, f2: 520, dur: 0.9, vol: 0.22 }); tone(A, o, t + 0.3, { wave: "p50", f: 520, f2: 90, dur: 0.7, vol: 0.14 }); noise(A, o, t, { dur: 1.1, vol: 0.2, type: "bandpass", fq: 300, fq2: 3000, Q: 0.8, a: 0.2 }); },
+    blevinsRoar(A, o, t) { tone(A, o, t, { wave: "p25", f: 70, f2: 150, dur: 0.6, vol: 0.24, vib: { depth: 40, rate: 9 } }); noise(A, o, t, { dur: 0.6, vol: 0.16, type: "lowpass", fq: 1000, fq2: 300, Q: 1, a: 0.05 }); },
+    breath(A, o, t) { noise(A, o, t, { dur: 0.7, vol: 0.2, type: "bandpass", fq: 1200, fq2: 500, Q: 0.7, a: 0.08 }); tone(A, o, t, { wave: "p25", f: 90, f2: 70, dur: 0.7, vol: 0.1 }); },
+    shardFall(A, o, t) { [2093, 1760, 2349, 1568].forEach((f, i) => tone(A, o, t + i * 0.04, { wave: "p12", f, f2: f * 0.6, dur: 0.12, vol: 0.08 })); },
+    moonglass(A, o, t) { [880, 1109, 1319, 1760].forEach((f, i) => tone(A, o, t + i * 0.14, { wave: "tri", f, dur: 0.5, vol: 0.12 })); tone(A, o, t, { wave: "p25", f: 55, f2: 62, dur: 1.2, vol: 0.12 }); },
+    swipe(A, o, t) { noise(A, o, t, { dur: 0.14, vol: 0.18, type: "bandpass", fq: 2600, fq2: 900, Q: 1.2, a: 0.005 }); },
+    bolt(A, o, t) { tone(A, o, t, { wave: "p50", f: 780, f2: 340, dur: 0.16, vol: 0.12 }); noise(A, o, t, { dur: 0.08, vol: 0.08, type: "highpass", fq: 2000, fq2: 2000, Q: 1, a: 0.002 }); },
     // ---- v2.5 ----
     swim(A, o, t) { noise(A, o, t, { dur: 0.14, vol: 0.12, type: "bandpass", fq: 500, fq2: 1100, Q: 1.2, a: 0.01 }); tone(A, o, t, { wave: "sine", f: 200, f2: 340, dur: 0.1, vol: 0.1 }); },
     griffinCry(A, o, t) { tone(A, o, t, { wave: "sq", f: 1300, f2: 780, dur: 0.22, vol: 0.12 }); tone(A, o, t + 0.05, { wave: "saw", f: 900, f2: 520, dur: 0.2, vol: 0.08 }); noise(A, o, t, { dur: 0.1, vol: 0.1, type: "highpass", fq: 3000, fq2: 5000, Q: 1, a: 0.01 }); },
@@ -1043,6 +1115,19 @@
     breakWall(A, o, t) { noise(A, o, t, { dur: 0.6, vol: 0.4, type: "lowpass", fq: 3200, fq2: 220 }); tone(A, o, t, { wave: "tri", f: 140, f2: 36, dur: 0.5, vol: 0.5 }); nT(A, o, t + 0.2, [72, 76, 79], 0.06, { wave: "p12", dur: 0.2, vol: 0.06 }); },
     block(A, o, t) { tone(A, o, t, { wave: "p50", f: 220, f2: 330, dur: 0.07, vol: 0.14 }); tone(A, o, t + 0.07, { wave: "p25", f: 660, f2: 880, dur: 0.12, vol: 0.09 }); },
     bell(A, o, t) { tone(A, o, t, { wave: "tri", f: mtof(55), dur: 1.4, vol: 0.28 }); tone(A, o, t, { wave: "p12", f: mtof(67.2), dur: 0.9, vol: 0.07 }); noise(A, o, t, { dur: 0.05, vol: 0.2, metal: true, rate: 1.3, type: "highpass", fq: 1800 }); },
+    windsCast(A, o, t) { noise(A, o, t, { dur: 0.5, vol: 0.3, type: "bandpass", fq: 500, fq2: 2800, Q: 0.9, a: 0.04 }); tone(A, o, t, { wave: "p25", f: 180, f2: 520, dur: 0.35, vol: 0.1 }); noise(A, o, t + 0.12, { dur: 0.3, vol: 0.16, type: "highpass", fq: 3000, fq2: 1800, Q: 0.7, a: 0.02 }); },
+    petalCast(A, o, t) { for (let i = 0; i < 5; i++) tone(A, o, t + i * 0.03, { wave: "tri", f: 1400 + i * 180, f2: 2200 + i * 120, dur: 0.1, vol: 0.09 }); noise(A, o, t, { dur: 0.15, vol: 0.12, type: "highpass", fq: 4000, fq2: 2500, Q: 1, a: 0.005 }); },
+    vineLash(A, o, t) { noise(A, o, t, { dur: 0.22, vol: 0.2, type: "bandpass", fq: 300, fq2: 1600, Q: 2.2, a: 0.01 }); tone(A, o, t + 0.1, { wave: "p12", f: 220, f2: 110, dur: 0.14, vol: 0.14 }); },
+    vineHit(A, o, t) { tone(A, o, t, { wave: "p25", f: 140, f2: 90, dur: 0.18, vol: 0.18 }); noise(A, o, t, { dur: 0.1, vol: 0.14, type: "bandpass", fq: 700, fq2: 400, Q: 3, a: 0.003 }); },
+    boltWarn(A, o, t) { tone(A, o, t, { wave: "tri", f: 600, f2: 1800, dur: 0.3, vol: 0.12 }); tone(A, o, t + 0.1, { wave: "p12", f: 2400, dur: 0.1, vol: 0.06 }); },
+    boltStrike(A, o, t) { noise(A, o, t, { dur: 0.5, vol: 0.45, type: "lowpass", fq: 5000, fq2: 300, Q: 0.7, a: 0.001 }); tone(A, o, t, { wave: "p25", f: 90, f2: 40, dur: 0.5, vol: 0.3 }); noise(A, o, t, { dur: 0.08, vol: 0.4, type: "highpass", fq: 6000, fq2: 3000, Q: 0.7, a: 0.001 }); },
+    whipCrack(A, o, t) { noise(A, o, t, { dur: 0.05, vol: 0.34, type: "highpass", fq: 5000, fq2: 2500, Q: 0.8, a: 0.001 }); tone(A, o, t, { wave: "p12", f: 1800, f2: 400, dur: 0.07, vol: 0.12 }); },
+    katanaSlash(A, o, t) { noise(A, o, t, { dur: 0.12, vol: 0.22, type: "bandpass", fq: 3200, fq2: 6000, Q: 1.6, a: 0.004 }); tone(A, o, t, { wave: "tri", f: 2400, f2: 3400, dur: 0.06, vol: 0.06 }); },
+    katanaDraw(A, o, t) { noise(A, o, t, { dur: 0.16, vol: 0.26, type: "bandpass", fq: 2000, fq2: 7000, Q: 1.5, a: 0.002 }); tone(A, o, t + 0.03, { wave: "p25", f: 3000, f2: 1200, dur: 0.18, vol: 0.1 }); },
+    slamSwing(A, o, t) { noise(A, o, t, { dur: 0.3, vol: 0.22, type: "lowpass", fq: 1200, fq2: 200, Q: 0.8, a: 0.02 }); tone(A, o, t + 0.1, { wave: "tri", f: 120, f2: 55, dur: 0.22, vol: 0.28 }); },
+    shockwave(A, o, t) { tone(A, o, t, { wave: "p50", f: 70, f2: 28, dur: 0.4, vol: 0.34 }); noise(A, o, t, { dur: 0.35, vol: 0.28, type: "lowpass", fq: 900, fq2: 120, Q: 0.7, a: 0.002 }); },
+    plungeStart(A, o, t) { tone(A, o, t, { wave: "tri", f: 900, f2: 300, dur: 0.18, vol: 0.12 }); noise(A, o, t, { dur: 0.2, vol: 0.12, type: "bandpass", fq: 1800, fq2: 600, Q: 1.2, a: 0.01 }); },
+    vault(A, o, t) { tone(A, o, t, { wave: "p25", f: 440, f2: 1100, dur: 0.14, vol: 0.13 }); tone(A, o, t + 0.05, { wave: "tri", f: 880, f2: 1760, dur: 0.12, vol: 0.1 }); },
     fire(A, o, t) { noise(A, o, t, { dur: 0.25, vol: 0.3, type: "bandpass", fq: 400, fq2: 2600, Q: 1.1, a: 0.01 }); tone(A, o, t, { wave: "p25", f: 300, f2: 720, dur: 0.14, vol: 0.09 }); },
     guard(A, o, t) { tone(A, o, t, { wave: "p25", f: 880, f2: 1320, dur: 0.18, vol: 0.12 }); tone(A, o, t + 0.05, { wave: "tri", f: 440, dur: 0.3, vol: 0.2 }); },
     power(A, o, t) { nT(A, o, t, [64, 68, 71, 76, 80, 83], 0.045, { wave: "p12", dur: 0.16, vol: 0.075 }); tone(A, o, t + 0.1, { wave: "tri", f: mtof(88), dur: 0.5, vol: 0.14 }); },

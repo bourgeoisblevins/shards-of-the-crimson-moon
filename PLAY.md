@@ -176,3 +176,20 @@ Boss claims also hand over the listed charm if you do not own it. Charm damage b
 The **Mountain Monastery** was the Order's training ground. Its terraces are climbed like stairs: walls block you, so jump each step. The monk shades there cannot leave the ground they stand on. In the arena, watch the floor: the Silent Dark Apostle shadow-steps, and an ember mark shows where he will appear.
 
 Your path and claimed fragments are saved in the browser (`localStorage`). Older cult saves that fought Jeriah for the Heart load fine: the Heart goes back to Jeriah and your other fragments are kept. Saves from before the Mountain Monastery (when the Shadow was in Saffrika) carry over: a Shadow claimed in Saffrika stays claimed, and a save that had reached Saffrika continues at the monastery.
+
+## v2.6: boss fights, replays and a secret
+- **Replay any cleared stage** from the travel menu (marked [Cleared]). Enemies respawn and pay aurels; seals and shortcuts stay open. A boss rematch pays aurels only (no fragment, NIP or charm twice).
+- **Every apostle now fights differently.** Watch the telegraphs, read the toast at the start of each new mechanic, and expect three phases. Jeriah guards (hit his back), Azmardus makes decoys, Nezradeem regrows bone arms, Orchalsius crashes into walls and floods the floor with lava, the Silent Apostle hides in the dark until you light a brazier, Gladius grows ice and rages.
+- **The finale.** Order: gather every fragment, go to the altar; an acolyte summons Blevins and Noah John comes to help you (he strikes Blevins and heals you now and then). Cult: take the Crown from the Capital of the Plains (unlocked after two fragments; sneak past guards through shadow, then beat the Archive Guardian), then start the ritual at the altar: Noah John is the boss and Blevins fights beside you.
+
+
+## v2.6 additions
+- **Guard:** buy *Serpent's Guard / Crimson Ward* in Inventory > Skills, then hold **E** or **H** (pad: **LT**; touch: the new shield button) to brace. Frontal hits spend a guard pip; at zero the guard breaks. Skills add a perfect parry (guard just before a hit), projectile deflection, a shield bash (strike while guarding), more pips, faster pip regeneration, and a riposte.
+- **Skills tab:** 16 nodes in three branches. Spend NIP to learn; press confirm on a learned skill to refund it in full (anything that depends on it is refunded too).
+- **Enchantments:** put up to three on a weapon; **Disenchant** (last row of the enchant menu) removes them all and refunds every NIP. Enchanted weapons glow gold (Order) or red (Cult); a fully upgraded enchantment tints the weapon.
+- **Lore tablets:** every tablet in a stage has different text. The title screen shows the version in the corner.
+
+## Weapons (v2.6)
+Each weapon fights differently: spear = long thrusts, a lunging third thrust, and a vaulting plunge when you strike in the air; hammer = two slow slams with armor and shockwaves; daggers = four-hit flurry ending in a back-step; sword = 1-2 then a launcher; scythe = long sweeps, pull-in finisher; staff = two arcs then a spinning guard; whip = long angled lashes, hook finisher; katana = quick cuts, crit-bleed third hit, draw-strike when you strike during a dodge. Full table in docs/V26.md.
+## Blessed skills
+In the Skills tab (right-hand "Blessed" column) learn Scorching Winds, Petal Slash, Vine Stun or Lightning Summon; press the Skill key (V / L / Y button, or tap the panel) on a learned one to make it your Y special.

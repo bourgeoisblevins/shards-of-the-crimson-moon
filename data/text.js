@@ -70,7 +70,7 @@ window.SHARDS.text = {
       "Our own apostles are too far gone to yield their fragments. So we hunt them.",
       "I take no joy in this order, acolyte. It is the only road to his return.",
       "Azmardus will swear he serves me. He serves only himself.",
-      "I hold the Heart. Bring me the other five, and the Reclamation begins.",
+      "The Crown of the Crimson King sleeps in the Plains capital's cathedral archive. Bring me five fragments and the Crown.",
       "The Silent Apostle is too bound to the Shadow to yield it. Take it."
     ]
   },
@@ -78,10 +78,10 @@ window.SHARDS.text = {
     talk: "Enter: speak",
     travelHeading: "Where will you go?",
     travelLocked: "Not yet",
-    travelClaimed: "Claimed",
+    travelClaimed: "Cleared",
     travelBack: "Stay",
     allSixOrder: "All six fragments are in your keeping. Bring them to the altar.",
-    allSixCult: "Five taken, and the Heart with me. Lay them at the altar.",
+    allSixCult: "Five fragments and the Crown are yours. Begin the ritual at the altar.",
     altarPrompt: "Enter: lay the fragments at the altar"
   },
   zones: {
@@ -139,7 +139,7 @@ window.SHARDS.text = {
   },
   claim: {
     order: "You take the {frag}. Ryan will keep it apart, or destroy it if it can be done.",
-    cult: "You take the {frag}. It goes to General Jeriah, beside the Heart."
+    cult: "You take the {frag}. It goes to the ritual of General Jeriah."
   },
   hud: { hp: "HP", paused: "Paused", resume: "Resume", fragments: "Fragments", settings: "Settings", toHub: "Return to the hub", toTitle: "Title" },
   settings: {
@@ -293,7 +293,7 @@ window.SHARDS.text = {
     cult: {
       heading: "The Reclamation",
       lines: [
-        "General Jeriah brings the six together: Heart, Eye, Bone, Blaze, Shadow, and Claw.",
+        "The acolyte carries the Crown to the altar, and the five fragments join it: Eye, Bone, Blaze, Shadow, and Claw.",
         "\"The Reclamation begins. The Crimson King will return.\""
       ]
     },
