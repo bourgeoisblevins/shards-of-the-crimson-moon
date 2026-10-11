@@ -81,7 +81,7 @@
     return {
       path: null, claimed: {}, guideIndex: { order: 0, cult: 0 }, seenIntro: {},
       tutorial: { move: false, jump: false, strike: false, dodge: false, skill: false },
-      settings: { master: 0.7, music: 0.45, sfx: 0.7, fullscreen: false, vibration: true, difficulty: "standard", padScale: 1, scheme: "buttons" },
+      settings: { master: 0.7, music: 0.45, sfx: 0.7, fullscreen: false, vibration: true, difficulty: "standard", padScale: 1, scheme: "buttons", ledgeAssist: true },
       charms: { owned: [], equipped: [] }, notches: 3, vessels: 0, world: {}, gifts: {}, deaths: 0
     };
   }
@@ -146,16 +146,18 @@
     normV23();
     if ((save.version | 0) === 23 && !save.migratedFrom) save.migratedFrom = "v2.3";
     if ((save.version | 0) === 24 && !save.migratedFrom) save.migratedFrom = "v2.4";
-    normV25(); normV26(); normV27();
+    normV25(); normV26(); normV27(); normV28();
     if ((save.version | 0) === 26 && !save.migratedFrom) save.migratedFrom = "v2.6";
-    save.version = 27;
+    if ((save.version | 0) === 27 && !save.migratedFrom) save.migratedFrom = "v2.7";
+    save.version = 28;
   }
   normalizeSave();
   function persist() {
     save.settings = {
       master: synth.volume.master, music: synth.volume.music, sfx: synth.volume.sfx,
       fullscreen: !!document.fullscreenElement,
-      vibration: vibrationOn(), difficulty, padScale: padScaleCur, scheme: touchScheme
+      vibration: vibrationOn(), difficulty, padScale: padScaleCur, scheme: touchScheme,
+      ledgeAssist: !(save.settings && save.settings.ledgeAssist === false)
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
   }
@@ -202,7 +204,7 @@
   let fragScroll = 0;
   let teleMarks = []; // boss telegraph ground markers
   let tutPrompt = "", tutTimer = 0; // tutPrompt: step key; the line is picked per device at draw
-  let bossIntroCard = 0, speech27 = null;
+  let bossIntroCard = 0, speech27 = null, readWho28 = null, fade28 = 0, birds28 = null, drips28 = [];
   let introPages = [""], introPage = 0, introPageTime = 180;
   let musicTrack = null;
   let bootError = null;
@@ -523,6 +525,8 @@
     for (const l of w22.levers) if (Math.abs(pc.x - (l.x + 8)) < 20 && Math.abs(pc.y - (l.y - 8)) < 26) return { kind: "lever", obj: l };
     for (const t of w22.tablets) if (Math.abs(pc.x - (t.x + 8)) < 20 && Math.abs(pc.y - (t.y - 10)) < 28) return { kind: "tablet", obj: t };
     for (const t of (level.talk || [])) if (Math.abs(pc.x - (t.x + 8)) < 36 && Math.abs(pc.y - (t.y - 24)) < 34) return { kind: "talk", obj: t };
+    for (const gr of (level.grates || [])) if (Math.abs(pc.x - gr.x) < 18 && Math.abs((player.y + player.h) - gr.y) < 10) return { kind: "grate", obj: { x: gr.x - 8, y: gr.y - 22, w: 16, id: gr.id, g: gr } };
+    for (const t of (level.talk28 || [])) if (Math.abs(pc.x - t.x) < 34 && Math.abs((player.y + player.h) - t.y) < 14) return { kind: "stranger", obj: { x: t.x - 8, y: t.y - 30, w: 16 } };
     if (level.bossGate && aabb(player, level.bossGate)) {
       const od = level.bossGate.opens && w22.doors.find(d => d.id === level.bossGate.opens);
       if (od && od.open) return null;
@@ -552,6 +556,8 @@
     if (n.kind === "rest") { restAt(n.obj); return true; }
     if (n.kind === "lever") { pullLever(n.obj); return true; }
     if (n.kind === "tablet") { V().tablets[level.zone + ":" + (n.obj.i | 0)] = 1; persist(); readText = n.obj.text || (T22().tablets[level.zone] || [])[n.obj.i | 0] || ""; synth.sfx("dialogue"); return true; }
+    if (n.kind === "grate") { useGrate28(n.obj.g); return true; }
+    if (n.kind === "stranger") { const v = V(); readQ = (v.stranger28 ? T28().stranger.again : T28().stranger.first).slice(); readText = readQ.shift(); readWho28 = portraitPath("stranger"); synth.sfx("stranger"); return true; }
     if (n.kind === "talk") { readQ = T25().dandy.slice(); readText = readQ.shift(); synth.sfx("dialogue"); return true; }
     if (n.kind === "gate" && level.bossGate.opens) {
       if (sealCount() >= sealNeed()) { for (const d of w22.doors) if (d.id === level.bossGate.opens) { d.open = true; w22.S.doors[d.id] = 1; } synth.sfx("gate"); toast(T25().gate.open); persist(); }
@@ -612,6 +618,8 @@
       if (e.drop) { const it = Object.assign({ w: 14, h: 14, taken: false, y: e.y }, e.drop); it.x = e.x; it.y = e.y - 6; w22.items.push(it); }
       persist(); return;
     }
+    const st28 = window.SHARDS.enemyStats[e.type];
+    if (st28 && st28.drop && Math.random() < st28.drop.p) { spawnDrop(st28.drop.type, st28.drop.type === "pw" ? PW_IDS[(Math.random() * PW_IDS.length) | 0] : null, e.x + 4, e.y); return; }
     const r = Math.random();
     if (r < 0.1 + (difficulty === "pilgrim" ? 0.08 : 0)) spawnDrop("heal", null, e.x + 4, e.y);
     else if (r < 0.17) spawnDrop("pw", PW_IDS[(Math.random() * PW_IDS.length) | 0], e.x + 4, e.y);
@@ -714,7 +722,7 @@
   function drawLayerT(path, f, fy, fill) {
     const img = atlas.images.get(path); if (!img) return;
     const off = Math.round(camPx * f);
-    const maxPy = Math.max(0, Math.round((level.h - VH) * WS));
+    const maxPy = Math.max(0, Math.round(((level.bgH || level.h) - VH) * WS));   // v2.8: bgH aligns the parallax to the surface of levels with a deep sewer
     const yoff = Math.round((maxPy - camPy) * fy);
     if (fill && yoff > 0) { g.fillStyle = layerTopColor(path, img); g.fillRect(0, 0, W, yoff + 1); }
     for (let t = Math.floor(off / img.width); t * img.width - off < W; t++) {
@@ -733,14 +741,15 @@
     const key = p.src || p;
     if (key._cv) return key._cv;
     const t = ART().tiles22[level.zone], img = atlas.images.get(t.path);
+    const yo = (p.tile && t.vars && t.vars[p.tile]) || 0;   // v2.8: tileset variants (grass, dirt, cobble, timber, thatch, stone, sewer)
     const pw = Math.round(p.w * WS), ph = Math.round(p.h * WS);
     let cv;
     if (p.oneWay || p.dyn) {
       const [lx, ly, lw, mw, rw, lh] = t.led, alt = ((p.v | 0) % 2) ? 48 : 0;
       cv = mkCanvas(pw, lh); const c = cv.getContext("2d");
-      c.drawImage(img, lx + alt, ly, lw, lh, 0, 0, lw, lh);
-      for (let x = lw; x < pw - rw; x += mw) { const ww = Math.min(mw, pw - rw - x); c.drawImage(img, lx + alt + lw, ly, ww, lh, x, 0, ww, lh); }
-      c.drawImage(img, lx + alt + lw + mw, ly, rw, lh, pw - rw, 0, rw, lh);
+      c.drawImage(img, lx + alt, ly + yo, lw, lh, 0, 0, lw, lh);
+      for (let x = lw; x < pw - rw; x += mw) { const ww = Math.min(mw, pw - rw - x); c.drawImage(img, lx + alt + lw, ly + yo, ww, lh, x, 0, ww, lh); }
+      c.drawImage(img, lx + alt + lw + mw, ly + yo, rw, lh, pw - rw, 0, rw, lh);
     } else {
       cv = mkCanvas(pw, ph); const c = cv.getContext("2d");
       const wall = p.k === "wall" || p.k === "block";
@@ -748,14 +757,14 @@
       for (let yi = 0, y = 0; y < ph; yi++, y += 48) for (let xi = 0, x = 0; x < pw; xi++, x += 48) {
         const ww = Math.min(48, pw - x), hh = Math.min(48, ph - y);
         c.save(); c.translate(x + (xi & 1 ? ww : 0), y + (yi & 1 ? hh : 0)); c.scale(xi & 1 ? -1 : 1, yi & 1 ? -1 : 1);
-        c.drawImage(img, t.wall[0] + (xi & 1 ? 48 - ww : 0), t.wall[1] + (yi & 1 ? 48 - hh : 0), ww, hh, 0, 0, ww, hh); c.restore();
+        c.drawImage(img, t.wall[0] + (xi & 1 ? 48 - ww : 0), t.wall[1] + yo + (yi & 1 ? 48 - hh : 0), ww, hh, 0, 0, ww, hh); c.restore();
       }
       if (p.cap !== false) {
         const [gx, gy, gw, gh] = t.g;
         for (let xi = 0, x = 0; x < pw; xi++, x += 48) {
           const ww = Math.min(48, pw - x), hh = Math.min(wall ? 16 : 24, ph);
-          if (wall) c.drawImage(img, t.wcap[0], t.wcap[1], ww, hh, x, 0, ww, hh);
-          else c.drawImage(img, t.gx[(xi + ((p.v | 0))) % 3], 0, ww, hh, x, 0, ww, hh);
+          if (wall) c.drawImage(img, t.wcap[0], t.wcap[1] + yo, ww, hh, x, 0, ww, hh);
+          else c.drawImage(img, t.gx[(xi + ((p.v | 0))) % 3], yo, ww, hh, x, 0, ww, hh);
         }
       }
       c.fillStyle = "#050404"; c.fillRect(0, 0, 1, ph); c.fillRect(pw - 1, 0, 1, ph); c.fillRect(0, ph - 1, pw, 1);
@@ -1178,6 +1187,12 @@
     if (!save.tut27 || typeof save.tut27 !== "object") save.tut27 = {};
     if (!save.hooks27 || typeof save.hooks27 !== "object") save.hooks27 = { used: 0, swings: 0, ledges: 0 };
   }
+  function normV28() {
+    if (!save.settings || typeof save.settings !== "object") save.settings = {};
+    if (typeof save.settings.ledgeAssist !== "boolean") save.settings.ledgeAssist = true;   // v2.8: Ledge assist, default on
+    if (!save.hooks27 || typeof save.hooks27 !== "object") save.hooks27 = { used: 0, swings: 0, ledges: 0 };
+    if (typeof save.hooks27.grabs !== "number") save.hooks27.grabs = 0;
+  }
   function normV26() {
     if (!save.secret || typeof save.secret !== "object") save.secret = {};
     save.secret.glass = !!save.secret.glass;
@@ -1550,8 +1565,71 @@
   // ----- finale flow (altar) -----
   // v2.6: Order: reaching the altar with all six fragments summons Blevins (Noah John fights at your side).
   //       Cult: starting the ritual with the Crown summons Blevins at your side, and Noah John is the boss.
+  // v2.8: the altar cutscene OPENS with the fragments being set on the altar one by one, then the summoning surge, then the old story lines.
+  let place28 = null;
+  function placeOrder28() {
+    const f = window.SHARDS.fragmentOrder.slice();
+    if (path === "cult") { f.splice(f.indexOf("heart"), 1); f.push("heart"); }   // the Crown stands in for the Heart, placed last
+    return f;
+  }
   function altar26() {
     secretRoute26 = path;
+    const a = level.altar;
+    place28 = { t: 0, ph: "walk", items: placeOrder28(), ix: -1, ixT: 0, fly: [], placed: [], i: 0, surgeT: 0, ax: a.x + a.w / 2, ay: a.y };
+    scene = "altar28"; setMusic("blevins"); synth.sfx("menu");
+  }
+  const slot28 = (k, n, ax, ay) => ({ x: ax + (k - (n - 1) / 2) * 17, y: ay - 26 - (k % 2) * 5 });
+  function updateAltar28() {
+    const q = place28; if (!q) { scene = "hub"; return; }
+    q.t++; uiT++;
+    const p = player, tx = q.ax - 26;
+    if (p) { p.vx = p.vy = 0; p.facing = 1; p.x += (tx - p.x) * 0.12; }
+    const L = T26().altar28[path];
+    if (q.ph === "walk") { if (q.t > 24 && (input.pressed("confirm"))) { q.ph = "place"; q.t = 0; q.ixT = 20; synth.sfx("dialogue"); } return; }
+    if (q.ph === "place") {
+      q.ixT--;
+      if (q.ixT <= 0 && q.ix < q.items.length - 1) {
+        q.ix++; q.ixT = 46; const n = q.items.length, to = slot28(q.ix, n, q.ax, q.ay);
+        q.fly.push({ f: q.items[q.ix], k: q.ix, t: 0, T: 30, x0: p.x + p.w / 2, y0: p.y + 2, x1: to.x, y1: to.y });
+        synth.sfx("altarPlace" + Math.min(5, q.ix));
+      }
+      for (const f of q.fly) if (!f.done) { f.t++; if (f.t >= f.T) { f.done = true; q.placed.push({ f: f.f, k: f.k, glow: 0 }); flash = Math.max(flash, 1); for (let i = 0; i < 8; i++) particles.push({ x: f.x1, y: f.y1, vx: (Math.random() - 0.5) * 1.6, vy: -Math.random() * 1.4, life: 24, color: path === "cult" ? P().cult.emberLight : P().order.illumination }); } }
+      for (const d of q.placed) d.glow++;
+      if (q.placed.length === q.items.length && q.ixT < 0) { q.ph = "surge"; q.t = 0; synth.sfx("altarSurge"); shake = 40; flash = 6; }
+      return;
+    }
+    if (q.ph === "surge") { for (const d of q.placed) d.glow++; if (q.t === 40) synth.sfx("moonglass"); if (q.t > 120) { q.ph = "after"; q.t = 0; } return; }
+    if (q.ph === "after") { for (const d of q.placed) d.glow++; if (q.t > 24 && input.pressed("confirm")) { synth.sfx("dialogue"); place28 = null; playStory26(T26().story[path], () => goScene(() => path === "order" ? enterBlevins26("order") : enterNoah26())); } }
+  }
+  function drawAltar28() {
+    drawWorld();
+    const q = place28; if (!q) return;
+    const cult = path === "cult", glowC = cult ? "#d83a2a" : "#f2c14e", n = q.items.length;
+    // glow under each placed fragment, then the fragment
+    for (const d of q.placed) {
+      const to = slot28(d.k, n, q.ax, q.ay), r = 10 + Math.sin(d.glow * 0.2) * 2 + (q.ph === "surge" ? q.t * 0.12 : 0);
+      g.save(); g.globalAlpha = 0.35 + 0.15 * Math.sin(d.glow * 0.25); g.fillStyle = glowC; g.beginPath(); g.arc(wx(to.x), wy(to.y), r, 0, 7); g.fill(); g.restore();
+      blitFrame("ui-frag16", d.f, wx(to.x) - 8, wy(to.y) - 8 + Math.round(Math.sin(d.glow * 0.1 + d.k) * 1.5), false);
+    }
+    // flying fragments (arc from the player to the altar) with a trail
+    for (const f of q.fly) if (!f.done) {
+      const u = f.t / f.T, e = u * u * (3 - 2 * u), x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e - Math.sin(u * Math.PI) * 26;
+      for (let i = 1; i < 6; i++) { const u2 = Math.max(0, u - i * 0.04), e2 = u2 * u2 * (3 - 2 * u2); rect(wx(f.x0 + (f.x1 - f.x0) * e2), wy(f.y0 + (f.y1 - f.y0) * e2 - Math.sin(u2 * Math.PI) * 26), 2, 2, i % 2 ? glowC : P().order.light); }
+      blitFrame("ui-frag16", f.f, wx(x) - 8, wy(y) - 8, false);
+    }
+    if (q.ph === "surge" || q.ph === "after") {
+      const u = Math.min(1, q.ph === "after" ? 1 : q.t / 100);
+      // crimson surge: a red wash, beams out of the altar, and the Crimson Moon rising
+      g.save(); g.globalAlpha = 0.28 * u + (q.ph === "surge" && q.t < 10 ? 0.4 : 0); g.fillStyle = "#8a0f1a"; g.fillRect(0, 0, W, H); g.restore();
+      for (let i = -3; i <= 3; i++) { const bx = wx(q.ax) + i * 9 + Math.sin(uiT * 0.3 + i) * 2, bh = (60 + 120 * u) * (1 - Math.abs(i) * 0.12); g.save(); g.globalAlpha = 0.5 * (1 - Math.abs(i) * 0.14); g.fillStyle = i % 2 ? "#d83a2a" : "#ff8a5a"; g.fillRect(bx, wy(q.ay) - bh, 3, bh); g.restore(); }
+      const my = H + 40 - (H - 70) * (1 - Math.pow(1 - u, 2)); blitFrame("fx26-moon", "moon" + (u > 0.6 ? 2 : u > 0.25 ? 1 : 0), W / 2, my, false);
+    }
+    // dialogue (always waits for a press)
+    const L = T26().altar28[path];
+    if (q.ph === "walk") { drawDialogue(L[0], null, T().pad.next); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
+    else if (q.ph === "after") { drawDialogue(L[1], null, T().pad.next); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
+  }
+  function altar26_old() {
     playStory26(T26().story[path], () => goScene(() => path === "order" ? enterBlevins26("order") : enterNoah26()));
   }
   function makeBoss26(id) {
@@ -1598,6 +1676,7 @@
   }
   function drawShadows26() {
     if (!level.shadows || scene === "arena") return;
+    if (level.plains28) { drawShadows28(); return; }
     for (const sh of level.shadows) {
       if (sh.x + sh.w < cameraX - 4 || sh.x > cameraX + VW + 4) continue;
       const x = wx(sh.x), y = wy(sh.y), w = Math.round(sh.w * WS), h = Math.round(sh.h * WS);
@@ -1605,6 +1684,123 @@
       for (let i = 0; i < w; i += 6) rect(x + i, y + ((i * 5 + animT) % 3) * 3, 3, 3, P().ground.void);
     }
     if (player && inShadow26()) drawText(T26().lines.hidden, W / 2, 34, P().ground.smoke, "center");
+  }
+  // ----- v2.8 Capital of the Plains: in-world cast shadows (sun low in the west, so every shadow falls east of its object) -----
+  function drawShadows28() {
+    for (const sh of level.shadows) {
+      if (sh.x + sh.w < cameraX - 4 || sh.x > cameraX + VW + 4) continue;
+      const gy = sh.y + sh.h, x0 = wx(sh.x), w = Math.round(sh.w * WS), top = wy(sh.y), bot = wy(gy), rows = bot - top;
+      for (let c = 0; c < w; c += 2) {
+        const tf = c / w, edge = Math.min(c, w - c), fh = Math.min(1, 0.25 + edge / 14);          // soft left/right falloff
+        const tt = top + Math.round(rows * 0.5 * tf);                                           // long shadow: its top edge falls away from the sun
+        const h = bot - tt; if (h <= 0) continue;
+        const b1 = Math.round(h * 0.34), b2 = Math.round(h * 0.7);
+        g.globalAlpha = 0.2 * fh; rect(x0 + c, tt, 2, b1, "#1A1648");
+        g.globalAlpha = 0.32 * fh; rect(x0 + c, tt + b1, 2, b2 - b1, "#1A1648");
+        g.globalAlpha = 0.44 * fh; rect(x0 + c, tt + b2, 2, h - b2, "#1A1648");
+        if ((c >> 1) & 1) { g.globalAlpha = 0.12 * fh; rect(x0 + c, tt - 2, 2, 2, "#1A1648"); }   // dithered upper edge
+      }
+      g.globalAlpha = 0.5; rect(x0 + 2, bot - 2, Math.max(0, w - 4), 2, "#120F34"); g.globalAlpha = 1;
+    }
+    if (player && scene === "traverse" && inShadow26()) {
+      const bob = ((animT >> 3) & 1);
+      blitFrame("w28-eye", "f0", Math.round((player.x + player.w / 2) * WS) - camPx, Math.round(player.y * WS) - camPy - 8 - bob, false);
+    }
+  }
+  const tintCv28 = document.createElement("canvas"); let tintG28 = null;
+  function drawPlayerTint28() {   // a subtle cool palette shift while the player is hidden in shadow
+    if (!tintG28) { tintCv28.width = fb.width; tintCv28.height = fb.height; tintG28 = tintCv28.getContext("2d"); tintG28.imageSmoothingEnabled = false; }
+    const keep = g; tintG28.globalCompositeOperation = "source-over"; tintG28.clearRect(0, 0, tintCv28.width, tintCv28.height);
+    g = tintG28; drawPlayer(); g = keep;
+    tintG28.globalCompositeOperation = "source-atop"; tintG28.fillStyle = "rgba(40,36,110,0.34)"; tintG28.fillRect(0, 0, tintCv28.width, tintCv28.height);
+    g.drawImage(tintCv28, 0, 0);
+  }
+  // sewer grate / ladder: fade, move the player, snap the camera
+  function useGrate28(gr) {
+    synth.sfx(gr.sfx || "grateOpen");
+    goScene(() => {
+      player.x = gr.to.x; player.y = gr.to.y; player.vx = 0; player.vy = 0; player.onGround = false; player.inv = Math.max(player.inv, 40);
+      cameraX = Math.max(0, Math.min(level.w - VW, player.x - VW / 2)); cameraY = Math.max(0, Math.min(level.h - VH, player.y - VH * 0.6));
+      projectiles = []; fade28 = 0; if (V()) { V().usedGrate28 = (V().usedGrate28 | 0) + 1; }
+    });
+  }
+  function endRead28() {
+    if (readWho28) { const v = V(); if (!v.stranger28) { v.stranger28 = 1; v.aurels += T28().stranger.reward; toast(T28().stranger.gift.replace("{n}", T28().stranger.reward)); synth.sfx("pickup"); persist(); } readWho28 = null; }
+  }
+  function chantBuff28(m) {
+    for (const o of enemies) if (o !== m && !o.dead && o.type !== "monk_bell" && Math.abs(o.x - m.x) < 160 && Math.abs(o.y - m.y) < 60 && !(o.buffT > 0)) {
+      o.baseSpeed = o.speed; o.speed *= 1.35; o.buffT = 300; spark(o.x + o.w / 2, o.y + 4, "#F2A65A", 6);
+    }
+  }
+  function throwBone28(e, dx) {
+    fireBolt(e, e.facing, "#EFE6CC"); const pr = projectiles[projectiles.length - 1], E = EPROJ.sewer_skeleton, T = 2 * Math.abs(E.up) / E.grav;
+    if (pr) pr.vx = Math.max(-2.6, Math.min(2.6, dx / T)); synth.sfx("boneThrow");
+  }
+  // background bird flocks (v2.8): random height and interval, background layer only
+  function plainsTick28() {
+    if (level.birds28) {
+      if (!birds28) birds28 = { next: 90, flocks: [] };
+      if (--birds28.next <= 0) {
+        const dir = Math.random() < 0.5 ? 1 : -1, n = 3 + ((Math.random() * 6) | 0);
+        birds28.flocks.push({ x: dir > 0 ? -30 : VW + 30, y: 24 + Math.random() * 100, vx: dir * (0.45 + Math.random() * 0.5), n, ph: Math.random() * 9, birds: Array.from({ length: n }, (_, i) => ({ dx: -dir * (i * 9 + Math.random() * 6), dy: ((i % 2) ? 1 : -1) * Math.random() * 7 + i * 1.2 })) });
+        birds28.next = 360 + ((Math.random() * 720) | 0);
+      }
+      for (const f of birds28.flocks) f.x += f.vx;
+      birds28.flocks = birds28.flocks.filter(f => f.x > -140 && f.x < VW + 140);
+    }
+    if (level.drips && player) for (const dx of level.drips) {
+      if (Math.abs(dx - player.x) < 260 && Math.random() < 0.012) { drips28.push({ x: dx + ((Math.random() * 20) | 0) - 10, y: 496, vy: 0, t: 0 }); }
+    }
+    for (const d of drips28) { if (d.t > 0) { d.t++; continue; } d.vy += 0.12; d.y += d.vy; if (d.y >= 598) { d.y = 598; d.t = 1; if (player && Math.abs(d.x - player.x) < 140) synth.sfx("drip28"); } }
+    drips28 = drips28.filter(d => d.t < 10); if (fade28 > 0) fade28--;
+  }
+  function drawBirds28() {
+    if (!birds28 || !level.birds28) return;
+    for (const f of birds28.flocks) for (const b of f.birds) {
+      const fr = ((((animT >> 2) + ((f.ph + b.dx) | 0)) % 4) + 4) % 4;
+      blitFrame("w28-bird", "f" + fr, Math.round((f.x + b.dx) * WS), Math.round((f.y + b.dy + Math.sin((animT + b.dx * 3) * 0.05) * 2) * WS), f.vx < 0);
+    }
+  }
+  function drawInteriors28() {
+    for (const r of (level.interiors || [])) {
+      if (!onScr(r.x, r.y, r.w, r.h)) continue;
+      const x = wx(r.x), y = wy(r.y), w = Math.round(r.w * WS), h = Math.round(r.h * WS);
+      g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+      if (r.kind === "sewer") {
+        rect(x, y, w, h, "#0A1612");
+        for (let tx = 0; tx < w; tx += 480) blitFrame("w28-sewerbg", "f0", x + tx, y, false);
+        g.globalAlpha = 0.16; rect(x, y, w, h, "#2E8A62"); g.globalAlpha = 1;                // dim green light
+        for (const lx of [r.x + 80, r.x + 330, r.x + 600, r.x + 860]) { const cx = wx(lx); for (let k = 0; k < 4; k++) { g.globalAlpha = 0.07; rect(cx - 36 + k * 8, y, 72 - k * 16, h, "#74CCB0"); } }
+        g.globalAlpha = 1;
+        const wy0 = y + h - 8;                                                              // shallow water on the floor
+        g.globalAlpha = 0.6; rect(x, wy0, w, 8, "#26706E"); g.globalAlpha = 0.5;
+        for (let xx = 0; xx < w; xx += 9) rect(x + xx + ((animT >> 3) % 9), wy0 + ((xx / 9) & 1), 5, 1, "#74CCB0");
+        g.globalAlpha = 1;
+        for (let k = 0; k < 6; k++) { g.globalAlpha = 0.5 - k * 0.08; rect(x + k * 3, y, 3, h, "#050404"); rect(x + w - 3 - k * 3, y, 3, h, "#050404"); }
+        g.globalAlpha = 1;
+      } else {
+        rect(x, y, w, h, "#16142C");
+        for (let yy = 0; yy < h; yy += 16) for (let xx = -((yy >> 4) & 1) * 12; xx < w; xx += 24) rect(x + xx, y + yy, 1, 16, "#201C40");
+        for (let yy = 0; yy < h; yy += 16) rect(x, y + yy, w, 1, "#201C40");
+        for (let xx = 40; xx < w; xx += 140) { g.strokeStyle = "#8A6E1F"; g.lineWidth = 2; g.beginPath(); g.arc(x + xx, y + 70, 36, Math.PI, 0); g.stroke(); rect(x + xx - 37, y + 70, 2, h - 70, "#8A6E1F"); rect(x + xx + 35, y + 70, 2, h - 70, "#8A6E1F"); }
+        g.globalAlpha = 0.18; rect(x, y, w, h, "#E8C547"); g.globalAlpha = 1;
+      }
+      g.restore();
+    }
+  }
+  function drawPlains28() {
+    for (const s of (level.streams || [])) if (onScr(s.x, s.y - 8, s.w, 24)) {
+      const x = wx(s.x), y = wy(s.y), w = Math.round(s.w * WS);
+      g.globalAlpha = 0.62; rect(x, y - 6, w, 18, "#3E5470"); g.globalAlpha = 0.8;
+      for (let xx = 0; xx < w; xx += 7) rect(x + xx + ((animT >> 2) % 7), y - 4 + ((xx / 7 | 0) % 3) * 5, 4, 1, "#B0C8D8");
+      g.globalAlpha = 1;
+    }
+    for (const d of drips28) if (onScr(d.x, d.y, 8, 12)) blitFrame("w28-drip", d.t > 0 ? "f3" : "f" + Math.min(2, (d.vy * 1.2) | 0), wx(d.x), wy(d.y), false);
+    for (const t of (level.talk28 || [])) if (onScr(t.x - 20, t.y - 70, 60, 80)) {
+      const near = player && Math.abs(player.x - t.x) < 40, flip = player && player.x < t.x;
+      blitFrame("npc-stranger", animFrame("npc-stranger", near ? "talk" : "idle", animT, 14), wx(t.x), wy(t.y), !!flip);
+    }
+    for (const gr of (level.grates || [])) if (gr.label === "up" && onScr(gr.x - 8, gr.y - 90, 16, 90)) { /* ladder sprite is placed as decor */ }
   }
   // ----- allies in the finale: Noah John (Order fight) and Blevins (Cult fight) -----
   function mkAlly26(kind) { return { kind, x: kind === "noah" ? level.w - 56 : 56, t: 0, cd: 220, cast: 0, ck: "", n: 0, form: 1, trans: 0, shift: 780, face: -1, flash: 0 }; }
@@ -1844,6 +2040,7 @@
   // ---------- v2.5: side stages, bonus stages, water, tumbleweeds, arena waves ----------
   function S25() { return window.SHARDS.stages25 || []; }
   function T25() { return window.SHARDS.text25; }
+  function T28() { return window.SHARDS.text28; }
   function stageDef(id) { return S25().find(q => q.id === id); }
   function normV25() {
     if (!save.stages || typeof save.stages !== "object") save.stages = {};
@@ -1867,7 +2064,8 @@
     if (glassNow) { save.secret.glass = true; v.nip += 3; v.nipTotal += 3; lines.push(T26().lines.glass); }
     clearTitle = T25().clear[id] || ""; clearLines = lines; clearT = 0; scene = "stageclear"; synth.sfx("stageClear"); persist();
   }
-  function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confirm")) goScene(() => enterHub()); }
+  function hazBox28(r) { for (const h of (level.hazards || [])) if (r.x + r.w > h.x && r.x < h.x + h.w && r.y + r.h > h.y && r.y < h.y + h.h) return true; return false; }
+function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confirm")) goScene(() => enterHub()); }
   function drawStageClear() {
     const h = 56 + clearLines.length * 14, y = ((H - h) / 2) | 0;
     panel(110, y, W - 220, h);
@@ -1913,7 +2111,7 @@
     }
   }
   function drawDecor(zl) {
-    for (const d of (level.decor || [])) if (d.z === zl && onScr(d.x - 50, d.y - 90, 100, 100)) blitFrame(d.sheet, d.frame || "f0", wx(d.x), wy(d.y), false);
+    for (const d of (level.decor || [])) if (d.z === zl && onScr(d.x - 130, d.y - 200, 260, 210)) blitFrame(d.sheet, d.anim ? "f" + ((((animT / (d.rate || 8)) | 0) + ((d.x / 7) | 0)) % d.anim) : (d.frame || "f0"), wx(d.x), wy(d.y), false);
   }
   // tumbleweeds + spore clouds + arena waves (Sandria, the Deep bonus, the Ember Pit)
   function worldTick25() {
@@ -2127,6 +2325,8 @@
     blaze_imp: { ek: "ember", w: 7, h: 6, sp: 2.0, wob: 1, life: 100, fxk: "burn", nm: 3 },
     vine_spitter: { ek: "seed", w: 6, h: 6, sp: 1.7, up: -0.95, grav: 0.04, life: 120, land: "cloud", nm: 2 },
     ice_archer: { ek: "shard", w: 9, h: 4, sp: 2.8, life: 80, fxk: "slow", nm: 2 },
+    sewer_skeleton: { ek: "bone", w: 7, h: 7, sp: 1.6, up: -2.5, grav: 0.11, life: 150, nm: 8, land: "clatter" },
+    monk_bell: { ek: "chant", w: 10, h: 10, sp: 1.25, wob: 1, life: 150, nm: 4, fxk: "burn" },
     pirate_gunner: { ek: "bolt", w: 6, h: 3, sp: 3.6, life: 60 }
   };
   function fireBolt(from, dir, color) {
@@ -2337,6 +2537,7 @@
   }
   function hurtPlayer(n, kbDir, src) {
     if (!player || player.inv > 0 || player.dodge > 0 || player.dead || godMode) return;
+    if (player.hook && player.hook.ph === "climb") return;   // v2.8: the pull-up is safe
     if (powers.ward > 0) return;
     if (guardBlock26(n, kbDir)) return;
     const D = diffRules();
@@ -2367,6 +2568,12 @@
 
   function damageEnemy(e, n, o) {
     if (e.inv > 0 || e.dead) return;
+    if (e.behavior === "staff" && ((e.guardT > 0 && (e.sm | 0) === 0) || e.sm === 1) && Math.sign(player.x - e.x) === e.facing) {   // v2.8: the staff monk blocks from the front
+      e.inv = 8; synth.sfx("staffBlock"); spark(e.x + e.w / 2 + e.facing * 8, e.y + 8, "#F2E4B0", 4); doHitstop(1);
+      player.vx = -e.facing * 1.4; e.blocks = (e.blocks | 0) + 1;
+      if (e.blocks >= 3) { e.blocks = 0; e.guardT = 0; e.sm = 0; e.stun = 46; e.anim = "idle"; toast(T28().guardBreak); }
+      return;
+    }
     e.hp -= n; e.inv = hitCtx ? Math.max(5, Math.min(12, Math.round(10 * wpn().cd))) : 12; knock(e, o);
     if (e.behavior === "bound") { e.attackT = 0; }
     e.anim = "hurt"; synth.sfx("enemyHurt"); doHitstop(2); shake = 3; rumble("hit");
@@ -2457,6 +2664,44 @@
     if (p.atkCD > 0) p.atkCD--; if (p.skillCD > 0) p.skillCD--; if (p.dodgeCD > 0) p.dodgeCD--; if (p.inv > 0) p.inv--; if (p.hurtT > 0) p.hurtT--;
     if (p.comboTimer > 0) p.comboTimer--; p.animT++;
   }
+  // ===== v2.8: Ledge assist. Airborne, moving toward a solid platform's edge with its top at head height: grab on and pull up by yourself. =====
+  let dust28 = [];
+  function ledgeAssist28(p, snk) {
+    const A = H27().assist;
+    if (save.settings.ledgeAssist === false || p.onGround || p.dead || snk || p.dodge > 0 || p.atk > 0 || p.skill > 0 || p.guard > 0 || p.channel > 0 || p.snake > 0 || p.hurtT > 0 || p.noGrab27 > 0 || p.dropT > 0 || p.grabCD28 > 0 || p.plunge > 0 || introHold > 0) return false;
+    if (input.held("down")) return false;   // dropping past a ledge on purpose
+    const d = (input.held("right") ? 1 : 0) - (input.held("left") ? 1 : 0); if (!d) return false;
+    if (p.vy < A.vyMin || p.vy > A.vyMax) return false;
+    const g = H27().grabPlan(level.platforms, p, d, (r) => blockedBox(r) || hazBox28(r));
+    if (!g) return false;
+    p.hook = { ph: "climb", kind: hookKind27() === "whip" ? "whip" : "hand", t: 0, d, x0: p.x, y0: p.y, hx: g.hx, hy: g.hy, fx: g.fx, sy: g.sy, ax: g.ax, ay: g.ay };
+    p.vx = p.vy = 0; p.jumping = false; p.dashing = 0;
+    synth.sfx("ledgeGrab"); hookLog27.push({ ev: "autograb", kind: p.hook.kind, x: g.ax, y: g.ay });
+    save.hooks27.grabs = (save.hooks27.grabs | 0) + 1;
+    save.tut27 = save.tut27 || {};
+    if (!save.tut27.grab) { save.tut27.grab = true; persist(); toast(T27().grabTip); }
+    return true;
+  }
+  function climbTick28(p, h) {
+    const A = H27().assist, whip = h.kind === "whip", T1 = whip ? 3 : A.grab, T2 = whip ? 2 : A.hang, T3 = whip ? A.whipPull : A.pull;
+    h.t++;
+    if (input.pressed("down") && h.t > T1) { p.hook = null; p.noGrab27 = 26; p.grabCD28 = 30; hookLog27.push({ ev: "grabCancel" }); return false; }
+    const lerp = (a, b, u) => a + (b - a) * u, ease = (u) => u * u * (3 - 2 * u);
+    if (h.t <= T1) { const u = ease(h.t / T1); p.x = lerp(h.x0, h.hx, u); p.y = lerp(h.y0, h.hy, u); }
+    else if (h.t <= T1 + T2) { p.x = h.hx; p.y = h.hy; if (h.t === T1 + 1) { for (let i = 0; i < 3; i++) dust28.push({ x: h.ax - h.d * 2 + (i - 1) * 3, y: h.ay + 6, t: -i * 2 }); } }
+    else {
+      const u = Math.min(1, (h.t - T1 - T2) / T3), up = Math.min(1, u / 0.62), across = u < 0.62 ? 0 : (u - 0.62) / 0.38;
+      p.x = lerp(h.hx, h.fx, ease(across)); p.y = lerp(h.hy, h.sy, ease(up));
+      if (h.t === T1 + T2 + 1) synth.sfx("ledgePull");
+      if (u >= 1) {
+        p.x = h.fx; p.y = h.sy; p.vx = 0; p.vy = 0.3; p.hook = null; p.noGrab27 = 8; p.grabCD28 = 24; p.onGround = false; p.inv = Math.max(p.inv, 10);
+        synth.sfx("ledgeStand"); for (let i = 0; i < 4; i++) dust28.push({ x: p.x + p.w / 2 + (i - 1.5) * 4, y: p.y + p.h, t: -i }); hookLog27.push({ ev: "autoclimb" });
+        hookTimers27(p); return true;
+      }
+    }
+    p.vx = p.vy = 0; p.onGround = false; p.facing = h.d; p.anim = h.t > T1 + T2 ? "land" : "jump"; p.animT = h.t > T1 + T2 ? 0 : 3;
+    hookTimers27(p); return true;
+  }
   function hookTick27(p, snk) {
     if (!level || !level.tiled || !w22) { p.hook = null; return false; }
     if (p.hookCD > 0) p.hookCD--; if (p.noGrab27 > 0) p.noGrab27--;
@@ -2466,8 +2711,11 @@
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
       for (const s of level.swings) if (Math.hypot(s.x - cx, s.y - cy) <= H27().GRAB && s.y < cy + 4) { hookLatch27(p, s, true); break; }
     }
+    if (!p.hook && p.grabCD28 > 0) p.grabCD28--;
+    if (!p.hook && ledgeAssist28(p, snk)) { /* started a climb */ }
     const h = p.hook; if (!h) return false;
-    const K = H27()[h.kind];
+    const K = H27()[h.kind] || H27().rope;
+    if (h.ph === "climb") return climbTick28(p, h);
     if (h.ph === "miss") { if (++h.t >= 9) p.hook = null; return false; }
     if (h.ph === "shoot") {
       h.t++;
@@ -2548,7 +2796,13 @@
       else if (h.ph === "shoot") { const u = Math.min(1, (h.t + 1) / h.T), ex = hand.x + (h.tg.x - hand.x) * u, ey = hand.y + (h.tg.y - hand.y) * u; drawRope27(hand.x, hand.y, ex, ey, look, T); blitFrame("fx27", head, wx(ex), wy(ey), p.facing < 0); }
       else if (h.ph === "reel") { drawRope27(hand.x, hand.y, h.ax, h.ay, look, T); blitFrame("fx27", head, wx(h.ax), wy(h.ay), p.facing < 0); }
       else if (h.ph === "swing") { drawRope27(hand.x, hand.y - 2, h.ref.x, h.ref.y, look, T); }
+      else if (h.ph === "climb") {
+        if (h.kind === "whip") { drawRope27(hand.x, hand.y, h.ax, h.ay, "whip", T); blitFrame("fx27", "whip-tip", wx(h.ax), wy(h.ay), p.facing < 0); }
+        else { const fr = h.t < 4 ? 0 : h.t < 10 ? 1 : h.t < 28 ? 2 : 3; blitFrame("fx28", "grab" + fr, wx(h.ax - h.d * 3), wy(h.ay + 2), h.d < 0); }
+      }
     }
+    for (const q of dust28) { q.t++; if (q.t >= 0) blitFrame("fx28", "dust" + Math.min(3, q.t >> 1), wx(q.x), wy(q.y), false); }
+    dust28 = dust28.filter(q => q.t < 9);
     for (const f of hookFx27) { f.t++; f.x += f.vx; f.y += f.vy; f.vy += 0.05; rect(wx(f.x), wy(f.y), 2, 2, path === "cult" ? P().cult.emberLight : P().order.light); }
     hookFx27 = hookFx27.filter(f => f.t < f.life);
   }
@@ -2897,6 +3151,7 @@
       if (e.fell) { e.dead = true; e.animT = 99; continue; }
       e.animT++;
       if (e.inv > 0) e.inv--;
+      if (e.buffT > 0 && --e.buffT === 0 && e.baseSpeed) e.speed = e.baseSpeed;
       e.vy = Math.min(4.5, e.vy + 0.18);
       tickStatus(e, false);
       if (e.stun > 0) { e.stun--; e.vx *= e.onGround ? 0.86 : 0.97; resolve(e, plats()); if (e.stun === 0) e.vx = 0; continue; }
@@ -2978,6 +3233,54 @@
             if (e.onGround) { e.stun = 70; e.anim = "stun"; synth.sfx("thud"); shake = Math.max(shake, 2); fxAdd("dust", e.x + e.w / 2, e.y + e.h, {}); }
           }
         }
+      } else if (beh === "staff") {
+        // v2.8 staff monk (zealous Order guard): approaches, raises a block, then a telegraphed sweeping strike
+        e.sm = e.sm | 0; e.dt = e.dt | 0; if (e.guardCD > 0) e.guardCD--;
+        if (e.sm === 0) {
+          if (e.guardT > 0) { e.guardT--; e.vx = 0; e.anim = "guard"; }
+          else {
+            e.vx = Math.abs(dx) > 34 ? e.facing * e.speed * 0.9 : 0; e.anim = e.vx ? "walk" : "idle";
+            if (e.guardCD <= 0 && Math.abs(dx) < 90 && Math.abs(dx) > 30) { e.guardT = 60; e.guardCD = 150; }
+            else if (e.cd <= 0 && Math.abs(dx) < 48 && Math.abs(player.y - e.y) < 26) { e.sm = 1; e.dt = 24; e.vx = 0; synth.sfx("telegraph"); }
+          }
+        } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 2; e.dt = 16; e.hitDone = false; synth.sfx("staffSweep"); } }
+        else if (e.sm === 2) {
+          e.dt--; e.vx = e.facing * 0.5; e.anim = "attack";
+          if (!e.hitDone && e.dt < 12 && e.dt > 3) {
+            const bx = e.facing > 0 ? e.x + e.w : e.x - 40;
+            if (aabb(player, { x: bx, y: e.y + 2, w: 40, h: e.h - 2 }) && player.inv === 0 && player.dodge === 0 && !player.dead) { e.hitDone = true; hurtPlayer(e.damage, e.facing, e); }
+          }
+          if (e.dt <= 0) { e.sm = 3; e.dt = 30; }
+        } else { e.dt--; e.vx = 0; e.anim = "idle"; if (e.dt <= 0) { e.sm = 0; e.cd = 70; } }
+      } else if (beh === "chant") {
+        // v2.8 bell monk: keeps its distance, rings the bell (buffs nearby monks), then throws a fire chant
+        e.sm = e.sm | 0; e.dt = e.dt | 0;
+        if (e.sm === 0) {
+          const want = Math.abs(dx) < 70 ? -e.facing : (Math.abs(dx) > 130 ? e.facing : 0);
+          e.vx = want * e.speed; e.anim = want ? "walk" : "idle";
+          if (e.cd <= 0 && Math.abs(dx) < 190 && Math.abs(player.y - e.y) < 90) { e.sm = 1; e.dt = 34; e.vx = 0; synth.sfx("bellChant"); }
+        } else if (e.sm === 1) {
+          e.dt--; e.vx = 0; e.anim = "tele";
+          if (e.dt === 14) chantBuff28(e);
+          if (e.dt <= 0) { fireBolt(e, e.facing, e.accent); e.sm = 2; e.dt = 18; }
+        } else { e.dt--; e.vx = 0; e.anim = "attack"; if (e.dt <= 0) { e.sm = 0; e.cd = 150; } }
+      } else if (beh === "brute") {
+        // v2.8 charging brawler: lumbers, winds up with a visible crouch, then a long straight charge, then is open
+        e.sm = e.sm | 0; e.dt = e.dt | 0;
+        if (e.sm === 0) {
+          e.vx = e.facing * e.speed * 0.7; e.anim = "walk";
+          if (e.cd <= 0 && Math.abs(dx) < 130 && Math.abs(player.y - e.y) < 30) { e.sm = 1; e.dt = 26; e.vx = 0; synth.sfx("telegraph"); }
+        } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 2; e.dt = 34; } }
+        else if (e.sm === 2) { e.dt--; e.vx = e.facing * e.speed * 3.4; e.anim = "attack"; if (e.dt <= 0 || (e.onGround && e.ground && (e.x + e.w / 2 + e.vx * 6 < e.ground.x || e.x + e.w / 2 + e.vx * 6 > e.ground.x + e.ground.w))) { e.sm = 3; e.dt = 44; e.vx = 0; } }
+        else { e.dt--; e.vx = 0; e.anim = "idle"; if (e.dt <= 0) { e.sm = 0; e.cd = 80; } }
+      } else if (beh === "thrower") {
+        // v2.8 sewer skeleton: backs off, raises a bone, lobs it in an arc (clatters on landing)
+        e.sm = e.sm | 0; e.dt = e.dt | 0;
+        if (e.sm === 0) {
+          e.vx = (Math.abs(dx) < 60 ? -e.facing : (Math.abs(dx) > 120 ? e.facing * 0.6 : 0)) * e.speed; e.anim = e.vx ? "walk" : "idle";
+          if (e.cd <= 0 && Math.abs(dx) < 190 && Math.abs(player.y - e.y) < 110) { e.sm = 1; e.dt = 22; e.vx = 0; }
+        } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { throwBone28(e, dx); e.sm = 2; e.dt = 16; } }
+        else { e.dt--; e.vx = 0; e.anim = "attack"; if (e.dt <= 0) { e.sm = 0; e.cd = 110; } }
       } else if (beh === "jumper") {
         e.vx = e.facing * e.speed; e.anim = "walk";
         if (e.onGround && e.cd <= 0 && Math.abs(dx) < 100) {
@@ -3180,8 +3483,8 @@
   function updateTraverse() {
     for (const e of enemies) if (e.flashT > 0) e.flashT--;
     if (level.tiled && w22) {
-      if (readText) { if (input.pressed("confirm") || menuBack()) readText = readQ.length ? readQ.shift() : null; input.clearJust(); return; }
-      updateWorld22Pre(); tipTick27();
+      if (readText) { if (input.pressed("confirm") || menuBack()) { readText = readQ.length ? readQ.shift() : null; if (!readText) endRead28(); } input.clearJust(); return; }
+      updateWorld22Pre(); tipTick27(); plainsTick28();
       if (level.guardianGate && !gTrig26 && aabb(player, level.guardianGate)) { gTrig26 = true; synth.sfx("gate"); goScene(() => enterGuardian26()); }
       if (updateInteract()) return;
       updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updateWorld22Post(); updateAmbient(); updateCamera(); updateCoins(); updateEfx();
@@ -3315,6 +3618,7 @@
     } else if (scene === "claim") updateClaim();
     else if (scene === "stageclear") updateStageClear();
     else if (scene === "story") updateStory26();
+    else if (scene === "altar28") updateAltar28();
     else if (scene === "bonus") updateBonus();
     else if (scene === "defeat") updateDefeat();
     else if (scene === "ending") updateEnding();
@@ -3626,6 +3930,7 @@
     const sh = "enemy-" + e.type;
     if (e.dead) return animFrame(sh, "death", e.animT, 6, false);
     if (e.anim === "hurt" && e.inv > 4) return "hurt0";
+    if (e.anim === "guard") return animFrame(sh, "guard", e.animT, 8);
     if (e.anim === "tele" || e.anim === "dive" || e.anim === "stun") return animFrame(sh, e.anim, e.animT, 7);
     if (e.anim === "attack") return animFrame(sh, "attack", e.animT, 8);
     if (e.anim === "walk") return animFrame(sh, "walk", e.animT, 7);
@@ -4214,7 +4519,7 @@
     animT++;
     camPx = Math.round(cameraX * WS); camPy = Math.round(cameraY * WS);
     const tl = !!(level.tiled && w22);
-    if (tl) { drawTiledBG(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); } else drawBG();
+    if (tl) { drawTiledBG(); drawBirds28(); drawInteriors28(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); drawPlains28(); } else drawBG();
     drawInteractables();
     if (tl) drawWorldItems();
     drawPickups();
@@ -4223,7 +4528,7 @@
     drawArenaBack26();
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
     drawArenaFront26();
-    if (player) drawPlayer();
+    if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); }
     drawHook27();
     drawShadows26(); drawAlly26(); drawBless26();
     drawProjectiles(); drawArenaLava26();
@@ -4244,9 +4549,9 @@
     if (scene === "travel") drawTravel();
     if (scene === "traverse" && tl) {
       const n = nearInteract();
-      if (readText) { drawDialogue(readText, null); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
+      if (readText) { drawDialogue(readText, readWho28 || null); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
       else if (n) {
-        const key = n.kind === "rest" ? T22().rest : n.kind === "lever" ? T22().lever : n.kind === "tablet" ? T22().tablet : n.kind === "talk" ? T25().talk : null;
+        const key = n.kind === "rest" ? T22().rest : n.kind === "lever" ? T22().lever : n.kind === "tablet" ? T22().tablet : n.kind === "talk" ? T25().talk : n.kind === "stranger" ? T25().talk : n.kind === "grate" ? (n.obj.g.label === "up" ? T28().ladder : T28().grate) : null;
         if (key) drawPrompt(n.obj.x + (n.obj.w || 16) / 2, n.obj.y - 4, touchUI() ? key.promptTouch : padUI() ? key.promptPad : key.prompt);
         else if (level.bossGate && level.bossGate.opens) { const G = T25().gate; drawDialogue(sealCount() >= sealNeed() ? (touchUI() ? G.keyTouch : padUI() ? G.keyPad : G.key) : G.have.replace("{n}", sealCount()).replace("{need}", sealNeed())); }
         else if (sealCount() >= sealNeed()) drawDialogue(touchUI() ? T().touch.gate : padUI() ? T().pad.gate : T().zoneClear.gate);
@@ -4256,6 +4561,7 @@
       const gate = level.bossGate;
       if (gate && aabb(player, gate)) drawDialogue(touchUI() ? T().touch.gate : padUI() ? T().pad.gate : T().zoneClear.gate);
     }
+    if (fade28 > 0) { g.globalAlpha = Math.min(1, fade28 / 10); rect(0, 0, W, H, "#050404"); g.globalAlpha = 1; }
     if (scene === "arena" && introHold > 0 && boss) {
       // Boss intro card. Silent: portrait only, never a name.
       const label = T().bossLabels[boss.id];
@@ -4308,6 +4614,7 @@
     else if (scene === "claim") drawClaim();
     else if (scene === "stageclear") { drawWorld(); drawStageClear(); }
     else if (scene === "story") drawStory26();
+    else if (scene === "altar28") drawAltar28();
     else if (scene === "bonus") drawBonus();
     else if (scene === "defeat") drawDefeat();
     else if (scene === "ending") drawEnding();
@@ -4884,9 +5191,10 @@
       if (player.dodge > 0) nearMiss();
       else if (player.inv === 0 && !player.dead) { hurtPlayer(1); if (player.hurtT > 0) applyProjFx(pr); pr.life = 0; if (pr.land) landProj(pr); return; }
     }
-    if (solidAny(pr)) { pr.life = 0; if (pr.land) landProj(pr); else spark(pr.x, pr.y, pr.color || P().order.light, 3); }
+    if (solidAny(pr)) { pr.life = 0; if (pr.ek === "bone") { synth.sfx("boneClatter"); spark(pr.x, pr.y, "#EFE6CC", 4); } else if (pr.land) landProj(pr); else spark(pr.x, pr.y, pr.color || P().order.light, 3); }
   }
   function drawEProj(pr, x, y, w, h) {
+    if (pr.ek === "bone" || pr.ek === "chant") { blitFrame("w28-" + pr.ek, "f" + (((animT + pr.ph * 2) >> (pr.ek === "bone" ? 1 : 2)) % pr.nm), x + (w >> 1), y + (h >> 1), false); return; }
     const k = (((animT + pr.ph * 2) >> 2) % pr.nm), nm = pr.ek === "bolt" ? "bolt" : pr.ek + k;
     if (pr.linger && pr.life < 26 && (animT & 4)) return;
     if (pr.ek === "puddle") blitFrame("w24-eproj", nm, x + (w >> 1), y + h - 5, false);
@@ -5461,7 +5769,7 @@
   }
   function releasePads() { padHeld = new Set(); stick.id = null; shootAimTouch = false; for (const a of PAD_ACTS) input.touch[a] = false; }
   // ----- settings -----
-  const SETTINGS_ROWS = 9; // master, music, sfx, fullscreen, vibration, difficulty, touch size, touch scheme, back
+  const SETTINGS_ROWS = 10; // master, music, sfx, fullscreen, vibration, difficulty, touch size, touch scheme, ledge assist, back
   function updateSettings() {
     if (input.pressed("up")) { settingsIx = (settingsIx + SETTINGS_ROWS - 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
     if (input.pressed("down")) { settingsIx = (settingsIx + 1) % SETTINGS_ROWS; synth.sfx("menuMove"); }
@@ -5477,8 +5785,9 @@
     }
     if (settingsIx === 6 && (adj || input.pressed("confirm"))) { const T = W23().touch; let n = padScaleCur + (adj || 0.1); if (n > T.max + 0.001) n = T.min; setPadScale(n); synth.sfx("menuMove"); }
     if (settingsIx === 7 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) { setScheme(touchScheme === "stick" ? "buttons" : "stick"); synth.sfx("menuMove"); }
-    if (settingsIx === 8 && (input.pressed("confirm") || menuBack())) { scene = settingsFrom === "pause" ? "pause" : "title"; }
-    if (menuBack() && settingsIx !== 8) scene = settingsFrom === "pause" ? "pause" : "title";
+    if (settingsIx === 8 && (input.pressed("confirm") || input.pressed("left") || input.pressed("right"))) { save.settings.ledgeAssist = !(save.settings.ledgeAssist !== false); persist(); synth.sfx("menuMove"); }
+    if (settingsIx === 9 && (input.pressed("confirm") || menuBack())) { scene = settingsFrom === "pause" ? "pause" : "title"; }
+    if (menuBack() && settingsIx !== 9) scene = settingsFrom === "pause" ? "pause" : "title";
     if (fsNoteT > 0) fsNoteT--;
   }
   function drawSettings() {
@@ -5488,7 +5797,7 @@
     const rows = [
       `${T().settings.master}: ${(synth.volume.master * 100) | 0}`, `${T().settings.music}: ${(synth.volume.music * 100) | 0}`, `${T().settings.sfx}: ${(synth.volume.sfx * 100) | 0}`,
       `${T().settings.fullscreen}: ${fsOn ? TS.fsOn : TS.fsOff}`, `${T().settings.vibration}: ${vibration ? "On" : "Off"}`, `${T22().diff.label}: ${T22().diff[difficulty]}`,
-      `${TS.size}: ${Math.round(padScaleCur * 100)}%`, `${TS.scheme}: ${touchScheme === "stick" ? TS.stick : TS.buttons}`, T().settings.back
+      `${TS.size}: ${Math.round(padScaleCur * 100)}%`, `${TS.scheme}: ${touchScheme === "stick" ? TS.stick : TS.buttons}`, `${T27().ledgeAssist}: ${save.settings.ledgeAssist !== false ? TS.fsOn : TS.fsOff}`, T().settings.back
     ];
     const t = touchUI(), pitch = t ? 20 : 16, top = 26, pw = 270;
     panel(8, 6, pw, top + rows.length * pitch + 4);
@@ -5613,7 +5922,7 @@
     v23() { return JSON.parse(JSON.stringify(save.v23)); },
     give23(o) { const v = V(); o = o || {}; if (o.aurels != null) v.aurels = o.aurels; if (o.nip != null) { v.nip = o.nip; } if (o.arrows != null) v.arrows = Math.min(v.arrowMax, o.arrows); if (o.flask != null) v.flask = Math.min(v.flaskMax, o.flask); if (o.meter != null) v.meter = o.meter;
       for (const w of (o.weapons || [])) giveWeapon(w, true); persist(); },
-    setNip(n) { V().nip = n; persist(); }, addSwing(x, y, theme) { (level.swings = level.swings || []).push({ x, y, theme }); }, addLedge(x, y, w) { (level.ledges = level.ledges || []).push({ x, y, w }); level.platforms.push({ x, y, w, h: 12, oneWay: true }); buildCur(); }, invTab() { return invTab; }, invTabNames() { return [T23().inv.tabs[0], T22().pause.charms, SKT().ui.tab, T23().inv.tabs[2]]; }, resetTips() { save.tut27 = {}; tip27 = null; }, introState() { return { hold: introHold, page: introPage, n: introPages.length }; }, speech() { return speech27 ? speech27.text : null; }, story() { return story26 ? { i: story26.i, n: story26.lines.length, done: !!story26.done } : null; }, claimState() { return { scene, claimT, claimTimer }; }, hookLog() { return hookLog27.slice(); }, clearHookLog() { hookLog27 = []; }, hookState() { const h = player && player.hook; return h ? { ph: h.ph, kind: h.kind, th: h.s ? h.s.th : null, om: h.s ? h.s.om : null, L: h.s ? h.s.L : null } : null; }, hookKind() { return hookKind27(); }, tip() { return tip27 ? tip27.id : null; }, pstate27() { return player ? { x: player.x, y: player.y, vx: player.vx, vy: player.vy, onGround: player.onGround, carry: player.carry27 | 0, hp: player.hp } : null; }, swings() { return level ? (level.swings || []).slice() : []; }, ledges() { return level ? (level.ledges || []).slice() : []; }, target27() { return player ? hookTargets27(player).map(t => ({ t: t.t, x: t.x, y: t.y })) : []; }, unclaim(f) { delete save.claimed[f]; persist(); }, giveCrown() { save.crown = true; save.claimed.heart = true; persist(); }, clearSkillCD() { if (player) player.skillCD = 0; }, moves26(id) { return MS26(id); }, strikeLog() { return strikeLog26.slice(); }, clearStrikeLog() { strikeLog26 = []; }, cast26(k) { cast26(k); }, special() { return activeSpecial26(); }, setSpecial(k) { V().special26 = k; }, blessN() { return { b: bl26.length, p: petals26.length, s: shock26.length }; }, comboAnims() { return player ? { og: player.onGround, vy: player.vy, plunge: player.plunge, cd: player.atkCD, combo: player.combo, atk: player.atk, hit: player.hit26 } : null; }, skill(id) { skillClick26(id); }, invTabSet(n) { invTab = n; skIx = 0; }, enchList(w) { return enchList(w); }, disenchant(w) { const b = V().nip; disenchant26(w); return V().nip - b; }, outline() { return enchOutline26(); }, statusTest() { const e = { x: 0, y: 0, w: 10, h: 10, burn: { n: 3, t: 0, gap: 10 }, slowT: 5, mark26: { t: 20, type: 'holy' } }; try { drawStatus26(e); return true; } catch (x) { return String(x); } },
+    setNip(n) { V().nip = n; persist(); }, addSwing(x, y, theme) { (level.swings = level.swings || []).push({ x, y, theme }); }, addLedge(x, y, w) { (level.ledges = level.ledges || []).push({ x, y, w }); level.platforms.push({ x, y, w, h: 12, oneWay: true }); buildCur(); }, invTab() { return invTab; }, invTabNames() { return [T23().inv.tabs[0], T22().pause.charms, SKT().ui.tab, T23().inv.tabs[2]]; }, resetTips() { save.tut27 = {}; tip27 = null; }, place28State() { return place28 ? { ph: place28.ph, ix: place28.ix, placed: place28.placed.length, n: place28.items.length, items: place28.items.slice(), t: place28.t } : null; }, openSettings28() { openSettings("title"); }, settingsIx28() { return settingsIx; }, addWall28(x, y, w, h) { const q = { x, y, w, h, k: "ground" }; level.platforms.push(q); if (w22) { w22.statics.push(Object.assign({}, q, { solid: true })); } }, ledgeAssistOn() { return save.settings.ledgeAssist !== false; }, setLedgeAssist(v) { save.settings.ledgeAssist = !!v; persist(); }, grabPlan(d) { const p = player; return p && level ? H27().grabPlan(level.platforms, p, d, (r) => blockedBox(r) || hazBox28(r)) : null; }, introState() { return { hold: introHold, page: introPage, n: introPages.length }; }, speech() { return speech27 ? speech27.text : null; }, story() { return story26 ? { i: story26.i, n: story26.lines.length, done: !!story26.done } : null; }, claimState() { return { scene, claimT, claimTimer }; }, hookLog() { return hookLog27.slice(); }, clearHookLog() { hookLog27 = []; }, hookState() { const h = player && player.hook; return h ? { ph: h.ph, kind: h.kind, th: h.s ? h.s.th : null, om: h.s ? h.s.om : null, L: h.s ? h.s.L : null } : null; }, hookKind() { return hookKind27(); }, tip() { return tip27 ? tip27.id : null; }, pstate27() { return player ? { x: player.x, y: player.y, vx: player.vx, vy: player.vy, onGround: player.onGround, carry: player.carry27 | 0, hp: player.hp } : null; }, swings() { return level ? (level.swings || []).slice() : []; }, ledges() { return level ? (level.ledges || []).slice() : []; }, target27() { return player ? hookTargets27(player).map(t => ({ t: t.t, x: t.x, y: t.y })) : []; }, unclaim(f) { delete save.claimed[f]; persist(); }, giveCrown() { save.crown = true; save.claimed.heart = true; persist(); }, clearSkillCD() { if (player) player.skillCD = 0; }, moves26(id) { return MS26(id); }, strikeLog() { return strikeLog26.slice(); }, clearStrikeLog() { strikeLog26 = []; }, cast26(k) { cast26(k); }, special() { return activeSpecial26(); }, setSpecial(k) { V().special26 = k; }, blessN() { return { b: bl26.length, p: petals26.length, s: shock26.length }; }, comboAnims() { return player ? { og: player.onGround, vy: player.vy, plunge: player.plunge, cd: player.atkCD, combo: player.combo, atk: player.atk, hit: player.hit26 } : null; }, skill(id) { skillClick26(id); }, invTabSet(n) { invTab = n; skIx = 0; }, enchList(w) { return enchList(w); }, disenchant(w) { const b = V().nip; disenchant26(w); return V().nip - b; }, outline() { return enchOutline26(); }, statusTest() { const e = { x: 0, y: 0, w: 10, h: 10, burn: { n: 3, t: 0, gap: 10 }, slowT: 5, mark26: { t: 20, type: 'holy' } }; try { drawStatus26(e); return true; } catch (x) { return String(x); } },
     claimFrags(list) { for (const f of list) save.claimed[f] = true; persist(); }, stealthTest() {
       const lv = { stealth: true, shadows: [{ x: 0, y: 0, w: 9999, h: 9999 }] }, keep = level; const e = { facing: 1 };
       const open = (ddx) => { level = { stealth: true }; return stealthSees26(e, ddx, 0); };
@@ -5630,6 +5939,10 @@
     enemies() { return enemies.map(e => ({ type: e.type, x: e.x, y: e.y, vx: e.vx, vy: e.vy, hp: e.hp, stun: e.stun | 0, dead: e.dead, w: e.w, h: e.h, elite: e.elite, burn: !!e.burn, bleed: !!e.bleed, slowT: e.slowT | 0 })); },
     spawnEnemy(type, x, y, elite) { const e = makeEnemy({ type, x, y, elite: !!elite }); enemies.push(e); return enemies.length - 1; },
     clearEnemies() { enemies = []; },
+    p28() { const v = V(); return { scene, flocks: birds28 ? birds28.flocks.length : 0, drips: drips28.length, readText, readWho: !!readWho28, hidden: !!(level && level.shadows && player && inShadow26()), stranger: v.stranger28 | 0, aurels: v.aurels, used: v.usedGrate28 | 0, fade: fade, toasts: (typeof toastList !== "undefined" ? 0 : 0), seals: w22 ? sealCount() : 0, need: w22 ? sealNeed() : 0, shadows: level.shadows ? level.shadows.length : 0, ptile: level.platforms ? [...new Set(level.platforms.map(q => q.tile))] : [] }; },
+    forceBirds28() { birds28 = { next: 1, flocks: [] }; }, birds28() { return birds28 ? birds28.flocks.map(f => ({ x: f.x, y: f.y, vx: f.vx, n: f.n })) : []; },
+    enemy28(i) { const e = enemies[i]; return e && { type: e.type, x: e.x, y: e.y, hp: e.hp, sm: e.sm | 0, guardT: e.guardT | 0, anim: e.anim, buffT: e.buffT | 0, speed: e.speed, dead: e.dead, stun: e.stun | 0 }; },
+    setEnemy28(i, o) { Object.assign(enemies[i], o); }, damage28(i, n) { const e = enemies[i]; const hp = e.hp; damageEnemy(e, n || 1, { kb: 0.4, stun: 0 }); return hp - e.hp; }, projs28() { return projectiles.filter(p => p.ek).map(p => ({ ek: p.ek, x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life })); },
     hurt(n) { hurtPlayer(n || 1, player ? -player.facing : 1, null); },
     openSettings(ix) { openSettings("pause"); settingsIx = ix || 0; },
     freezeEnemy(i) { if (enemies[i]) { enemies[i].stun = 9999; enemies[i].hp = enemies[i].maxHp = 3; } },

@@ -1,5 +1,5 @@
 /* Service worker — cache-first for offline play. */
-const CACHE = "shards-v2-7";
+const CACHE = "shards-v2-8";
 const CORE = [
   "./",
   "./index.html",
@@ -20,6 +20,9 @@ const CORE = [
   "./data/hook27.js",
   "./data/art27.js",
   "./data/levels27.js",
+  "./data/art28.js",
+  "./data/levels28.js",
+  "./data/text28.js",
   "./data/world24.js",
   "./data/text24.js",
   "./data/text23.js",

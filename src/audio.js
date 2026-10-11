@@ -541,6 +541,32 @@
       order: ["A", "B"]
     },
 
+    plains: {
+      title: "The Golden Plains, Uneasy", mode: "D Mixolydian with a borrowed minor iv", bpm: 84, spb: 4, zone: true,
+      echo: { beats: 0.75, fb: 0.42, mix: 0.4, lp: 3000 },
+      inst: {
+        lead: I(LEAD25, { vol: 0.085, a: 0.04, r: 0.45, vib: { depth: 14, rate: 4.4, delay: 0.3 }, echo: 0.55 }),
+        harm: I(PAD, { vol: 0.04, a: 0.7 }), arp: I(ARP, { vol: 0.04, d: 0.22, s: 0.3, echo: 0.85 }),
+        bell: I(BELL, { vol: 0.05, det: 6, echo: 0.8 }),
+        bass: I(BASS, { vol: 0.17, r: 0.3 }), drums: I(KIT, { vol: 0.42 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "D C G D D C Gm A",
+          lead: "Fs5:8 A5:4 G5:4 | E5:12 C5:4 | D5:8 B4:4 D5:4 | Fs5:16 | A5:8 G5:4 Fs5:4 | E5:8 C5:8 | Bb5:12 A5:4 | A5:12 r:4",
+          harm: gen("1---------------", 4), arp: gen("0.1.2.1.0.1.2.3.", 4), bass: gen("0-------2-------", 2),
+          bell: "r:56 D6:4 r:68", drums: hits(32, { 0: "t", 16: "t" })
+        },
+        B: {
+          bars: 8, chords: "Bm G D A Bm G Gm A",
+          lead: "D5:8 Fs5:8 | G5:8 B5:8 | A5:12 Fs5:4 | E5:16 | D5:6 Fs5:2 A5:8 | B5:8 G5:4 E5:4 | Bb5:8 G5:8 | A5:12 r:4",
+          harm: gen("1---------------", 4), arp: gen("0.1.2.1.0.1.2.3.", 4), bass: gen("0-------2-------", 2),
+          bell: "r:28 A5:4 r:96", drums: hits(32, { 0: "t", 24: "t" })
+        }
+      },
+      order: ["A", "B"]
+    },
+
     saffrika: {
       gain: 1.6,
       title: "Drums of Saffrika", mode: "A Dorian (12/8)", bpm: 108, spb: 3, barSteps: 12, zone: true,
@@ -1135,6 +1161,26 @@
     swingCreak(A, o, t) { tone(A, o, t, { wave: "p12", f: 190, f2: 280, dur: 0.16, vol: 0.07 }); noise(A, o, t, { dur: 0.14, vol: 0.05, type: "bandpass", fq: 900, fq2: 500, Q: 6, a: 0.02 }); },
     hookRelease(A, o, t) { noise(A, o, t, { dur: 0.16, vol: 0.18, type: "bandpass", fq: 700, fq2: 3200, Q: 1.2, a: 0.005 }); tone(A, o, t, { wave: "tri", f: 420, f2: 840, dur: 0.14, vol: 0.12 }); },
     hookMantle(A, o, t) { const w = false; tone(A, o, t, { wave: "tri", f: 200, f2: 120, dur: 0.1, vol: 0.2 }); noise(A, o, t, { dur: 0.08, vol: 0.14, type: "lowpass", fq: 900, fq2: 300, Q: 0.8, a: 0.002 }); if (w) tone(A, o, t + 0.06, { wave: "p25", f: 740, f2: 1100, dur: 0.1, vol: 0.09 }); },
+    altarPlace0(A, o, t) { tone(A, o, t, { wave: "tri", f: 523, dur: 0.5, vol: 0.13 }); tone(A, o, t, { wave: "p25", f: 130, f2: 120, dur: 0.4, vol: 0.08 }); },
+    altarPlace1(A, o, t) { tone(A, o, t, { wave: "tri", f: 587, dur: 0.5, vol: 0.13 }); tone(A, o, t, { wave: "p25", f: 146, f2: 130, dur: 0.4, vol: 0.08 }); },
+    altarPlace2(A, o, t) { tone(A, o, t, { wave: "tri", f: 659, dur: 0.5, vol: 0.13 }); tone(A, o, t, { wave: "p25", f: 165, f2: 140, dur: 0.4, vol: 0.08 }); },
+    altarPlace3(A, o, t) { tone(A, o, t, { wave: "tri", f: 740, dur: 0.5, vol: 0.13 }); tone(A, o, t, { wave: "p25", f: 185, f2: 150, dur: 0.4, vol: 0.08 }); },
+    altarPlace4(A, o, t) { tone(A, o, t, { wave: "tri", f: 831, dur: 0.55, vol: 0.14 }); tone(A, o, t, { wave: "p25", f: 208, f2: 160, dur: 0.45, vol: 0.09 }); },
+    altarPlace5(A, o, t) { [988, 1319, 1760].forEach((f, i) => tone(A, o, t + i * 0.06, { wave: "tri", f, dur: 0.7, vol: 0.13 })); tone(A, o, t, { wave: "p25", f: 247, f2: 180, dur: 0.6, vol: 0.1 }); },
+    altarSurge(A, o, t) { tone(A, o, t, { wave: "p25", f: 55, f2: 220, dur: 2.0, vol: 0.18 }); noise(A, o, t, { dur: 1.6, vol: 0.16, type: "bandpass", fq: 300, fq2: 2400, Q: 0.8, a: 0.2 }); [440, 554, 659, 880].forEach((f, i) => tone(A, o, t + 0.3 + i * 0.12, { wave: "tri", f, f2: f * 1.5, dur: 1.0, vol: 0.1 })); },
+    boneThrow(A, o, t) { noise(A, o, t, { dur: 0.1, vol: 0.12, type: "bandpass", fq: 1500, fq2: 700, Q: 1.2, a: 0.004 }); tone(A, o, t, { wave: "p25", f: 360, f2: 520, dur: 0.07, vol: 0.07 }); },
+    boneClatter(A, o, t) { for (let i = 0; i < 4; i++) { tone(A, o, t + i * 0.035, { wave: "p12", f: 1500 - i * 190, f2: 900 - i * 120, dur: 0.04, vol: 0.09 }); noise(A, o, t + i * 0.035, { dur: 0.03, vol: 0.07, type: "highpass", fq: 2500, fq2: 2500, Q: 1, a: 0.001 }); } },
+    bellChant(A, o, t) { tone(A, o, t, { wave: "tri", f: 523, dur: 0.9, vol: 0.14, vib: { rate: 5, depth: 8 } }); tone(A, o, t, { wave: "p50", f: 1046, dur: 0.5, vol: 0.05 }); tone(A, o, t + 0.12, { wave: "tri", f: 392, dur: 0.8, vol: 0.1 }); },
+    staffSweep(A, o, t) { noise(A, o, t, { dur: 0.2, vol: 0.14, type: "bandpass", fq: 600, fq2: 1900, Q: 0.9, a: 0.01 }); },
+    staffBlock(A, o, t) { tone(A, o, t, { wave: "p25", f: 700, f2: 520, dur: 0.1, vol: 0.14 }); noise(A, o, t, { dur: 0.06, vol: 0.14, type: "highpass", fq: 3000, fq2: 3000, Q: 1, a: 0.001 }); },
+    drip28(A, o, t) { tone(A, o, t, { wave: "sine", f: 1400, f2: 700, dur: 0.07, vol: 0.05 }); },
+    grateOpen(A, o, t) { noise(A, o, t, { dur: 0.3, vol: 0.14, type: "bandpass", fq: 300, fq2: 900, Q: 2, a: 0.02 }); tone(A, o, t, { wave: "p25", f: 90, f2: 60, dur: 0.25, vol: 0.14 }); },
+    crowCaw(A, o, t) { tone(A, o, t, { wave: "p25", f: 620, f2: 380, dur: 0.14, vol: 0.08 }); tone(A, o, t + 0.17, { wave: "p25", f: 600, f2: 340, dur: 0.14, vol: 0.07 }); },
+    wolfHowl(A, o, t) { tone(A, o, t, { wave: "tri", f: 330, f2: 560, dur: 0.5, vol: 0.09, vib: { rate: 6, depth: 14 } }); },
+    stranger(A, o, t) { tone(A, o, t, { wave: "p50", f: 300, f2: 150, dur: 0.18, vol: 0.12 }); noise(A, o, t + 0.2, { dur: 0.4, vol: 0.12, type: "lowpass", fq: 900, fq2: 300, Q: 1, a: 0.02 }); },
+    ledgeGrab(A, o, t) { noise(A, o, t, { dur: 0.08, vol: 0.14, type: "bandpass", fq: 900, fq2: 400, Q: 1.2, a: 0.004 }); tone(A, o, t, { wave: "p25", f: 150, f2: 90, dur: 0.1, vol: 0.12 }); },
+    ledgePull(A, o, t) { noise(A, o, t, { dur: 0.22, vol: 0.1, type: "bandpass", fq: 500, fq2: 1400, Q: 0.8, a: 0.02 }); tone(A, o, t, { wave: "tri", f: 190, f2: 260, dur: 0.18, vol: 0.06 }); },
+    ledgeStand(A, o, t) { noise(A, o, t, { dur: 0.1, vol: 0.12, type: "lowpass", fq: 700, fq2: 300, Q: 1, a: 0.004 }); tone(A, o, t, { wave: "p25", f: 110, f2: 70, dur: 0.12, vol: 0.12 }); },
     hookMiss(A, o, t) { noise(A, o, t, { dur: 0.12, vol: 0.14, type: "bandpass", fq: 1800, fq2: 500, Q: 1.4, a: 0.003 }); },
     fire(A, o, t) { noise(A, o, t, { dur: 0.25, vol: 0.3, type: "bandpass", fq: 400, fq2: 2600, Q: 1.1, a: 0.01 }); tone(A, o, t, { wave: "p25", f: 300, f2: 720, dur: 0.14, vol: 0.09 }); },
     guard(A, o, t) { tone(A, o, t, { wave: "p25", f: 880, f2: 1320, dur: 0.18, vol: 0.12 }); tone(A, o, t + 0.05, { wave: "tri", f: 440, dur: 0.3, vol: 0.2 }); },

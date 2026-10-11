@@ -3,7 +3,7 @@
 // (see CANON_SUMMARY.md); the forms and look come from the archive (blevins, shattering-of-the-blevins, crimson-moon and the six fragment entries).
 (function () {
   var S = window.SHARDS;
-  S.VERSION = "v2.7";   // single source for the title screen (the build bumps this constant)
+  S.VERSION = "v2.8";   // single source for the title screen (the build bumps this constant)
   S.w26 = {
     hpMul: { jeriah: 1.25, azmardus: 1.2, nezradeem: 1.25, orchalsius: 1.2, silent: 1.2, gladius: 1.15 },
     blevins: { hp: 78, forms: [1, 0.74, 0.5, 0.26], size: { 1: [22, 52], 2: [62, 40], 3: [34, 50], 4: [46, 62] }, speed: { 1: 0.6, 2: 0.55, 3: 0.85, 4: 0.5 } },
@@ -56,9 +56,13 @@
         "Strike when its head is low."
       ]
     },
+    altar28: {
+      order: ["You step up to the altar and draw the six fragments from your pack. One by one you set them on the stone.", "The sixth fragment settles. The altar burns crimson and the red Moon climbs the sky. Something answers."],
+      cult: ["You climb to the altar with the Crown of the Crimson King and the five fragments. You set them on the stone, the Crown last.", "The Crown takes its place. The altar burns red and the Crimson Moon rises. The ritual has begun."]
+    },
     story: {
       order: [
-        { w: null, t: "You lay the sixth fragment on the altar. The six shards hum in the light of the Lightbearer's flame." },
+        { w: null, t: "The six shards hum in the light of the Lightbearer's flame." },
         { w: "ryan", t: "Ryan: \"It is done. We can put an end to the Reclamation.\"" },
         { w: "acolyte", t: "Acolyte: \"Thank you, pilgrim. You gathered what we could not.\" He drops his hood and opens a vein on the altar stone." },
         { w: null, t: "The flame turns crimson. The six fragments rise and a body of cracked marble forms around them: Blevins." },
@@ -66,7 +70,7 @@
         { w: "ryan", t: "Ryan: \"Noah John! Pilgrim, he fights beside you. Now!\"" }
       ],
       cult: [
-        { w: null, t: "You set the Crown of the Crimson King upon the altar and lay the five fragments beneath it. The ritual begins." },
+        { w: null, t: "The Crown sits above the five fragments. Speak the old words." },
         { w: "jeriah", t: "Jeriah: \"The Crown remembers. Speak the old words, acolyte. Bring him home.\"" },
         { w: null, t: "The Moon burns red. Blevins steps out of the Crown's light: marble, gold, and a single red eye. He turns to you and bows." },
         { w: "noah", t: "Noah John: \"I came back to close this door. Stand aside, child, or stand against me.\" A column of gold light splits the sky." },
@@ -86,7 +90,7 @@
   S.text25.zones.capital = { name: "Capital of the Plains", sub: "The Cathedral Archive", travel: "Capital: Cathedral Archive", hint: "in the Capital of the Plains", note: "The castle city of the Central Plains. Under its cathedral, the archive keeps the Crown of the Crimson King." };
   S.text25.clear.capital = "The Crown is taken.";
   Object.assign(S.text.zones, { capital: S.text25.zones.capital });
-  S.stages25.push({ id: "capital", kind: "side", need: 2, cultOnly: true, music: "aurelion", reward: { aurels: 300, nip: 1, replay: 40 } });
+  S.stages25.push({ id: "capital", kind: "side", need: 2, cultOnly: true, music: "plains", reward: { aurels: 300, nip: 1, replay: 40 } });
 
   // ---- v2.6: lore tablets. Every tablet in a stage carries different lore (archive: abandonment-of-vespera, birth-of-the-deep, fall-of-aurelion,
   // the Deep's fortresses, massacre-of-the-mountain-monastery, freezing-of-sakura, razing-of-saffrika, destruction-of-gonduras, plains-capital, order-of-the-golden-serpent).

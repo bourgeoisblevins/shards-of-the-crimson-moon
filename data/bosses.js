@@ -41,5 +41,12 @@ window.SHARDS.enemyStats = {
   mummy:           { hp: 5, speed: 0.3,  damage: 2, w: 12, h: 22, behavior: "melee", score: 2 },
   pirate:          { hp: 4, speed: 0.6,  damage: 1, w: 12, h: 20, behavior: "melee", score: 1 },
   pirate_gunner:   { hp: 3, speed: 0.3,  damage: 1, w: 12, h: 20, behavior: "ranged", ranged: true, score: 1 },
-  pirate_captain:  { hp: 8, speed: 0.7,  damage: 2, w: 16, h: 24, behavior: "charger", score: 5 }
+  pirate_captain:  { hp: 8, speed: 0.7,  damage: 2, w: 16, h: 24, behavior: "charger", score: 5 },
+  // v2.8 Capital of the Plains: fallen / zealous Order guards (monks), field animals, sewer bones
+  monk_staff:      { hp: 5, speed: 0.55, damage: 1, w: 12, h: 22, behavior: "staff",  score: 2, drop: { type: "pw", p: 0.3 } },
+  monk_bell:       { hp: 4, speed: 0.4,  damage: 1, w: 12, h: 22, behavior: "chant",  ranged: true, score: 2, drop: { type: "heal", p: 0.45 } },
+  monk_brawler:    { hp: 6, speed: 0.6,  damage: 2, w: 14, h: 22, behavior: "brute",  score: 2, drop: { type: "pw", p: 0.25 } },
+  sewer_skeleton:  { hp: 3, speed: 0.35, damage: 1, w: 12, h: 20, behavior: "thrower", ranged: true, score: 1, drop: { type: "heal", p: 0.2 } },
+  plains_crow:     { hp: 2, speed: 0.7,  damage: 1, w: 14, h: 12, behavior: "dive",   score: 1 },
+  plains_wolf:     { hp: 3, speed: 0.9,  damage: 1, w: 22, h: 14, behavior: "jumper", score: 1 }
 };

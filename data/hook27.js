@@ -12,6 +12,9 @@
     whip: { ledge: 132, swing: 124, shoot: 5, reel: 5.4, cd: 12, boost: 1.14, hop: 2.2, pop: 1.6, dy: 36 },
     rope: { ledge: 98, swing: 96, shoot: 9, reel: 3.1, cd: 26, boost: 1.0, hop: 1.2, pop: 0, dy: 36 },
     themes: { vespera: "ring", deep: "root", aurelion: "gold", deepLairs: "sconce", saffrika: "branch", sakura: "ice", monastery: "bell", sandria: "hoop", capital: "serpent", bonus_belfry: "bell", bonus_embers: "ember", bonus_spores: "root" },
+    // v2.8 ledge assist: forgiving but small. A ledge is grabbable when a static solid platform's SIDE is within side px in front of you
+    // and its top is between up px above and down px below your head.
+    assist: { side: 9, back: 3, up: 12, down: 10, vyMin: -3.2, vyMax: 6, grab: 6, hang: 8, pull: 18, whipPull: 11 },
     start: function (ax, ay, cx, cy, vx, vy, Lmax) {
       var dx = cx - ax, dy = cy - ay, L = Math.max(H.LMIN, Math.min(Lmax || H.LMAX, Math.sqrt(dx * dx + dy * dy)));
       var th = Math.atan2(dx, dy); th = Math.max(-H.AMAX, Math.min(H.AMAX, th));
@@ -34,7 +37,26 @@
       return { vx: v.vx * k.boost, vy: v.vy * k.boost - up };
     }
   };
+  // returns {hx,hy,fx,sy,ax,ay} for the best platform edge to grab, or null. Shared by the engine and the reach checker.
+  H.grabPlan = function (plats, p, d, blocked) {
+    var A = H.assist, best = null;
+    for (var i = 0; i < plats.length; i++) {
+      var pl = plats[i]; if (pl.oneWay || pl.solid === false || pl.w < 14) continue;
+      var gap = d > 0 ? pl.x - (p.x + p.w) : p.x - (pl.x + pl.w);
+      if (gap < -A.back || gap > A.side) continue;
+      var dy = pl.y - p.y; if (dy < -A.up || dy > A.down) continue;
+      if (pl.y + pl.h < p.y + p.h) continue;
+      var outX = d > 0 ? pl.x - p.w - 1 : pl.x + pl.w + 1, standY = pl.y - p.h, hy = pl.y + 3;
+      var fx = d > 0 ? pl.x + 6 : pl.x + pl.w - p.w - 6;
+      if (blocked({ x: outX, y: hy, w: p.w, h: p.h }) || blocked({ x: outX, y: standY, w: p.w, h: p.h }) || blocked({ x: fx, y: standY, w: p.w, h: p.h })) continue;
+      var sc = Math.abs(gap) + Math.abs(dy);
+      if (!best || sc < best.sc) best = { sc: sc, hx: outX, hy: hy, fx: fx, sy: standY, ax: d > 0 ? pl.x : pl.x + pl.w, ay: pl.y };
+    }
+    return best;
+  };
   H.text = {
+    grabTip: "Ledge assist: ledges grab for you. Hold Down to drop.",
+    ledgeAssist: "Ledge assist",
     tips: {
       kb: { hook: "Jump, then press T near a glowing ring to latch on.", swing: "Left/Right pump the swing. Jump lets go. Down drops.", ledge: "Press T beside a marked ledge to be pulled up." },
       gamepad: { hook: "Jump, then press {RT} near a glowing ring to latch on.", swing: "Stick pumps the swing. {A} lets go. Down drops.", ledge: "Press {RT} beside a marked ledge to be pulled up." },
