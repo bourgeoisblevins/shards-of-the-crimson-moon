@@ -86,28 +86,44 @@
     };
   }
   let save = defaultSave();
-  let migrated = false; // v1 pilgrimage carried over this session (title note)
-  try {
+  let migrated = false; // a v1 pilgrimage was carried over (kept for the debug API)
+  // v2.9: three save slots (src/slots29.js). `save` is always the ACTIVE slot's live data (or a blank default at the title).
+  const SL = window.SHARDS.slots;
+  let activeSlot = null, pendingNew = null, slotNote = false, saveFlash = 0, saveFail = 0, autoT29 = 0, slotRecovered = false;
+  const GLOBAL_KEYS = ["master", "music", "sfx", "fullscreen", "vibration", "padScale", "scheme", "ledgeAssist"]; // everything else in settings (difficulty) lives in the slot
+  const DEBUGMODE = () => document.documentElement.dataset.debug === "1";
+  // The pre-2.9 single save (v2.0 to v2.8 formats, or the v1 key) as an object, or null. Never modified or deleted.
+  function legacySave29() {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) save = Object.assign(defaultSave(), JSON.parse(raw));
-    else {
-      // First v2 run: carry a v1 pilgrimage over (path, claims, guide lines, intros seen,
-      // tutorial, audio settings). Unknown or broken v1 data starts fresh instead.
-      const old = localStorage.getItem(V1_SAVE_KEY);
-      if (old) {
-        const o = JSON.parse(old);
-        if (o && typeof o === "object" && (o.path === "order" || o.path === "cult")) {
-          save = Object.assign(defaultSave(), {
-            path: o.path, claimed: Object.assign({}, o.claimed || {}),
-            guideIndex: Object.assign({ order: 0, cult: 0 }, o.guideIndex || {}),
-            seenIntro: Object.assign({}, o.seenIntro || {}),
-            tutorial: Object.assign(defaultSave().tutorial, o.tutorial || {}),
-            settings: Object.assign(defaultSave().settings, o.settings || {})
-          });
-          save.migratedFrom = "v1"; migrated = true;
-        }
+    if (raw) return Object.assign(defaultSave(), JSON.parse(raw));
+    const old = localStorage.getItem(V1_SAVE_KEY);
+    if (old) {
+      const o = JSON.parse(old);
+      if (o && typeof o === "object" && (o.path === "order" || o.path === "cult")) {
+        const sv = Object.assign(defaultSave(), {
+          path: o.path, claimed: Object.assign({}, o.claimed || {}),
+          guideIndex: Object.assign({ order: 0, cult: 0 }, o.guideIndex || {}),
+          seenIntro: Object.assign({}, o.seenIntro || {}),
+          tutorial: Object.assign(defaultSave().tutorial, o.tutorial || {}),
+          settings: Object.assign(defaultSave().settings, o.settings || {})
+        });
+        sv.migratedFrom = "v1"; migrated = true; return sv;
       }
     }
+    return null;
+  }
+  function overlayGlobals(sv) { const G = SL.globals(); if (G && typeof G === "object") { if (!sv.settings) sv.settings = defaultSave().settings; for (const k of GLOBAL_KEYS) if (G[k] !== undefined) sv.settings[k] = G[k]; } }
+  try {
+    const m = SL.meta();
+    if (!m.migrated) { // once: the old single save becomes File 1 and the last-played file
+      let old = null; try { old = legacySave29(); } catch (_) { old = null; }
+      if (old && !SL.read(0).data) {
+        if (SL.write(0, old)) { m.last = { slot: 0, ts: Date.now() }; m.note = true; const g = {}; for (const k of GLOBAL_KEYS) if (old.settings && old.settings[k] !== undefined) g[k] = old.settings[k]; SL.setGlobals(g); }
+      }
+      m.migrated = true; SL.setMeta(m);
+    }
+    slotNote = !!m.note;
+    overlayGlobals(save);
   } catch (_) { save = defaultSave(); }
   // Saves before shards-v4: the cult path fought Jeriah for the Heart. Now Jeriah
   // is the cult's quest-giver and holds the Heart himself, so a cult save never
@@ -146,10 +162,11 @@
     normV23();
     if ((save.version | 0) === 23 && !save.migratedFrom) save.migratedFrom = "v2.3";
     if ((save.version | 0) === 24 && !save.migratedFrom) save.migratedFrom = "v2.4";
-    normV25(); normV26(); normV27(); normV28();
+    normV25(); normV26(); normV27(); normV28(); normV29();
     if ((save.version | 0) === 26 && !save.migratedFrom) save.migratedFrom = "v2.6";
     if ((save.version | 0) === 27 && !save.migratedFrom) save.migratedFrom = "v2.7";
-    save.version = 28;
+    if ((save.version | 0) === 28 && !save.migratedFrom) save.migratedFrom = "v2.8";
+    save.version = 29;
   }
   normalizeSave();
   function persist() {
@@ -159,10 +176,21 @@
       vibration: vibrationOn(), difficulty, padScale: padScaleCur, scheme: touchScheme,
       ledgeAssist: !(save.settings && save.settings.ledgeAssist === false)
     };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
+    save.version = 29;
+    const gl = {}; for (const k of GLOBAL_KEYS) gl[k] = save.settings[k];
+    SL.setGlobals(gl); // volume, touch layout, vibration, ledge assist, fullscreen: shared by every file
+    if (activeSlot == null && DEBUGMODE() && save.path) activeSlot = 0; // test convenience: debug helpers that set a path before any file was picked use File 1
+    if (activeSlot != null) {
+      if (SL.write(activeSlot, save)) { saveFlash = 80; const m = SL.meta(); m.last = { slot: activeSlot, ts: Date.now() }; SL.setMeta(m); }
+      else saveFail = 260;
+    }
+    if (DEBUGMODE()) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} } // debug builds mirror the active file under the old key (tests read it)
   }
+  // "Forget": erases the active file and returns to a blank default (settings kept).
   function resetSave() {
     const settings = save.settings;
+    if (activeSlot != null) { SL.remove(activeSlot); fixLast29(); }
+    activeSlot = null;
     save = defaultSave();
     save.settings = settings;
     normV23(); normV25(); normV26();
@@ -436,7 +464,7 @@
     if (!S.lit) S.lit = {}; if (S.cp) S.lit[S.cp] = 1;
     w22 = { t: 0, S, cur: [], statics: [], items: [], drops: [], movers: [], crumbles: [], blinks: [], springs: [], levers: [], doors: [], bells: [],
       bellPlats: [], breaks: [], blocks: [], cps: [], seals: [], tablets: [], blades: [], fallers: [], winds: [], fungi: [], flames: E(L.flames),
-      warded: false, tithe: 0, eliteLock: null, restT: 0, visited: new Set(), lastCell: "", safe: null, fx: [], bellT: {}, hazardsAcc: 0 };
+      warded: false, tithe: 0, eliteLock: null, eliteWait: [], restT: 0, visited: new Set(), lastCell: "", safe: null, fx: [], bellT: {}, hazardsAcc: 0 };
     for (const p of E(L.platforms)) { const q = Object.assign({}, p); q.solid = !p.oneWay; w22.statics.push(q); }
     for (const m of E(L.movers)) w22.movers.push(Object.assign(makeDyn(m), { x0: m.x, y0: m.y, ax: m.ax || 0, ay: m.ay || 0, per: m.per || 240, ph: m.ph || 0, live: true, mover: true }));
     for (const c of E(L.crumbles)) w22.crumbles.push(Object.assign(makeDyn(c), { state: 0, timer: 0, delay: c.delay || 26, respawn: c.respawn || 200, kind: c.kind || "crumble", x0: c.x, y0: c.y, fall: 0 }));
@@ -515,7 +543,10 @@
   }
   function worldRespawnEnemies() {
     const S = wz();
-    enemies = (level.enemies || []).filter(e => !(e.id && S.elites[e.id])).map(makeEnemy);
+    // v2.9: a room mini boss does not exist until the player is inside its room and the gate has closed behind them
+    w22.eliteWait = []; w22.eliteLock = null;
+    enemies = (level.enemies || []).filter(e => !(e.id && S.elites[e.id])).filter(e => { if (e.elite && e.room) { w22.eliteWait.push(e); return false; } return true; }).map(makeEnemy);
+    for (const d of eliteDoors()) { d.open = true; }
   }
   // nearest interactable (A / Enter): lever, shrine, tablet, gate. Returns {kind,obj} or null.
   function nearInteract() {
@@ -678,13 +709,15 @@
       if (aabb(p, d)) { d.taken = true; takeItem(d); }
     }
     w22.drops = w22.drops.filter(d => !d.taken);
-    // elite room lock
-    for (const e of enemies) {
-      if (e.elite && !e.dead && e.lockRoom && !w22.eliteLock) {
-        const r = e.lockRoom;
-        if (p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h) {
-          w22.eliteLock = e; for (const d of eliteDoors()) { d.open = false; d.openT = 0; } toast(T22().elite.warn); synth.sfx("door");
-        }
+    // elite room lock (v2.9): the mini boss spawns only now, as the gate shuts behind the player
+    if (!w22.eliteLock) for (let wi = 0; wi < w22.eliteWait.length; wi++) {
+      const d = w22.eliteWait[wi], r = d.room;
+      if (p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h) {
+        w22.eliteWait.splice(wi, 1);
+        const e = makeEnemy(d); e.inv = 45; e.alert = 120; enemies.push(e);
+        w22.eliteLock = e; for (const dd of eliteDoors()) { dd.open = false; dd.openT = 0; }
+        fxAdd("puff", e.x + e.w / 2, e.y + e.h, {}); toast(T22().elite.warn); synth.sfx("door");
+        break;
       }
     }
     // safe ground memory (not on crumbles, movers, hazards)
@@ -1159,14 +1192,15 @@
   }
 
   // ---------- scenes ----------
-  function enterTitle() { scene = "title"; menuIx = 0; path = save.path; setMusic("title"); cameraX = 0; }
+  function enterTitle() { detach29(); scene = "title"; menuIx = 0; titleCont29 = continueSlot29(); setMusic("title"); cameraX = 0; }
+  let titleCont29 = null;
   function enterPath() { scene = "path"; menuIx = 0; setMusic("title"); }
   let settingsFrom = "title";
   function openSettings(from) { scene = "settings"; settingsIx = 0; settingsFrom = from || "title"; }
 
   function enterHub() {
     if (!path) { enterPath(); return; }
-    levelId = path === "order" ? "orderHub" : "cultHub";
+    levelId = path === "order" ? "orderHub" : "cultHub"; save.lastZone = "hub";
     level = window.SHARDS.levels[levelId];
     recomputeStats();
     player = makePlayer(level.spawn.x, level.spawn.y);
@@ -1187,6 +1221,7 @@
     if (!save.tut27 || typeof save.tut27 !== "object") save.tut27 = {};
     if (!save.hooks27 || typeof save.hooks27 !== "object") save.hooks27 = { used: 0, swings: 0, ledges: 0 };
   }
+  function normV29() { save.playF = Math.max(0, Math.min(2e9, Math.floor(+save.playF || 0))); if (typeof save.lastZone !== "string") save.lastZone = null; }
   function normV28() {
     if (!save.settings || typeof save.settings !== "object") save.settings = {};
     if (typeof save.settings.ledgeAssist !== "boolean") save.settings.ledgeAssist = true;   // v2.8: Ledge assist, default on
@@ -1284,10 +1319,14 @@
   }
 
   // ----- pools & custom move dispatch -----
+  const nezMinion29 = (e) => !!e.nezMinion;
+  const nezLive29 = () => enemies.filter(e => e.nezMinion && !e.dead).length;
+  const nezCap29 = (b) => b.phase >= 3 ? 3 : 2;
   function bossPool26(b) {
     let pool = b.phase >= 3 && b.moves3 ? b.moves3 : b.phase >= 2 ? b.moves2 : b.moves;
     if (b.id === "silent" && A26.lit > 0) pool = pool.filter(m => m !== "fade" && m !== "mirror" && m !== "volley");
     if (b.id === "nezradeem" && !A26.limbs.some(l => l.st !== "up")) pool = pool.filter(m => m !== "regrow");
+    if (b.id === "nezradeem" && nezLive29() >= nezCap29(b)) pool = pool.filter(m => m !== "raise");   // v2.9: at most 2 (3 in phase 3) raised skeletons at a time
     if (!pool.length) pool = b.moves;
     return pool;
   }
@@ -1339,6 +1378,14 @@
     const up = A26.limbs.filter(l => l.st === "up");
     if (up.length) { for (const l of up) { const dir = l.x < level.w / 2 ? 1 : -1; bproj26({ x: l.x - 7, y: level.h - 34, w: 14, h: 18, vx: dir * 1.7, life: 150, ground: true, color: P().bosses.nezradeem.ramp[2], k26: "sweep" }); l.slam = 20; } }
     else spike26(A26.slamX, 0); spike26(A26.slamX, 0); synth.sfx("thud"); shake = 5; } };
+  // v2.9: Nezradeem raises the fallen: sewer skeletons (bone-throwers, same behaviour as the Capital sewer ones) climb out of the floor. Capped; no drops.
+  C26.raise = { tele: 36, dur: 44, pose: 6, start(b) { for (const sx of [-1, 1]) addTeleMark(Math.max(8, Math.min(level.w - 28, player.x + sx * 90)) - 8, level.h - 18, 24, 3, bossAccent(b), 36); }, act(b) {
+    spark(bcx26(b), b.y + 10, P().order.boneShade, 14); synth.sfx("regrow");
+    const room = nezCap29(b) - nezLive29(), want = Math.min(b.phase >= 3 ? 2 : 1, room);
+    for (let k = 0; k < want; k++) {
+      const sx = (k + (Math.random() < 0.5 ? 0 : 1)) % 2 ? 1 : -1, x = Math.max(8, Math.min(level.w - 28, player.x + sx * 90));
+      const e = makeEnemy({ type: "sewer_skeleton", x, y: level.h - 64 }); e.summoned = true; e.nezMinion = true; e.drop = null; e.alert = 600; enemies.push(e); fxAdd("puff", x + 6, level.h - 20, {});
+    } } };
   C26.regrow = { tele: 30, dur: 40, pose: 5, start(b) { }, act(b) { for (const l of A26.limbs) if (l.st !== "up") { l.st = "grow"; l.t = 0; l.hp = 3; } A26.expose = 0; synth.sfx("regrow"); for (let i = 0; i < 6; i++) orb26(b, -Math.PI + i * (Math.PI / 5), 1.5, { s26: { sh: "fx26-shard", fr: "shard", n: 1 }, w: 10, h: 5 }); } };
   // Orchalsius: crash + flood
   C26.ramcharge = { tele: 44, dur: 100, pose: 5, start(b) { addTeleMark(b.x + (b.facing > 0 ? b.w : -level.w), level.h - 18, level.w, 3, bossAccent(b), 44); }, act(b) { b.vx = b.facing * 3.1; b.rush = true; },
@@ -2212,7 +2259,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     return retired[zoneId] || zoneId;
   }
   function enterTraverse(zoneId, opts) {
-    zoneId = stageDef(zoneId) ? zoneId : liveZone(zoneId);
+    zoneId = stageDef(zoneId) ? zoneId : liveZone(zoneId); save.lastZone = zoneId;
     const sdef = stageDef(zoneId);
     const def = window.SHARDS.zones.find(z => z.id === zoneId) || sdef;
     levelId = sdef && sdef.kind === "bonus" ? zoneId : zoneId + "_traverse";
@@ -3145,8 +3192,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (b.visible && !b.dead && aabb(player, bossCore(b)) && player.inv === 0 && player.dodge === 0) hurtPlayer(1, Math.sign(player.x - b.x) || -player.facing, b);
   }
 
-  function updateEnemies() {
+  function updateEnemies(only) {
     for (const e of enemies) {
+      if (only && !only(e)) continue;
       if (e.dead) { e.animT++; continue; }
       if (e.fell) { e.dead = true; e.animT = 99; continue; }
       e.animT++;
@@ -3499,6 +3547,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function updateBossDeath() {
     const b = boss;
     if (!b || !b.dead || !(b.deathT > 0)) return;
+    for (const e of enemies) if (e.nezMinion && !e.dead) { e.hp = 0; e.dead = true; e.animT = 0; spark(e.x + e.w / 2, e.y + e.h / 2, P().order.boneShade, 6); }
     b.deathT--; b.animT++;
     if (A26) outro26(b);
     if (b.deathT % 6 === 0) {
@@ -3509,27 +3558,243 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (b.deathT === 0) { b.visible = false; if (b.id === "blevins") blevinsWin26(); else if (b.id === "noah") noahWin26(); else if (b.id === "guardian") guardianWin26(); else if (save.claimed[b.fragment]) enterRematch26(b.fragment); else enterClaim(b.fragment); }
   }
   function updateArena() {
-    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); updateEfx();
+    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); if (enemies.length) updateEnemies(nezMinion29); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); updateEfx();
     if (boss && !boss.dead) tickStatus(boss, true);
     for (const m of teleMarks) m.life--;
     teleMarks = teleMarks.filter(m => m.life > 0);
   }
+  // ================= v2.9: save slots, file select, Continue, export / import =================
+  const T29 = () => window.SHARDS.text29;
+  const fmtT29 = (str, o) => str.replace(/\{(\w+)\}/g, (_, k) => o[k]);
+  function playTime29(f) { const m = Math.floor((f | 0) / 3600); return fmtT29(T29().files.time, { h: Math.floor(m / 60), m: m % 60 }); }
+  function zoneLabel29(id) {
+    if (!id) return "";
+    if (id === "hub") return T29().files.hub;
+    const L = window.SHARDS.levels[id + "_traverse"] || window.SHARDS.levels[id];
+    return (L && L.title) || id;
+  }
+  // a read-only summary of one slot for the file select and the Continue caption
+  function summary29(i) {
+    const r = SL.read(i), o = { i, state: r.state };
+    if (!r.data) return o;
+    const d = r.data, cl = d.claimed || {};
+    o.path = d.path; o.crown = !!d.crown; o.frags = Math.min(6, Object.keys(cl).filter(k => cl[k]).length);
+    o.total = 6; o.playF = d.playF | 0; o.ver = d.version | 0; o.saved = r.saved || 0;
+    const v = d.v23 || {}; o.aurels = v.aurels | 0; o.nip = v.nip | 0;
+    const st = d.stages || {}; o.cleared = Math.min(8, Object.keys(st).filter(k => st[k] && st[k].cleared).length);
+    o.pct = Math.min(100, Math.round(o.frags / 6 * 70 + o.cleared / 8 * 30));
+    o.zone = zoneLabel29(d.lastZone);
+    o.name = d.path === "order" ? T29().files.order : d.path === "cult" ? T29().files.cult : T29().files.empty;
+    o.recovered = r.state === "recovered";
+    return o;
+  }
+  function verLabel29(n) { return n >= 29 ? "v2.9" : n >= 22 ? "v2." + (n - 20) : n > 0 ? "v2.0" : "v?"; }
+  function sums29() { return [0, 1, 2].map(summary29); }
+  // the file Continue joins: the last played one, else the most recently saved of the rest
+  function continueSlot29() {
+    const sm = sums29(), ok = (x) => x.state === "ok" || x.state === "recovered";
+    const m = SL.meta();
+    if (m.last && sm[m.last.slot] && ok(sm[m.last.slot])) return sm[m.last.slot];
+    const rest = sm.filter(ok).sort((a, b) => b.saved - a.saved);
+    return rest[0] || null;
+  }
+  function fixLast29() {
+    const m = SL.meta(), sm = sums29();
+    if (m.last && sm[m.last.slot] && sm[m.last.slot].state !== "empty") return;
+    const rest = sm.filter(x => x.state === "ok" || x.state === "recovered").sort((a, b) => b.saved - a.saved);
+    if (rest[0]) m.last = { slot: rest[0].i, ts: rest[0].saved }; else delete m.last;
+    SL.setMeta(m);
+  }
+  function detach29() { // leave the active file (saved first) and go back to a blank state
+    if (activeSlot != null) { try { persist(); } catch (_) {} }
+    activeSlot = null; pendingNew = null;
+    const keepDiff = "standard";
+    save = defaultSave(); overlayGlobals(save); save.settings.difficulty = keepDiff;
+    normalizeSave(); path = null; level = null; player = null; boss = null;
+  }
+  function loadSlot29(i) {
+    const r = SL.heal(i);
+    if (!r.data) return false;
+    save = Object.assign(defaultSave(), JSON.parse(JSON.stringify(r.data)));
+    overlayGlobals(save);
+    activeSlot = i; slotRecovered = r.state === "recovered";
+    normalizeSave(); applySettings();
+    path = save.path;
+    const m = SL.meta(); m.last = { slot: i, ts: Date.now() }; delete m.note; SL.setMeta(m); slotNote = false;
+    recomputeStats();
+    return true;
+  }
+  function beginNew29(i) { // the player chose a path for a new pilgrimage: now the file really is replaced
+    SL.remove(i);
+    save = defaultSave(); overlayGlobals(save); save.settings.difficulty = "standard";
+    activeSlot = i; normalizeSave(); applySettings();
+  }
+  function playSlot29(i) {
+    if (!loadSlot29(i)) return;
+    if (!save.path) { pendingNew = null; enterPath(); return; }
+    enterHub();
+  }
+  function continue29() { const c = continueSlot29(); if (c) playSlot29(c.i); }
+  let fs29 = { ix: 0, menu: null, msg: "", msgT: 0, sums: [] };
+  function fsMsg29(t) { fs29.msg = t; fs29.msgT = 240; }
+  function enterFiles() {
+    detach29();
+    scene = "files"; setMusic("title"); fs29.sums = sums29(); fs29.menu = null;
+    const c = continueSlot29(); fs29.ix = c ? c.i : 0; menuIx = 0; cameraX = 0;
+  }
+  function openFileMenu29(i) {
+    const sm = fs29.sums[i], F = T29().files, it = [];
+    if (sm.state === "ok" || sm.state === "recovered") { it.push(["play", F.play], ["new", F.newp], ["copy", F.copy], ["export", F.export], ["import", F.import], ["del", F.del]); }
+    else if (sm.state === "corrupt") it.push(["new", F.newp], ["import", F.import], ["del", F.del]);
+    else it.push(["new", F.newp], ["import", F.import]);
+    it.push(["back", F.back]);
+    fs29.menu = { slot: i, items: it, ix: 0, mode: "main" };
+  }
+  function overwriteAsk29(then) { openConfirm(T29().files.overTitle, T29().files.overBody, then); }
+  function doCopy29(a, b) { if (SL.copy(a, b)) { const m = SL.meta(); fs29.sums = sums29(); fsMsg29(fmtT29(T29().files.copied, { n: b + 1 })); } else fsMsg29(T29().files.saveFail); }
+  function doDelete29(i) { SL.remove(i); fixLast29(); fs29.sums = sums29(); fsMsg29(fmtT29(T29().files.deleted, { n: i + 1 })); }
+  function fileAct29(k) {
+    const m = fs29.menu, i = m.slot, F = T29().files, sm = fs29.sums[i];
+    if (m.mode === "copy") {
+      if (k === "back") { fs29.menu = null; openFileMenu29(i); return; }
+      const dst = +k; fs29.menu = null;
+      if (fs29.sums[dst].state !== "empty") overwriteAsk29(() => doCopy29(i, dst)); else doCopy29(i, dst);
+      return;
+    }
+    if (k === "back") { fs29.menu = null; return; }
+    if (k === "play") { fs29.menu = null; playSlot29(i); return; }
+    if (k === "new") { fs29.menu = null; const go = () => { pendingNew = i; enterPath(); }; if (sm.state !== "empty") overwriteAsk29(go); else go(); return; }
+    if (k === "copy") { m.mode = "copy"; m.items = [0, 1, 2].filter(n => n !== i).map(n => [String(n), fmtT29(F.slot, { n: n + 1 }) + (fs29.sums[n].state === "empty" ? " (" + F.empty + ")" : "")]); m.items.push(["back", F.back]); m.ix = 0; return; }
+    if (k === "export") { exportFile29(i); fs29.menu = null; return; }
+    if (k === "import") { importPick29(i); fs29.menu = null; return; }
+    if (k === "del") { fs29.menu = null; openConfirm(F.delTitle, F.delBody, () => doDelete29(i)); return; }
+  }
+  function updateFiles() {
+    if (fs29.msgT > 0) fs29.msgT--;
+    const m = fs29.menu;
+    if (m) {
+      const n = m.items.length;
+      if (input.pressed("up")) { m.ix = (m.ix + n - 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("down")) { m.ix = (m.ix + 1) % n; synth.sfx("menuMove"); }
+      if (input.pressed("confirm")) { synth.sfx("menu"); fileAct29(m.items[m.ix][0]); return; }
+      if (menuBack()) { synth.sfx("menuMove"); if (m.mode === "copy") { fs29.menu = null; openFileMenu29(m.slot); } else fs29.menu = null; }
+      return;
+    }
+    if (input.pressed("up")) { fs29.ix = (fs29.ix + 2) % 3; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { fs29.ix = (fs29.ix + 1) % 3; synth.sfx("menuMove"); }
+    if (input.pressed("confirm")) { synth.resume(); synth.sfx("menu"); openFileMenu29(fs29.ix); return; }
+    if (menuBack()) { synth.sfx("menuMove"); slotNote = false; enterTitle(); }
+  }
+  function drawSlotPanel29(x, y, w, h, sm, sel) {
+    const F = T29().files, pan = sm.state === "corrupt" ? "slot29_warn" : sm.state === "empty" ? "slot29_empty" : sel ? "slot29_sel" : "slot29";
+    panel(x, y, w, h, sel && sm.state === "empty" ? "slot29_sel" : pan);
+    const ic = "ui29-icons";
+    drawText(fmtT29(F.slot, { n: sm.i + 1 }), x + 62, y + 6, sel ? P().order.illumination : P().order.bone);
+    if (sm.state === "empty") { blitFrame(ic, "empty", x + 26, y + 20, false); drawText(F.empty, x + 62, y + 24, P().ground.smoke); return; }
+    if (sm.state === "corrupt") { blitFrame(ic, "warn", x + 26, y + 20, false); drawText(F.corrupt, x + 62, y + 24, P().cult.emberLight); drawText(F.corruptHint, x + 62, y + 38, P().ground.smoke); return; }
+    const por = portraitPath(sm.path === "cult" ? "acolyte" : "monk");
+    if (por) drawImg(por, x + 6, y + 3);
+    drawText(sm.name, x + 62 + measure(fmtT29(F.slot, { n: sm.i + 1 })) + 8, y + 6, sm.path === "cult" ? P().cult.emberLight : P().order.nexus);
+    const rt = fmtT29(F.done, { p: sm.pct }) + "  " + playTime29(sm.playF);
+    drawText(rt, x + w - 8, y + 6, P().order.boneShade, "right");
+    const nF = sm.path === "cult" ? 5 : 6;
+    const frOn = sm.path === "cult" ? sm.frags - (sm.crown ? 1 : 0) : sm.frags;
+    for (let k = 0; k < nF; k++) blitFrame(ic, k < frOn ? "pipOn" : "pipOff", x + 62 + k * 12, y + 19, false);
+    if (sm.path === "cult") blitFrame(ic, sm.crown ? "crown" : "pipOff", x + 62 + nF * 12, y + 19, false);
+    drawText(F.aurels + " " + sm.aurels + "   " + F.nip + " " + sm.nip, x + w - 8, y + 20, P().order.boneShade, "right");
+    drawText((sm.zone || "") , x + 62, y + 35, P().ground.smoke);
+    drawText((sm.recovered ? F.recovered + "  " : "") + fmtT29(F.ver, { v: verLabel29(sm.ver) }), x + w - 8, y + 35, sm.recovered ? P().cult.emberLight : P().ground.smoke, "right");
+  }
+  function drawFiles() {
+    uiT++;
+    drawImg(ART().ui.title.path, 0, 0);
+    rect(0, 0, W, H, "rgba(8,6,10,0.72)");
+    const F = T29().files, m = fs29.menu;
+    drawText(F.heading, W / 2, 7, P().order.illumination, "center");
+    const px = 24, pw = W - 48, ph = 54, top = 22, pitch = 58;
+    for (let i = 0; i < 3; i++) {
+      const sm = fs29.sums[i] || { i, state: "empty" };
+      drawSlotPanel29(px, top + i * pitch, pw, ph, sm, fs29.ix === i && !m);
+      menuRow(px, top + i * pitch, pw, ph, "file" + i, false, () => { fs29.ix = i; }, true);
+    }
+    let y = top + 3 * pitch + 2;
+    if (slotNote) { drawText(F.migrated, W / 2, y, P().order.nexus, "center"); y += 12; }
+    const hint = touchUI() ? F.hintTouch : padUI() ? fmtT29(F.hintPad, { A: "{A}", B: "{B}" }) : F.hintKb;
+    drawText(hint, W / 2, H - 13, P().ground.smoke, "center");
+    if (touchUI()) { panel(4, 2, 60, 32); drawText(F.back, 34, 14, P().order.bone, "center"); tapTarget(4, 2, 60, 32, () => input.tap("cancel")); }
+    if (fs29.msgT > 0) { const mw = Math.min(W - 40, measure(fs29.msg) + 24); panel(((W - mw) / 2) | 0, H - 40, mw, 20); drawText(fs29.msg, W / 2, H - 34, P().order.bone, "center"); }
+    if (m) {
+      rect(0, 0, W, H, "rgba(5,4,6,0.6)");
+      const n = m.items.length, rowH = touchUI() ? 32 : 26, mw = 236, mh = 28 + n * rowH, mx = ((W - mw) / 2) | 0, my = Math.max(2, ((H - mh) / 2) | 0);
+      panel(mx, my, mw, mh);
+      const head = m.mode === "copy" ? F.copyTo : fmtT29(F.slot, { n: m.slot + 1 }) + (fs29.sums[m.slot].state !== "empty" ? " - " + fs29.sums[m.slot].name : "");
+      drawText(head, W / 2, my + 8, P().order.illumination, "center");
+      m.items.forEach((it, i) => {
+        const ty = my + 24 + i * rowH + ((rowH - 9) >> 1);
+        menuText(it[1], W / 2, ty, i === m.ix, "center");
+        menuRow(mx, my + 24 + i * rowH, mw, rowH, "fm" + i, false, () => { m.ix = i; }, true);
+      });
+    }
+  }
+  // ----- export / import -----
+  let lastExport29 = null, importInput29 = null, importTarget29 = 0;
+  function download29(name, text) {
+    const blob = new Blob([text], { type: "application/json" }), url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; a.style.display = "none"; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  }
+  function exportFile29(i) {
+    const text = SL.exportText(i); if (!text) { fsMsg29(T29().files.saveFail); return; }
+    const d = new Date(), stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+    const sm = summary29(i), name = "shards-file" + (i + 1) + "-" + (sm.path || "save") + "-" + stamp + ".json";
+    lastExport29 = { name, text };
+    try {
+      const file = new File([text], name, { type: "application/json" });
+      if (touchUI() && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) { // iOS Safari / Android Chrome share sheet
+        navigator.share({ files: [file], title: name }).catch((e) => { if (!e || e.name !== "AbortError") download29(name, text); });
+        fsMsg29(T29().files.exported); return;
+      }
+    } catch (_) { /* fall through to a plain download */ }
+    download29(name, text); fsMsg29(T29().files.exported);
+  }
+  function ensureImportInput29() {
+    if (importInput29) return importInput29;
+    const el = document.createElement("input"); el.type = "file"; el.id = "shards-import29"; el.accept = ".json,.shards,application/json,text/plain";
+    el.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0"; document.body.appendChild(el);
+    el.addEventListener("change", () => {
+      const f = el.files && el.files[0]; if (!f) { fsMsg29(T29().files.noFile); return; }
+      f.text().then((t) => importText29(importTarget29, t)).catch(() => fsMsg29(fmtT29(T29().files.importFail, { e: "could not read the file." }))).finally(() => { el.value = ""; });
+    });
+    importInput29 = el; return el;
+  }
+  function importPick29(i) { importTarget29 = i; ensureImportInput29().click(); fsMsg29(T29().files.importPick); }
+  function importText29(i, text) {
+    const r = SL.parseImport(text);
+    if (!r.ok) { fsMsg29(fmtT29(T29().files.importFail, { e: r.error })); return r; }
+    const go = () => { if (SL.write(i, r.data)) { const m = SL.meta(); m.last = { slot: i, ts: Date.now() }; SL.setMeta(m); fs29.sums = sums29(); fsMsg29(fmtT29(T29().files.imported, { n: i + 1 })); } else fsMsg29(T29().files.saveFail); };
+    if (SL.read(i).state !== "empty") overwriteAsk29(go); else go();
+    return { ok: true };
+  }
+  function drawSaving29() {
+    if (saveFail > 0) { saveFail--; blitFrame("ui29-icons", "warn", W - 14 - 6, 6, false); drawText(T29().files.saveFail, W - 24, 8, P().cult.emberLight, "right"); return; }
+    if (saveFlash <= 0 || scene === "title" || scene === "files") { if (saveFlash > 0) saveFlash--; return; }
+    saveFlash--; blitFrame("ui29-icons", "save" + ((uiT >> 3) & 3), W - 14 - 6, 6, false); drawText(T29().hud.saving, W - 24, 8, P().order.bone, "right");
+  }
+  function saveAndTitle29() { persist(); goScene(() => enterFiles()); }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && activeSlot != null && SL.read(activeSlot).state !== "empty") persist(); });
+  window.addEventListener("pagehide", () => { if (activeSlot != null && SL.read(activeSlot).state !== "empty") persist(); }); // never resurrect a file that was deleted or cleared elsewhere
+  function titleHas29() { return !!continueSlot29(); }
   function updateTitle() {
-    const has = !!save.path;
-    const items = has ? 4 : 2; // new, continue, settings, reset OR start, settings
+    const has = !!titleCont29;
+    const items = has ? 3 : 2; // Continue, Files, Settings  OR  New Pilgrimage, Settings
     if (input.pressed("up")) { menuIx = (menuIx + items - 1) % items; synth.sfx("menuMove"); }
     if (input.pressed("down")) { menuIx = (menuIx + 1) % items; synth.sfx("menuMove"); }
     if (input.pressed("confirm")) {
       synth.resume(); synth.sfx("menu");
-      if (!has) {
-        if (menuIx === 0) enterPath();
-        else openSettings("title");
-        return;
-      }
-      if (menuIx === 0) openConfirm(T24().confirm.title, T24().confirm.body, () => { resetSave(); enterPath(); });
-      else if (menuIx === 1) { path = save.path; enterHub(); }
-      else if (menuIx === 2) openSettings("title");
-      else openConfirm(T24().confirm.title, T24().confirm.body, () => { resetSave(); enterTitle(); });
+      if (!has) { if (menuIx === 0) enterFiles(); else openSettings("title"); return; }
+      if (menuIx === 0) continue29();
+      else if (menuIx === 1) enterFiles();
+      else openSettings("title");
     }
   }
   function updatePath() {
@@ -3537,9 +3802,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       menuIx ^= 1; synth.sfx("menuMove");
     }
     if (input.pressed("confirm")) {
-      synth.sfx("menu"); path = menuIx === 0 ? "order" : "cult"; save.path = path; normalizeSave(); persist(); enterHub();
+      synth.sfx("menu"); path = menuIx === 0 ? "order" : "cult"; if (pendingNew != null) { beginNew29(pendingNew); pendingNew = null; } save.path = path; normalizeSave(); persist(); enterHub();
     }
-    if (menuBack()) enterTitle();
+    if (menuBack()) { pendingNew = null; enterFiles(); }
   }
   function updateClaim() {
     claimT++;
@@ -3563,7 +3828,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function updateEnding() {
     if (input.pressed("confirm")) {
       endingIx++;
-      if (endingIx > endingLines.length) { endingIx = endingLines.length; openConfirm(T24().confirm.endTitle, T24().confirm.endBody, () => { resetSave(); enterTitle(); }, () => { enterTitle(); }); }
+      if (endingIx > endingLines.length) { endingIx = endingLines.length; openConfirm(T24().confirm.endTitle, T24().confirm.endBody, () => { resetSave(); enterTitle(); }, () => { persist(); enterTitle(); }); }
     }
   }
 
@@ -3571,6 +3836,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function update() {
     if (scene !== lastScene) { armedKey = ""; lastScene = scene; }
     input.pollGamepad();
+    if (activeSlot != null && scene !== "pause" && scene !== "settings" && scene !== "path" && scene !== "title" && scene !== "files") { save.playF = (save.playF | 0) + 1; if (++autoT29 >= 3600) { autoT29 = 0; persist(); } }
     if (confirmBox) { updateConfirm(); input.clearJust(); return; }
     if (hitstop > 0) { hitstop--; input.clearJust(); return; }
     updateFx();
@@ -3603,6 +3869,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "map") updateMap();
     else if (scene === "title") updateTitle();
     else if (scene === "path") updatePath();
+    else if (scene === "files") updateFiles();
     else if (scene === "settings") updateSettings();
     else if (scene === "hub") {
       if (input.pressed("cancel")) { pauseIx = 0; pausePage = "main"; scene = "pause"; }
@@ -4078,26 +4345,27 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const wm = ART().ui.wordmark;
     drawImg(wm.path, ((W - wm.w) / 2) | 0, 14);
     drawText(window.SHARDS.VERSION || "", W - 6, H - 12, P().ground.ash, "right");
-    const has = !!save.path;
+    const has = !!titleCont29, F29 = T29();
     const items = has
-      ? [T().title.menuNew, T().title.menuContinue, T().title.menuSettings, T().title.menuReset]
-      : [touchUI() ? T().touch.pressStart : padUI() ? T().pad.pressStart : T().title.pressStart, T().title.menuSettings];
+      ? [F29.title.continue, F29.title.files, T().title.menuSettings]
+      : [F29.title.newPilgrimage, T().title.menuSettings];
     const t = touchUI();
-    const lineH = t ? 28 : 18;
+    const lineH = t ? 32 : 18;
     const menuTop = 112;
     const mw = 220, mh = items.length * lineH + 14;
     panel(((W - mw) / 2) | 0, menuTop - 9, mw, mh);
     items.forEach((it, i) => {
       menuText(it, W / 2, menuTop + i * lineH + (t ? 5 : 0), i === menuIx, "center");
-      const twoTap = has && (i === 0 || i === 3);
+      const twoTap = false;
       menuRow(((W - mw) / 2) | 0, menuTop + i * lineH + (t ? 5 : 0), mw, lineH, "title" + i, twoTap, () => { menuIx = i; });
     });
     let y = menuTop - 9 + mh + 8;
-    if (migrated && save.migratedFrom === "v1") {
-      drawText(T().title.migrated || "", W / 2, y, P().order.nexus, "center"); y += LH;
+    if (has) {
+      const c = titleCont29, cap = fmtT29(F29.files.slot, { n: c.i + 1 }) + " - " + c.name + " - " + playTime29(c.playF);
+      drawText(cap, W / 2, y, P().order.boneShade, "center"); y += LH - 3;
     }
+    if (slotNote) { drawText(F29.title.note, W / 2, y, P().order.nexus, "center"); y += LH - 3; }
     if (t) {
-      if (armedKey === "title0" || armedKey === "title3") drawText(T().touch.again, W / 2, H - 20, P().order.boneShade, "center");
       return;
     }
     // controls: keyboard and controller columns, or the connected pad's glyph layout
@@ -4610,6 +4878,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "map") drawMap();
     else if (scene === "title") drawTitle();
     else if (scene === "path") drawPath();
+    else if (scene === "files") drawFiles();
     else if (scene === "settings") drawSettings();
     else if (scene === "claim") drawClaim();
     else if (scene === "stageclear") { drawWorld(); drawStageClear(); }
@@ -4622,6 +4891,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else rect(0, 0, W, H, P().ground.obsidian);
 
     if (confirmBox) drawConfirm();
+    drawSaving29();
     drawTouch();
     drawFade();
     drawnTargets = fadeDir ? [] : tapTargets;
@@ -4640,7 +4910,12 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   window.SHARDS.debug = {
     claim(frag) { if (heldByAlly(frag)) return; save.claimed[frag] = true; persist(); },
     claimAll() { for (const z of pathZones()) save.claimed[z.fragment] = true; if (path === "cult") { save.claimed.heart = true; save.crown = true; } persist(); },
-    setPath(p) { path = p; save.path = p; normalizeSave(); persist(); },
+    setPath(p) { path = p; save.path = p; if (activeSlot == null) activeSlot = 0; normalizeSave(); persist(); },
+    files29() { return sums29(); }, fileState29() { return { scene, ix: fs29.ix, menu: fs29.menu ? { slot: fs29.menu.slot, mode: fs29.menu.mode, ix: fs29.menu.ix, items: fs29.menu.items.map(x => x[0]) } : null, msg: fs29.msgT > 0 ? fs29.msg : "", active: activeSlot, pending: pendingNew, note: slotNote }; },
+    elite29() { return { n: enemies.filter(e => e.elite).length, alive: enemies.filter(e => e.elite && !e.dead).length, wait: w22 ? w22.eliteWait.length : -1, lock: !!(w22 && w22.eliteLock), doors: w22 ? w22.doors.filter(d => d.kind === "elite").map(d => d.open) : [], waitRoom: w22 && w22.eliteWait[0] ? w22.eliteWait[0].room : null }; }, worldRespawn29() { worldRespawnEnemies(); }, nez29() { return { n: nezLive29(), cap: boss ? nezCap29(boss) : 0, minions: enemies.filter(e => e.nezMinion).map(e => ({ x: e.x, y: e.y, dead: e.dead, drop: e.drop, summoned: e.summoned, behavior: e.behavior })) }; },
+    newFile29(i, p) { beginNew29(i); path = p; save.path = p; normalizeSave(); persist(); }, 
+    openFiles29() { enterFiles(); }, loadLast29() { const c = continueSlot29(); return c ? loadSlot29(c.i) : false; }, loadSlot29(i) { return loadSlot29(i); }, playSlot29(i) { playSlot29(i); }, activeSlot29() { return activeSlot; }, meta29() { return SL.meta(); }, titleState29() { return { scene, menuIx, cont: titleCont29 ? { i: titleCont29.i, name: titleCont29.name, playF: titleCont29.playF } : null, note: slotNote }; },
+    lastExport29() { return lastExport29; }, importText29(i, t) { return importText29(i, t); }, importTarget29(i) { importTarget29 = i; ensureImportInput29(); }, setPlayF29(n) { save.playF = n; }, playF29() { return save.playF | 0; }, saving29() { return { flash: saveFlash, fail: saveFail }; }, slotsRead29(i) { return SL.read(i); }, enterTitle29() { enterTitle(); },
     travelZones() { return pathZones().map(z => z.id); },
     allGathered() { return allClaimed(); },
     held() { return window.SHARDS.fragmentOrder.filter(f => !save.claimed[f] && heldByAlly(f)); },
@@ -5830,7 +6105,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
   // ----- pause -----
   const PAUSE_N = 9;
-  function pauseItems() { return [T().hud.resume, T23().pause.inventory, T22().pause.charms, T22().pause.map, T().hud.fragments, T23().pause.fullscreen, T().hud.settings, T().hud.toHub, T().hud.toTitle]; }
+  function pauseItems() { return [T().hud.resume, T23().pause.inventory, T22().pause.charms, T22().pause.map, T().hud.fragments, T23().pause.fullscreen, T().hud.settings, T().hud.toHub, T29().pause.saveTitle]; }
   function updatePause() {
     if (pausePage === "fragments") {
       if (menuBack() || input.pressed("confirm")) { pausePage = "main"; return; }
@@ -5853,7 +6128,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       else if (pauseIx === 5) toggleFullscreen();
       else if (pauseIx === 6) openSettings("pause");
       else if (pauseIx === 7) enterHub();
-      else enterTitle();
+      else saveAndTitle29();
     }
   }
   function drawPause() {
