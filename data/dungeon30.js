@@ -29,7 +29,7 @@ window.SHARDS = window.SHARDS || {};
   function finish(L, plats, haz, enemyDefs) { return L; }
   // v3.1: vertical floors. The route climbs and drops between floor levels (stairs of one-way ledges, zig-zag towers, hook steps), forks into a
   // low and a high route, and crosses pits with swing rings, moving platforms, crumbling or blinking platforms; blades and falling masonry guard floors.
-  function gen(seed, depth) {
+  function gen(seed, depth, opts) {
     const R = rng((seed * 2654435761 + depth * 40503) >>> 0), ri = (a, b) => a + Math.floor(R() * (b - a + 1)), pick = (a) => a[Math.floor(R() * a.length)];
     const theme = THEMES[(depth - 1 + ri(0, THEMES.length - 1)) % THEMES.length], swap = SWAPS[ri(0, SWAPS.length - 1)];
     const plats = [], haz = [], swings = [], ledges = [], gaps = [], movers = [], crumbles = [], blinks = [], blades = [], fallers = [], kinds = [];
@@ -95,6 +95,7 @@ window.SHARDS = window.SHARDS || {};
       const blocked = (sl) => haz.some((h) => h.kind === "spike" && Math.abs(h.y + 12 - sl.top) < 4 && sl.x > h.x - 14 && sl.x < h.x + h.w + 14) || blades.some((b) => Math.abs(sl.x - b.x) < 60 && Math.abs(sl.top - (b.y + 112)) < 4);
       const free = slots.filter((s) => s.x > 220 && !blocked(s) && (!elite || s.x < chamberX - 20));
       for (let i = 0; i < n && free.length; i++) { const s = free.splice(Math.floor(R() * free.length), 1)[0], t = pick(types), st = stats(t); enemies.push({ type: t, x: Math.round(s.x - st.w / 2), y: s.top - st.h, hpMul: hpMul(depth), dmgAdd: dmgAdd(depth) }); }
+      if (opts && opts.double) { const k = enemies.length; for (let i = 0; i < k; i++) { const e = enemies[i]; enemies.push(Object.assign({}, e, { x: e.x + 14 })); } }   // v3.2 modifier: Double Enemies (a twin beside each foe)
       if (elite) {
         const t = pick(allowed(Math.max(depth, 4)).filter((k) => stats(k).hp >= 3)), st = stats(t);
         doors.push({ id: "dg-gate", kind: "elite", x: chamberX - 18, y: fy - 48 });

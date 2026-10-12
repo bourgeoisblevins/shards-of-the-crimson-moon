@@ -1,8 +1,7 @@
-# Shards of the Crimson Moon v2
+# Shards of the Crimson Moon (v3.2)
 
 A 480×270 pixel pilgrimage at integer scale (2× = 960×540, 4× = 1920×1080, never fractional),
-with 16-bit-style art. The approved style and palette are in `ART_DIRECTION_V2.md` and
-`PALETTE_V2_EXPANDED.md`. The asset contract and the frame list are in `ASSET_SPEC.md`.
+with 16-bit-style art. How to play, and what each version added, is in `PLAY.md`.
 
 ## Run
 
@@ -11,11 +10,19 @@ python3 -m http.server 8765
 # http://127.0.0.1:8765/
 ```
 
-You can also open `index.html` straight from disk (file://). It is an installable PWA
-(`manifest.json` + `sw.js`, cache `shards-v2-1`). Touch controls appear on touch devices.
+You can also open `index.html` straight from disk (file://). Served over http(s) it is an installable PWA
+(`manifest.json` + `sw.js`). The service worker cache is named after the build (`shards-v3-2`). It precaches
+all code and art on the first visit, so the game then plays offline. Code is served stale-while-revalidate,
+art cache-first, and caches from older versions are deleted when a new version activates.
+Touch controls appear on touch devices, and Xbox-style pads are supported.
 
-Saves use the key `shards-crimson-moon-2.0`. On first run, a valid v1 save (`shards-crimson-moon-v2`)
-is carried over and the title says so. A broken v1 save is ignored and you start fresh.
+## Saves
+
+- There are three save files, each stored under the `shards29:` key prefix in localStorage. They export and import as `shards-of-the-crimson-moon-save` JSON.
+- Older saves are migrated automatically:
+  - single-slot v2 saves (`shards-crimson-moon-2.0`)
+  - v1 saves (`shards-crimson-moon-v2`)
+- The Delve device leaderboard is stored in `shards-delve-board-v32`.
 
 ## Controls
 
@@ -26,7 +33,7 @@ is carried over and the title says so. A broken v1 save is ignored and you start
   - Dodge: C, K or Shift
   - Skill: V or L
   - Confirm: Enter
-  - Pause: Esc
+  - Pause/back: Esc
 - **Xbox pad:**
   - Move: stick or D-pad
   - A: jump, or interact when a prompt is showing; confirm in menus
@@ -34,29 +41,8 @@ is carried over and the title says so. A broken v1 save is ignored and you start
   - X: strike
   - Y: skill
   - Start: pause
-  - Prompts show button icons while the pad is in use, and there is a Vibration setting (`PLAY.md`).
 
-## Art pipeline
+## What ships
 
-All art is generated from code in `tools/v2/`:
-
-```bash
-cd tools/v2
-python3 build_levels.py     # 14 levels: sky/far/mid/play layers + collision art
-python3 build_art.py        # packs sheets, UI, FX, portraits, thumbs, icons -> assets/, data/art.js
-```
-
-## Verify
-
-```bash
-node tools/audit.mjs                     # data, canon wording, art contract, frames
-python3 tools/v2/color_audit_v2.py       # palette, no #FFFFFF, binary alpha
-node tests/text-fit.mjs                  # text fits at 480x270
-node tests/smoke.mjs                     # boot, every scene, v1-save migration
-node tests/audio-smoke.mjs
-node tests/reach.mjs                     # every traverse can be finished
-node tests/playthrough.mjs               # Order: 6 bosses + ending; Cult: 5 bosses + ending
-node tests/mobile.mjs                    # iPhone 13 + Pixel 7, touch only
-node tests/gamepad.mjs                   # mocked Xbox pad
-node tests/shots.mjs                     # shots/v2-final-*.png at 1920x1080
-```
+The download contains only the playable game: `index.html`, `manifest.json`, `sw.js`, `css/`, `data/`, `src/`, `assets/`, this README and `PLAY.md`.
+The art generators (`tools/`), the test suites (`tests/`), the design notes (`docs/`, `CANON_SUMMARY.md`, art direction) and the screenshots live in the development repository. They are not included in the zip.

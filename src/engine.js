@@ -942,6 +942,87 @@
   }
 
   // ---------- player visuals: fragment passives, charms and powerups as aligned layers ----------
+
+  // ---------- v3.2: fragments drawn into the player sprite (baked per frame), cloak dyes, weapon ground clip ----------
+  const BAKE32 = {};
+  const FRAGMAP32 = {
+    pauldNear: [" ooo ", "obbBo", "osssso", " oooo"],
+    pauldFar: ["oooo", "osso"],
+    heart: [".o.o.", "oLRRo", "oRrro", ".oro.", "..o.."],
+    claw: [".oooo..", "oiIiiot", "oiiiiot", "oiiiio.", ".oooo.."],
+    crown: ["H...H...H", "GH.GHG.HG", "GGGGGGGGG", "GHGHrHGHG", "ooooooooo"]
+  };
+  function fragCols32() {
+    const p = P(); return { o: p.ground.obsidian, b: p.order.bone, B: p.order.light, s: p.order.boneShade, L: p.cult.emberLight, R: p.cult.ember, r: p.cult.crimson,
+      i: p.monastery.shade, I: p.monastery.shadeLight, t: p.monastery.snow, G: p.order.nexus, H: p.order.illumination };
+  }
+  const hexRGB32 = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  function dyeRamp32(id) { const D = window.SHARDS.v32 && window.SHARDS.v32.dyes; const d = D && D.find(x => x.id === id); return d ? d.ramp : null; }
+  function bakeKey32() {
+    if (dg && !dg.frags.length && !save.crown) { /* baseline run: plain sprite */ }
+    const c = save.claimed || {}, cult = path === "cult";
+    return [c.heart && !cult ? "h" : "", c.bone ? "b" : "", c.blaze ? "z" : "", c.claw ? "c" : "", cult && save.crown ? "k" : "", save.dye32 && !dg ? "d" + save.dye32 : ""].join("");
+  }
+  function bakedSheet32(sh) {
+    const key = bakeKey32(); if (!key) return sh;
+    const name = sh + "~" + key; if (BAKE32[name]) return BAKE32[name] === 1 ? sh : name;
+    const S = sheetOf(sh), img = S && atlas.images.get(S.path), A = window.SHARDS.anchors22 && window.SHARDS.anchors22[sh];
+    if (!S || !img || !A || !img.width) return sh;
+    try {
+      const cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height;
+      const cg = cv.getContext("2d"); cg.drawImage(img, 0, 0);
+      const D = cg.getImageData(0, 0, cv.width, cv.height), px = D.data, base = Uint8ClampedArray.from(px), Wd = cv.width, Hd = cv.height;
+      const cols = fragCols32(), rgb = {}; for (const k in cols) rgb[k] = hexRGB32(cols[k]);
+      const op = (x, y) => x >= 0 && y >= 0 && x < Wd && y < Hd && base[(y * Wd + x) * 4 + 3] > 0;
+      const put = (x, y, c) => { if (x < 0 || y < 0 || x >= Wd || y >= Hd) return; const i = (y * Wd + x) * 4; px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2]; px[i + 3] = 255; };
+      // dye: the cloak / robe ramp is remapped to the chosen boss ramp
+      const dye = key.includes("d") ? dyeRamp32(save.dye32) : null;
+      if (dye) {
+        const src = (path === "cult" ? ["#2C1530", "#45203F", "#62304F"] : ["#1C3A3C", "#2B5C59", "#448A7E", "#74B49C"]).map(hexRGB32), dst = dye.map(hexRGB32);
+        for (let i = 0; i < px.length; i += 4) { if (!px[i + 3]) continue; for (let k = 0; k < src.length; k++) if (px[i] === src[k][0] && px[i + 1] === src[k][1] && px[i + 2] === src[k][2]) { const d = dst[Math.min(dst.length - 1, Math.round(k * (dst.length - 1) / Math.max(1, src.length - 1)))]; px[i] = d[0]; px[i + 1] = d[1]; px[i + 2] = d[2]; break; } }
+      }
+      const cols2 = S.cols || S.n;
+      for (const fname of Object.keys(S.index)) {
+        if (!isNaN(fname)) continue; const an = A[fname]; if (!an) continue;
+        const fi = S.index[fname], ox = (fi % cols2) * S.fw, oy = ((fi / cols2) | 0) * S.fh;
+        const stamp = (map, cx, cy, mode) => { // mode: "behind" only where the body is empty, "masked" only on the body, else over
+          const h = map.length, w = Math.max(...map.map(r => r.length)), x0 = Math.round(cx - w / 2), y0 = Math.round(cy);
+          for (let y = 0; y < h; y++) for (let x = 0; x < map[y].length; x++) { const ch = map[y][x]; if (ch === " " || ch === ".") continue; const X = ox + x0 + x, Y = oy + y0 + y; if (X < ox || X >= ox + S.fw || Y < oy || Y >= oy + S.fh) continue;
+            if (mode === "behind" && op(X, Y)) continue; if (mode === "masked" && !op(X, Y)) continue; put(X, Y, rgb[ch]); }
+        };
+        if (key.includes("b") && an.shL) stamp(FRAGMAP32.pauldFar, an.shL[0] - 1, an.shL[1] - 1, "behind");
+        if (key.includes("h") && an.chest) stamp(FRAGMAP32.heart, an.chest[0], an.chest[1] - 2, "masked");
+        if (key.includes("b") && an.shR) stamp(FRAGMAP32.pauldNear, an.shR[0], an.shR[1] - 2);
+        if (key.includes("z") && an.hand) { const hx = Math.round(an.hand[0]), hy = Math.round(an.hand[1]); for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) { const X = ox + hx + x, Y = oy + hy + y; if (!op(X, Y)) continue; const i = (Y * Wd + X) * 4, lum = px[i] + px[i + 1] + px[i + 2]; if (lum < 60) continue; put(X, Y, lum > 420 ? rgb.L : lum > 200 ? rgb.R : rgb.r); } }
+        if (key.includes("c") && an.hand) { const hx = Math.round(an.hand[0]), hy = Math.round(an.hand[1]); let right = hx;
+          for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) { const X = ox + hx + x, Y = oy + hy + y; if (!op(X, Y)) continue; const i = (Y * Wd + X) * 4, lum = base[i] + base[i + 1] + base[i + 2]; if (lum < 60) continue; put(X, Y, lum > 330 ? rgb.I : rgb.i); right = Math.max(right, hx + x); }
+          const fwd = an.hand[0] >= (an.chest ? an.chest[0] : hx) ? 1 : -1, tx = fwd > 0 ? right + 1 : hx - 3;
+          for (const k of [-2, 0, 2]) { put(ox + tx, oy + hy + k, rgb.t); put(ox + tx + fwd, oy + hy + k, rgb.t); if (!op(ox + tx + 2 * fwd, oy + hy + k)) put(ox + tx + 2 * fwd, oy + hy + k, rgb.o); } }
+        if (key.includes("k") && an.head) {   // the Crown is worn on the hood: band in front, the hood's tip rises in front of the points
+          const top = Math.round(an.top != null ? an.top + 3 : an.head[1] - 10); let l = 1e9, r = -1;
+          for (let x = -10; x <= 10; x++) if (op(ox + Math.round(an.head[0]) + x, oy + top + 3)) { l = Math.min(l, x); r = Math.max(r, x); }
+          const cxh = r >= l ? Math.round(an.head[0]) + (l + r) / 2 : an.head[0]; stamp(FRAGMAP32.crown, cxh + 0.5, top);
+          an.__cx32 = cxh;
+        }
+      }
+      cg.putImageData(D, 0, 0);
+      const path2 = S.path + "~" + key; atlas.images.set(path2, cv);
+      window.SHARDS.art.sheets[name] = Object.assign({}, S, { path: path2 }); window.SHARDS.anchors22[name] = A; BAKE32[name] = 2; return name;
+    } catch (e) { BAKE32[name] = 1; return sh; }
+  }
+  // weapon art and swing FX never draw into the ground under the player (Ryan's screenshot: the staff tip in the bricks)
+  function groundBelow32(p) {
+    const cx = p.x + p.w / 2, feet = p.y + p.h; let best = null;
+    for (const q of level.platforms || []) { if (cx < q.x || cx > q.x + q.w) continue; if (q.y < feet - 3 || q.y > feet + 36) continue; if (!best || q.y < best.y) best = q; }
+    return best;
+  }
+  function clipGround32(p) {
+    const q = p && level && groundBelow32(p); if (!q) return false;
+    let lx = q.x, rx = q.x + q.w, grew = true;
+    while (grew) { grew = false; for (const o of level.platforms || []) { if (Math.abs(o.y - q.y) > 2) continue; if (o.x <= rx + 2 && o.x + o.w > rx) { rx = o.x + o.w; grew = true; } if (o.x + o.w >= lx - 2 && o.x < lx) { lx = o.x; grew = true; } } }
+    const y = Math.round(wy(q.y)), l = Math.floor(wx(lx)), r = Math.ceil(wx(rx));
+    g.save(); g.beginPath(); g.rect(-50, -50, W + 100, y + 50); if (l > -50) g.rect(-50, y, l + 50, H + 50); if (r < W + 50) g.rect(r, y, W + 50 - r, H + 50); g.clip(); return true;
+  }
   function drawPlayerVisual(sx, sy, p, frame, flip, live) {
     const sh = playerSheet(), A = window.SHARDS.anchors22 && window.SHARDS.anchors22[sh], an = A && A[frame], S = sheetOf(sh);
     const T = live ? animT : uiT;
@@ -962,17 +1043,17 @@
     else if (low && (T % 24) < 14) blitFrame(sh + "-outline-red", frame, sx, sy, flip);
     else if (p.dodge > 0 && stats.rend) blitFrame(sh + "-outline-red", frame, sx, sy, flip);
     // the body
-    blitFrame(sh, frame, sx, sy, flip, live && p.hurtT > 14 ? "flash" : null);
-    if (!(live && p.hurtT > 14)) drawWeaponLayer(sx, sy, p, frame, flip, live);
-    if (live) { drawGuard26(sx, sy, p, flip); drawSmear26(p); }
+    blitFrame(live && p.hurtT > 14 ? sh : bakedSheet32(sh), frame, sx, sy, flip, live && p.hurtT > 14 ? "flash" : null);
+    const clip32 = live && !noClip32 && clipGround32(p);
+    if (!(live && p.hurtT > 14) && !hideW32) drawWeaponLayer(sx, sy, p, frame, flip, live);
+    if (live && !hideW32) { drawGuard26(sx, sy, p, flip); drawSmear26(p); }
+    if (clip32) g.restore();
     drawBowLayer(sx, sy, p, an, flip, S);
     if (live) drawHeal(sx, sy);
     // on the body
-    if (path === "cult" && save.crown && an) { const [x, y] = pt("head", 0, 1); blitFrame("dg31-crown", "crown" + ((T / 14 | 0) % 3), x, y, flip); }
-    if (save.claimed.heart && an && path !== "cult") { const [x, y] = pt("chest", 0, 2); blitFrame("w22-up-heart", "pulse" + ((T / 9 | 0) % 3), x, y, false); }
-    if (save.claimed.bone && an) { const l = pt("shL", 0, 0), r = pt("shR", 0, 0); blitFrame("w22-up-bone", "pauld" + ((T / 30 | 0) % 2), l[0] - 2, l[1] + 2, true); blitFrame("w22-up-bone", "pauld0", r[0] + 2, r[1] + 2, false); }
-    if (save.claimed.blaze && an && an.hand) { const [x, y] = pt("hand", 0, 3); blitFrame("w22-up-blaze", "hand" + ((T / 5 | 0) % 4), x, y, flip); }
-    if (save.claimed.claw && an && an.hand) { const [x, y] = pt("hand", 0, 2); blitFrame("w22-up-claw", "gaunt" + ((T / 14 | 0) % 3), x, y, flip); }
+    // v3.2: Heart, Bone, Claw and the Crown are baked into the sprite frames (bakedSheet32); the Blaze keeps a small live ember over the glowing fist
+    if (save.claimed.blaze && an && an.hand && (T % 10) < 7) { const [x, y] = pt("hand", 0, -3 - ((T >> 2) & 1)); rect(x, y, 1, 2, P().cult.emberLight); if ((T % 20) < 6) rect(x + (flip ? 1 : -1), y + 1, 1, 1, P().order.illumination); }
+    if (save.claimed.heart && path !== "cult" && an && (T % 54) < 8) { const [x, y] = pt("chest", 0, 0); rect(x, y - 1, 1, 1, P().cult.emberLight); }
     if (stats.thorn && an) { const l = pt("shL", 0, 0); blitFrame("w22-up-thorn", "thorn0", l[0], l[1] + 2, false); const r = pt("shR", 0, 0); blitFrame("w22-up-thorn", "thorn0", r[0], r[1] + 2, true); }
     if (stats.lantern) { const [x, y] = pt("chest", flip ? 7 : -7, 8); blitFrame("w22-up-lantern", "lamp" + ((T / 10 | 0) % 2), x, y, false); }
     if (stats.glass && an) { const [x, y] = pt("chest", 0, -4); blitFrame("w22-up-glass", "crack0", x, y, false); }
@@ -1153,12 +1234,13 @@
     const z = window.SHARDS.zones.find(z => z.id === zoneId);
     const ramp = (z && P().bosses[z.palette || z.bossId]) ? P().bosses[z.palette || z.bossId].ramp : P().ground.ash;
     const T22L = level && level.tiled, DR = diffRules(), el = !!def.elite;
-    const hp0 = Math.max(1, Math.round(st.hp * (T22L ? DR.hp : 1) * (el ? 3.2 : 1) * (def.hpMul || 1)));
-    const dmg0 = st.damage + (T22L && (st.behavior === "charger" || st.behavior === "jumper") ? 1 : 0) + (el ? 1 : 0) + (def.dmgAdd || 0);
+    const ng = dg ? 0 : Math.min(3, save.ngp | 0);
+    const hp0 = Math.max(1, Math.round(st.hp * (T22L ? DR.hp : 1) * (el ? 3.2 : 1) * (def.hpMul || 1) * (1 + 0.5 * ng)));
+    const dmg0 = st.damage + (T22L && (st.behavior === "charger" || st.behavior === "jumper") ? 1 : 0) + (el ? 1 : 0) + (def.dmgAdd || 0) + (ng > 0 ? 1 : 0) + (ng > 2 ? 1 : 0);
     return {
       type: def.type, x: def.x, y: def.y, w: st.w, h: st.h, elite: el, clearStage: !!def.clear, id: def.id || null, drop: def.drop || null, lockRoom: def.room || null,
       vx: 0, vy: 0, onGround: false, facing: -1,
-      hp: hp0, maxHp: hp0, speed: st.speed * (el ? 1.2 : 1), damage: dmg0,
+      hp: hp0, maxHp: hp0, speed: st.speed * (el ? 1.2 : 1) * (dg && dg.mods.includes("hasty") ? 1.35 : 1), damage: dmg0, hasty32: !!(dg && dg.mods.includes("hasty")),
       ranged: !!st.ranged, behavior: st.behavior || (st.ranged ? "ranged" : "melee"),
       inv: 0, cd: 30 + Math.random() * 40, chargeT: 0, jumpT: 0,
       homeX: def.x, leash: st.leash || 40, translucent: !!st.translucent, attackT: 0,
@@ -1203,6 +1285,7 @@
   function openSettings(from) { scene = "settings"; settingsIx = 0; settingsFrom = from || "title"; }
 
   function enterHub() {
+    rush32 = null; hard32 = null;
     if (dg) { dgFinish(); return; }
     if (!path) { enterPath(); return; }
     levelId = path === "order" ? "orderHub" : "cultHub"; save.lastZone = "hub";
@@ -1226,7 +1309,7 @@
     if (!save.tut27 || typeof save.tut27 !== "object") save.tut27 = {};
     if (!save.hooks27 || typeof save.hooks27 !== "object") save.hooks27 = { used: 0, swings: 0, ledges: 0 };
   }
-  function normV30() { const d = save.dungeon30 && typeof save.dungeon30 === "object" ? save.dungeon30 : {}; save.dungeon30 = { best: Math.max(0, d.best | 0), runs: Math.max(0, d.runs | 0), kills: Math.max(0, d.kills | 0), moth: d.moth ? 1 : 0 }; }
+  function normV30() { const d = save.dungeon30 && typeof save.dungeon30 === "object" ? save.dungeon30 : {}; save.dungeon30 = { best: Math.max(0, d.best | 0), runs: Math.max(0, d.runs | 0), kills: Math.max(0, d.kills | 0), moth: d.moth ? 1 : 0, board: Array.isArray(d.board) ? d.board.slice(0, 10) : [], daily: d.daily && typeof d.daily === "object" ? d.daily : null, setup: d.setup && typeof d.setup === "object" ? d.setup : null }; }
   function normV29() { save.playF = Math.max(0, Math.min(2e9, Math.floor(+save.playF || 0))); if (typeof save.lastZone !== "string") save.lastZone = null; }
   function normV28() {
     if (!save.settings || typeof save.settings !== "object") save.settings = {};
@@ -1331,6 +1414,7 @@
   function bossPool26(b) {
     let pool = b.phase >= 3 && b.moves3 ? b.moves3 : b.phase >= 2 ? b.moves2 : b.moves;
     if (b.id === "silent" && A26.lit > 0) pool = pool.filter(m => m !== "fade" && m !== "mirror" && m !== "volley");
+    if (b.id === "azmardus" && azSeekerOut32()) pool = pool.filter(m => m !== "seeker");
     if (b.id === "nezradeem" && !A26.limbs.some(l => l.st !== "up")) pool = pool.filter(m => m !== "regrow");
     if (b.id === "nezradeem" && nezLive29() >= nezCap29(b)) pool = pool.filter(m => m !== "raise");   // v2.9: at most 2 (3 in phase 3) raised skeletons at a time
     if (!pool.length) pool = b.moves;
@@ -1379,6 +1463,30 @@
     A26.fx.push({ k: "poof", x: b.x + 8, y: level.h - 22, t: 0 }); synth.sfx("decoySpawn"); teach26("decoy", "azDecoy"); } };
   C26.gaze = { tele: 52, dur: 36, pose: 6, start(b) { A26.beam = Math.random() < 0.5 ? "low" : "high"; const y = A26.beam === "low" ? 142 : 98, h = A26.beam === "low" ? 20 : 30; addTeleMark(0, y, level.w, h > 24 ? 3 : 3, A26.beam === "low" ? P().cult.emberLight : P().order.illumination, 56); b.faceFix = true; },
     act(b) { const low = A26.beam === "low"; bproj26({ x: 0, y: low ? 142 : 96, w: level.w, h: low ? 20 : 34, life: 20, color: P().bosses.azmardus.ramp[4], k26: "beam", dmg: 1 }); synth.sfx("beam"); shake = 4; } };
+  // v3.2: Azmardus' GBA-demake kit, redrawn at v2 resolution (az32-proj): the red comet bolt, the three-comet volley,
+  // the homing eye-orb, and the magic sparks that ring him when he teleports. Every shot is telegraphed by a staff
+  // glint and a sightline mark; the orb only steers for a while, turns slowly and only one can be out at a time.
+  const azStaff32 = (b) => ({ x: bcx26(b) + b.facing * 10, y: b.y + 6 });
+  const sparks32 = [];
+  function azSparks32(x, y, n, mode) { for (let i = 0; i < n; i++) { const a = i * Math.PI * 2 / n; sparks32.push({ cx: x, cy: y, a, r: mode === "in" ? 34 : 4, dr: mode === "in" ? -0.9 : 1.1, t: 0, life: mode === "in" ? 34 : 30 }); } }
+  function azComet32(b, ang, sp) { const o = azStaff32(b); bproj26({ x: o.x - 4, y: o.y - 3, w: 8, h: 6, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 160, az32: "comet" }); }
+  function azAimMark32(b, ang, len, t) { const o = azStaff32(b); for (let i = 1; i <= 6; i++) addTeleMark(o.x + Math.cos(ang) * len * i / 6 - 1, o.y + Math.sin(ang) * len * i / 6 - 1, 3, 3, P().cult.emberLight, t); }
+  const azAim32 = (b) => { const o = azStaff32(b); return Math.atan2(player.y + player.h * 0.5 - o.y, pcx26() - o.x); };
+  C26.comet = { tele: 30, dur: 28, pose: 1, start(b) { b.aim32 = azAim32(b); azAimMark32(b, b.aim32, 70, 30); },
+    act(b) { azComet32(b, azAim32(b) * 0.5 + b.aim32 * 0.5, 2.7); synth.sfx("bolt"); } };
+  C26.trivolley = { tele: 40, dur: 36, pose: 4, start(b) { b.aim32 = azAim32(b); for (const d of [-0.3, 0, 0.3]) azAimMark32(b, b.aim32 + d, 54, 40); },
+    act(b) { for (const d of [-0.3, 0, 0.3]) azComet32(b, b.aim32 + d, 2.3); synth.sfx("bolt"); shake = 2; } };
+  C26.seeker = { tele: 38, dur: 30, pose: 3, start(b) { const o = azStaff32(b); azSparks32(o.x, o.y, 6, "in"); },
+    act(b) { const o = azStaff32(b), a = azAim32(b), sp = 1.05;
+      bproj26({ x: o.x - 6, y: o.y - 6, w: 12, h: 12, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: b.phase >= 3 ? 260 : 220, az32: "eye", home32: b.phase >= 3 ? 150 : 120, sp32: sp,
+        tick32(pr) { if (pr.home32 > 0) { pr.home32--; const want = Math.atan2(player.y + player.h * 0.5 - (pr.y + 6), pcx26() - (pr.x + 6)), cur = Math.atan2(pr.vy, pr.vx);
+          let d = want - cur; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; const na = cur + Math.max(-0.035, Math.min(0.035, d)); pr.vx = Math.cos(na) * pr.sp32; pr.vy = Math.sin(na) * pr.sp32; }
+          if (pr.y > level.h - 30) { pr.y = level.h - 30; if (pr.vy > 0) pr.vy = 0; } if (pr.y < 4) pr.y = 4;
+          if (pr.life < 20) pr.harm = pr.life > 6; } });
+      synth.sfx("bolt"); } };
+  const azSeekerOut32 = () => projectiles.some(pr => pr.az32 === "eye" && pr.life > 0);
+  function updateSparks32() { for (const k of sparks32) { k.t++; k.r = Math.max(0, k.r + k.dr); k.a += 0.12; } for (let i = sparks32.length - 1; i >= 0; i--) if (sparks32[i].t >= sparks32[i].life) sparks32.splice(i, 1); }
+  function drawSparks32() { for (const k of sparks32) { const x = k.cx + Math.cos(k.a) * k.r, y = k.cy + Math.sin(k.a) * k.r * 0.8; blitFrame("az32-proj", "spark" + Math.min(2, (k.t * 3 / k.life) | 0), wx(x), wy(y), false); } }
   // Nezradeem: limbs
   C26.limbslam = { tele: 40, dur: 50, pose: 6, start(b) { mark26(player.x - 10, 28, 40); A26.slamX = player.x; }, act(b) {
     const up = A26.limbs.filter(l => l.st === "up");
@@ -1477,7 +1585,7 @@
     boss = makeBlevins26(); enemies = []; pickups = []; projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = []; teleMarks = []; cameraX = 0;
     arena26Init("blevins");
     scene = "arena"; seedAmbient(); fxList = []; titleCard = 0; titleCardText = ""; fade = 16; fadeDir = -1;
-    introPages = T26().intro[route].slice(); introPage = 0; introPageTime = 200; introHold = introPageTime; bossIntroCard = introHold;
+    introPages = T26().intro[route].slice(); if ((save.ngp | 0) > 0) introPages.unshift(T32().ngp.line); introPage = 0; introPageTime = 200; introHold = introPageTime; bossIntroCard = introHold;
     setMusic("blevins");
   }
   function blevinsWin26() { finaleWin26("order"); }
@@ -1696,10 +1804,10 @@
     level = Object.assign({}, window.SHARDS.levels.vespera, { bg, zone: id, title: T().bossLabels[id] || "" });
     player = makePlayer(level.spawn.x, level.spawn.y);
     recomputeStats(); powers = {}; w22 = null; cameraY = 0; coins = []; efx = []; ensureWeapons();
-    boss = makeBoss26(id); enemies = []; pickups = []; projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = []; teleMarks = []; cameraX = 0;
+    boss = makeBoss26(id); enemies = []; pickups = []; projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = []; teleMarks = []; cameraX = 0; sparks32.length = 0;
     arena26Init(id);
     scene = "arena"; seedAmbient(); fxList = []; titleCard = 0; titleCardText = ""; fade = 16; fadeDir = -1;
-    introPages = intro.slice(); introPage = 0; introPageTime = 200; introHold = introPageTime; bossIntroCard = introHold;
+    introPages = intro.slice(); if ((save.ngp | 0) > 0 && id === "noah") introPages.unshift(T32().ngp.line); introPage = 0; introPageTime = 200; introHold = introPageTime; bossIntroCard = introHold;
     setMusic(music);
   }
   function enterNoah26() { secretRoute26 = "cult"; enterSpecial26("noah", "blevins", T26().intro.cult, "blevins"); }
@@ -2085,10 +2193,129 @@
   // ----- replay rematch -----
   function enterRematch26(frag) {
     if (dg) { dgBossDown(); return; }
+    if (rush32) { rushNext32(); return; }
+    if (hard32) { hardWin32(); return; }
     const N = W23(), n = Math.round(N.coin.boss * W26().rematch.aurelsMul);
     V().aurels += n; if (W26().rematch.nip) { V().nip += W26().rematch.nip; V().nipTotal += W26().rematch.nip; }
     save.replays[frag] = (save.replays[frag] | 0) + 1; persist();
     scene = "claim"; lastClaimed = frag; claimT = 0; claimMsg = T26().lines.rematch.replace("{n}", n); claimExtra = ""; claimTimer = 150; synth.sfx("claim");
+  }
+
+
+  // ---------- v3.2 endgame: Boss Rush, hard rematches (cloak dyes), New Game+ (seal remix) ----------
+  let rush32 = null, hard32 = null, eg32Ix = 0, rushRes32 = null;
+  function endgame32() { const zs = pathZones(); return zs.length > 0 && zs.every(z => save.claimed[z.fragment]); }
+  function rushZones32() { return pathZones().map(z => z.id); }
+  function dyeList32() {
+    const B = P().bosses, L = (id) => { const r = (B[id] && B[id].ramp || []).slice().sort((a, b) => { const l = (h) => { const c = hexRGB32(h); return c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11; }; return l(a) - l(b); }); return [r[1] || r[0], r[2] || r[1], r[3] || r[2]].filter(Boolean); };
+    const names = { jeriah: "Crimson General", azmardus: "Grand Wizard Violet", nezradeem: "Bone Tyrant", orchalsius: "Behemoth Flame", silent: "Shadowsteel", gladius: "Frost Walker" };
+    return [{ id: "gold", name: "Pilgrim's Gold", ramp: [P().order.templeDeep, P().order.temple, P().order.nexus, P().order.illumination], from: "rush" }].concat(Object.keys(names).map(id => ({ id, name: names[id], ramp: L(id), from: id })));
+  }
+  function dyeOwned32() { const o = save.dyes32 && typeof save.dyes32 === "object" ? save.dyes32 : {}; return dyeList32().filter(d => o[d.id]); }
+  function startRush32() {
+    const list = rushZones32(); if (!list.length) return;
+    rush32 = { list, i: 0, t: 0, hard: false }; hard32 = null; save.rush32 = save.rush32 || { best: 0, clears: 0, tries: 0 }; save.rush32.tries++; persist();
+    goScene(() => rushEnter32());
+  }
+  function rushEnter32() {
+    const hp = rush32.hp; enterArena(rush32.list[rush32.i]);
+    introPages = [""]; introPage = 0; introHold = 30; bossIntroCard = 0;
+    if (hp != null && player) player.hp = Math.min(player.maxHp, hp);
+  }
+  function rushNext32() {
+    rush32.i++; rush32.hp = player ? player.hp : null; synth.sfx("claim");
+    if (rush32.i >= rush32.list.length) { rushEnd32(true); return; }
+    V().flask = Math.min(V().flaskMax, (V().flask | 0) + 1);
+    toast(dgFmt(T32().rush.between, { i: rush32.i, n: rush32.list.length }));
+    goScene(() => rushEnter32());
+  }
+  function rushEnd32(won) {
+    const r = rush32, R = save.rush32 || (save.rush32 = { best: 0, clears: 0, tries: 0 }); rush32 = null;
+    const sec = Math.round(r.t / 60); let reward = "";
+    if (won) { R.clears++; if (!R.best || sec < R.best) R.best = sec; save.dyes32 = save.dyes32 || {}; if (!save.dyes32.gold) { save.dyes32.gold = 1; reward = T32().rush.rewardRush; } }
+    rushRes32 = { won, sec, best: R.best, beaten: won ? r.list.length : r.i, n: r.list.length, reward, t: 0 };
+    if (player) { player.dead = false; player.hp = player.maxHp; }
+    persist(); scene = "rush32end"; setMusic("title");
+  }
+  function hardStart32(zone) { hard32 = { zone }; rush32 = null; goScene(() => enterArena(zone)); }
+  function hardWin32() {
+    const z = window.SHARDS.zones.find(q => q.id === hard32.zone), id = z ? z.bossId : null; hard32 = null;
+    save.dyes32 = save.dyes32 || {}; const d = dyeList32().find(x => x.id === id), first = d && !save.dyes32[id];
+    if (d) save.dyes32[id] = 1;
+    const n = Math.round(W23().coin.boss * 1.5); V().aurels += n;
+    scene = "claim"; lastClaimed = z ? z.fragment : null; claimT = 0; claimMsg = T26().lines.rematch.replace("{n}", n); claimExtra = first ? dgFmt(T32().rush.rewardDye, { name: d.name }) : T32().rush.already; claimTimer = 170; synth.sfx("claim"); persist();
+  }
+  function fmtT32(sec) { return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); }
+  function eg32Rows() {
+    const rows = [{ k: "rush" }];
+    for (const z of pathZones()) rows.push({ k: "hard", z });
+    if (save.endSeen32) rows.push({ k: "ngp" });
+    rows.push({ k: "dye" }, { k: "back" }); return rows;
+  }
+  function updateEndgame32() {
+    const rows = eg32Rows(), n = rows.length, un = endgame32();
+    if (input.pressed("up")) { eg32Ix = (eg32Ix + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { eg32Ix = (eg32Ix + 1) % n; synth.sfx("menuMove"); }
+    if (menuBack()) { scene = "travel"; return; }
+    const r = rows[Math.min(eg32Ix, n - 1)], lr = input.pressed("left") ? -1 : input.pressed("right") ? 1 : 0;
+    if (r.k === "dye" && (lr || input.pressed("confirm"))) { const L = [null].concat(dyeOwned32().map(d => d.id)), i = Math.max(0, L.indexOf(save.dye32 || null)); save.dye32 = L[(i + (lr || 1) + L.length) % L.length]; synth.sfx("menuMove"); persist(); return; }
+    if (!input.pressed("confirm")) return;
+    if (r.k === "back") { scene = "travel"; return; }
+    if ((r.k === "rush" || r.k === "hard") && !un) { synth.sfx("locked"); toast(T32().rush.locked); return; }
+    synth.sfx("menu");
+    if (r.k === "rush") startRush32();
+    else if (r.k === "hard") hardStart32(r.z.id);
+    else if (r.k === "ngp") openConfirm(T32().ngp.offer, T32().ngp.confirm, () => beginNGP32());
+  }
+  function drawEndgame32() {
+    uiT++; rect(0, 0, W, H, P().ground.void); panel(16, 10, W - 32, H - 20);
+    const rows = eg32Rows(), un = endgame32(), TT = T32().rush, t = touchUI(), pitch = t ? Math.min(24, Math.floor((H - 70) / rows.length)) : 17;
+    drawText(TT.name + "  /  " + TT.hard, W / 2, 18, P().order.illumination, "center");
+    let y = 36, desc = "";
+    rows.forEach((r, i) => {
+      const sel = i === eg32Ix; let label = "", c = P().order.bone;
+      if (r.k === "rush") { label = TT.name + (save.rush32 && save.rush32.best ? "   " + dgFmt(TT.best, { t: fmtT32(save.rush32.best) }) : ""); if (sel) desc = un ? TT.rushDesc : TT.locked; if (!un) c = P().ground.ash; }
+      else if (r.k === "hard") { const id = r.z.bossId, owned = save.dyes32 && save.dyes32[id]; label = TT.hardShort + ": " + (T().zones[r.z.id] ? T().zones[r.z.id].name : r.z.id) + (owned ? "  [" + dyeList32().find(d => d.id === id).name + "]" : ""); if (sel) desc = un ? TT.hardDesc : TT.locked; if (!un) c = P().ground.ash; blitFrame("ui-frag16", owned ? r.z.fragment : r.z.fragment + "-dim", 30, y - 3, false); }
+      else if (r.k === "ngp") { label = T32().ngp.offer + ((save.ngp | 0) ? "  (" + dgFmt(T32().ngp.tag, { n: save.ngp }) + ")" : ""); if (sel) desc = T32().ngp.offerDesc; }
+      else if (r.k === "dye") { const d = dyeList32().find(x => x.id === save.dye32); label = T32().dyes.label + ":  < " + (d ? d.name : T32().dyes.none) + " >"; }
+      else label = T().hub.travelBack;
+      if (sel) c = P().order.illumination;
+      drawText(label, 48, y, c); if (sel) cursor(24, y + 1);
+      menuRow(20, y, W - 40, pitch, "eg" + i, false, () => { eg32Ix = i; });
+      y += pitch;
+    });
+    if (desc) wrapLines(desc, W - 60).forEach((ln, k) => drawText(ln, W / 2, H - 40 + k * LH, P().ground.smoke, "center"));
+  }
+  function updateRushEnd32() { rushRes32.t++; if (rushRes32.t > 24 && input.pressed("confirm")) { synth.sfx("menu"); goScene(() => enterHub()); } }
+  function drawRushEnd32() {
+    const r = rushRes32, TT = T32().rush; uiT++;
+    drawImg(ART().ui.title.path, 0, 0); g.globalAlpha = 0.8; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
+    drawText(r.won ? TT.clearTitle : TT.failTitle, W / 2, 40, r.won ? P().order.illumination : P().cult.emberLight, "center");
+    drawText(dgFmt(TT.beaten, { i: r.beaten, n: r.n }), W / 2, 70, P().order.bone, "center");
+    drawText(dgFmt(TT.time, { t: fmtT32(r.sec) }) + (r.best ? "   " + dgFmt(TT.best, { t: fmtT32(r.best) }) : ""), W / 2, 88, P().order.bone, "center");
+    if (r.reward) drawText(r.reward, W / 2, 112, P().order.nexus, "center");
+    drawText(touchUI() ? TT.okTouch : padUI() ? TT.okPad : TT.ok, W / 2, H - 20, P().order.illumination, "center");
+    tapTarget(0, 0, W, H, () => input.tap("confirm"));
+  }
+  function beginNGP32() {
+    const o = save, keep = { path: o.path, charms: o.charms, notches: o.notches, vessels: o.vessels, v23: o.v23, dungeon30: o.dungeon30, dyes32: o.dyes32, dye32: o.dye32, rush32: o.rush32, settings: o.settings, playF: o.playF, deaths: o.deaths, migratedFrom: o.migratedFrom, endSeen32: true, ngp: (o.ngp | 0) + 1, hooks27: o.hooks27, tut27: o.tut27, tutorial: o.tutorial, intro32: o.intro32 };
+    save = Object.assign(defaultSave(), JSON.parse(JSON.stringify(keep)));
+    if (save.v23) { save.v23.bossNip = {}; save.v23.shop = save.v23.shop || {}; }
+    normalizeSave(); persist(); toast(dgFmt(T32().ngp.tag, { n: save.ngp })); goScene(() => enterHub());
+  }
+  // NG+ seal remix: each traverse's seals trade places with that level's optional secret spots (pickups the reach checker already proves reachable)
+  function remixSeals32(L, id, ng) {
+    if (!L || !L.items) return;
+    if (!L.__orig32) L.__orig32 = L.items.map(it => ({ x: it.x, y: it.y }));
+    L.items.forEach((it, i) => { it.x = L.__orig32[i].x; it.y = L.__orig32[i].y; });
+    if (!ng) return;
+    const seals = L.items.filter(it => it.type === "seal"), opt = L.items.filter(it => it.type !== "seal" && it.type !== "bonusprize");
+    if (!seals.length || !opt.length) return;
+    let h = 2166136261; for (const ch of id + ":" + ng) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+    const R = () => { h = (Math.imul(h, 1103515245) + 12345) >>> 0; return h / 4294967296; };
+    const pool = opt.slice(); for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const order = seals.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    for (let k = 0; k < Math.min(pool.length, order.length); k++) { const a = order[k], b = pool[k]; const tx = a.x, ty = a.y; a.x = b.x; a.y = b.y; b.x = tx; b.y = ty; }
   }
 
   // ---------- v2.5: side stages, bonus stages, water, tumbleweeds, arena waves ----------
@@ -2220,7 +2447,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function travelRows() {
     const rows = pathZones().map(z => ({ k: "zone", z }));
     for (const q of S25().filter(q => q.kind === "side" && !(q.cultOnly && path !== "cult"))) rows.push({ k: "stage", s: q });
-    rows.push({ k: "bonusmenu" }); rows.push({ k: "back" });
+    rows.push({ k: "bonusmenu" }); if (endgame32() || save.endSeen32) rows.push({ k: "endgame" }); rows.push({ k: "back" });
     return rows;
   }
   function updateBonus() {
@@ -2273,6 +2500,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (!def || !window.SHARDS.levels[levelId]) { enterHub(); return; }
     if (path === "cult" && def && def.cultHeldBy) { enterHub(); return; } // Order-only zone
     level = window.SHARDS.levels[levelId];
+    remixSeals32(level, levelId, dg ? 0 : (save.ngp | 0));
     readQ = []; A26 = null; gTrig26 = false; tip27 = null; hookFx27 = [];
     if (sdef && !(opts && opts.respawn) && (sdef.kind === "bonus" || (save.stages[zoneId] && save.stages[zoneId].cleared))) delete save.world[zoneId];   // replays start fresh
     recomputeStats(); powers = {};
@@ -2310,6 +2538,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     recomputeStats(); powers = {}; w22 = null; cameraY = 0; coins = []; efx = []; ensureWeapons();
     boss = makeBoss(def);
     arena26Init(def.bossId);
+    { const ng = dg ? 0 : Math.min(3, save.ngp | 0), m = (1 + 0.4 * ng) * (hard32 || (rush32 && rush32.hard) ? 1.6 : 1); if (m !== 1) { boss.hp = boss.maxHp = Math.round(boss.hp * m); } if (hard32) boss.speed *= 1.15; boss.hard32 = !!hard32; }
     enemies = [];
     pickups = (level.pickups || []).map(p => ({ ...p, w: 8, h: 8, taken: false }));
     projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = []; teleMarks = []; cameraX = 0;
@@ -2340,8 +2569,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     { const zz = window.SHARDS.zones.find(z => z.fragment === frag); claimExtra = awardBoss(zz ? zz.bossId : frag); }
     synth.sfx("claim"); rumble("claim");
   }
-  function enterDefeat() { if (dg) { dgDeath(); return; } scene = "defeat"; menuIx = 0; synth.sfx("death"); }
+  function enterDefeat() { if (dg) { dgDeath(); return; } if (rush32) { rushEnd32(false); return; } scene = "defeat"; menuIx = 0; synth.sfx("death"); }
   function enterEnding() {
+    save.endSeen32 = true; hard32 = null; rush32 = null;
     endHead26 = ""; endSecret26 = "";
     scene = "ending";
     endingLines = path === "order" ? T().endings.order.lines : T().endings.cult.lines;
@@ -2589,6 +2819,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     let b = (stats.stand && player.hp <= 2 ? 1 : 0) + stats.reson + (stats.ashen && ashenOn() ? Cc.ashen.dmg : 0) + (player.faithT > 0 ? Cc.faith.dmg : 0);
     let d = base + Math.min(3, b);   // v2.4 cap: situational/charm bonuses never add more than +3 before Glass Heart
     if (dg) d += dg.might;
+    if (dg && dg.mods.includes("glass")) d *= 2;
     return stats.glass ? d * 2 : d;
   }
   function hurtPlayer(n, kbDir, src) {
@@ -2599,12 +2830,15 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const D = diffRules();
     n = Math.max(1, Math.round(n * D.dmg));
     if (scene === "arena") n = Math.max(1, Math.round(n * D.bossDmg));
+    if (scene === "arena" && (hard32 || (rush32 && rush32.hard))) n += 1;
+    if (!dg && (save.ngp | 0) > 0) n += Math.min(2, save.ngp | 0) > 0 && scene === "arena" ? 1 : 0;
     player.channel = 0; if (player.hook) hookCancel27();
     if (powers.guard > 0) { delete powers.guard; synth.sfx("guard"); player.inv = 40; flash = 2; spark(player.x + 6, player.y + 8, P().order.light, 10); return; }
     if (level && level.tiled && stats.ward && !w22.warded) { w22.warded = true; synth.sfx("guard"); player.inv = 40; spark(player.x + 6, player.y + 8, P().order.light, 8); return; }
     const Cc = W24().charm;
     if (stats.ashen && ashenOn()) n += Cc.ashen.taken;
     if (stats.glass) n *= 2;
+    if (dg && dg.mods.includes("glass")) n *= 2;
     { const cut = (player.sgT > 0 ? Cc.guard.cut : 0) + (player.faithT > 0 ? Cc.faith.cut : 0); if (cut) { n = Math.max(0, n - cut); if (n === 0) { player.inv = 36; synth.sfx("guardUp"); fx24.push({ sh: "fx24-small", nm: "guard", n: 4, x: player.x + 6, y: player.y + 10, t: 0, rate: 3 }); return; } } }
     if (stats.sGuard && !(player.sgCD > 0)) { player.sgT = Cc.guard.window; player.sgCD = Cc.guard.cd; synth.sfx("guardUp"); fx24.push({ sh: "fx24-small", nm: "guard", n: 4, x: player.x + 6, y: player.y + 10, t: 0, rate: 3 }); }
     player.snake = 0; player.chargeT = 0;
@@ -3129,7 +3363,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     if (name === "charge" || name === "dash" || name === "frenzy") { b.vx = b.facing * (name === "frenzy" ? 3.5 : 2.6); b.moveT = 28; }
     else if (name === "slam" || name === "leap") { b.vy = -4.4; b.vx = b.facing * 1.5; b.moveT = 50; }
-    else if (name === "teleport" || name === "fade" || name === "mirror") { b.visible = false; b.moveT = 40; }
+    else if (name === "teleport" || name === "fade" || name === "mirror") { b.visible = false; b.moveT = 40;
+      if (b.id === "azmardus" && name === "teleport") { azSparks32(bcx26(b), b.y + b.h * 0.5, 8, "out"); b.tp32X = Math.max(8, Math.min(level.w - b.w - 8, player.x + (Math.random() < 0.5 ? -48 : 48))); azSparks32(b.tp32X + b.w / 2, level.h - 16 - b.h * 0.5, 8, "in"); addTeleMark(b.tp32X - 2, level.h - 18, b.w + 4, 3, bossAccent(b), 22); } }
     else if (name === "bolt" || name === "orb" || name === "barrage") { b.moveT = 30; }
     else if (name === "spikes" || name === "bonewall" || name === "spiral") { b.moveT = 44; }
     else if (name === "pillar" || name === "wave" || name === "erupt" || name === "rain") { b.moveT = 40; }
@@ -3167,7 +3402,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         b.x = b.stepX; b.y = Math.min(b.stepY - b.h, level.h - 16 - b.h); b.stepX = null;
         b.facing = player.x < b.x ? -1 : 1;
       } else {
-        b.x = Math.max(8, Math.min(level.w - b.w - 8, player.x + (Math.random() < 0.5 ? -40 : 40)));
+        b.x = b.tp32X != null ? b.tp32X : Math.max(8, Math.min(level.w - b.w - 8, player.x + (Math.random() < 0.5 ? -40 : 40))); b.tp32X = null;
+        if (b.id === "azmardus") azSparks32(b.x + b.w / 2, b.y + b.h * 0.5, 8, "out");
         b.y = Math.min(player.y + player.h - b.h, level.h - 16 - b.h);
       }
       b.visible = true;
@@ -3357,9 +3593,10 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
 
   function updateProjectiles() {
+    updateSparks32();
     for (const pr of projectiles) {
       if (pr.delay > 0) { pr.delay--; continue; }
-      pr.x += pr.vx; pr.y += pr.vy; pr.life--; if (pr.g26) pr.vy += pr.g26;
+      pr.x += pr.vx; pr.y += pr.vy; pr.life--; if (pr.g26) pr.vy += pr.g26; if (pr.tick32) pr.tick32(pr);
       if (pr.ground && pr.vy < 0 && pr.life < 25) pr.vy = 0;
       if (pr.arrow) {
         pr.vy += pr.grav;
@@ -3521,7 +3758,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       }
     }
     if (nearTravel && input.pressed("confirm")) { synth.sfx("menu"); enterTravel(); }
-    else if (nearDungeon() && input.pressed("confirm")) { synth.sfx("menu"); openConfirm(T30().hub.confirmTitle, T30().hub.confirmBody, () => enterDungeon()); }
+    else if (nearDungeon() && input.pressed("confirm")) { synth.sfx("menu"); dgOpenSetup32(); }
   }
   function updateTravel() {
     const rows = travelRows(), n = rows.length;
@@ -3533,6 +3770,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       const r = rows[Math.min(travelIx, n - 1)];
       if (r.k === "back") { scene = "hub"; return; }
       if (r.k === "bonusmenu") { scene = "bonus"; bonusIx = 0; return; }
+      if (r.k === "endgame") { scene = "endgame32"; eg32Ix = 0; return; }
       if (r.k === "stage") { if (!stageUnlocked(r.s)) { synth.sfx("locked"); return; } goScene(() => enterTraverse(r.s.id)); return; }
       const z = r.z;
       if (!zoneUnlocked(z)) return;
@@ -3583,13 +3821,91 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   const NIP_FIX = { order: ["serpentguard", "purifyflame", "unbrokenfaith"], cult: ["snakecharmer", "magikexp", "crimsonhunger", "shatteredshadow", "ashencovenant"] };
   const dgSnap = () => JSON.parse(JSON.stringify({ charms: save.charms, notches: save.notches, vessels: save.vessels, v23: save.v23, claimed: save.claimed, crown: !!save.crown }));
   const dgView = () => Object.assign({}, save, { charms: dg.snap.charms, notches: dg.snap.notches, vessels: dg.snap.vessels, v23: dg.snap.v23, claimed: dg.snap.claimed, crown: dg.snap.crown }); // what autosave writes during a run: the run-only upgrades never reach the file
-  function enterDungeon() {
+  // ----- v3.2 Delve setup: seeds (random, daily, shareable code), modifiers, records -----
+  const T32 = () => window.SHARDS.text32;
+  const SEEDAB = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const codeToSeed = (c) => { let n = 0; for (const ch of c) n = n * 32 + Math.max(0, SEEDAB.indexOf(ch)); return ((n * 2654435761) >>> 0) || 7; };
+  const randCode = () => { let c = ""; for (let i = 0; i < 6; i++) c += SEEDAB[(Math.random() * 32) | 0]; return c; };
+  const dayStr = (t) => { const d = t ? new Date(t) : new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  function dailyCode(ds) { let h = 2166136261; for (const ch of "shards-daily-" + (ds || dayStr())) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } let c = ""; for (let i = 0; i < 6; i++) { c += SEEDAB[h & 31]; h = (h >>> 5) | ((h & 31) << 27); } return c; }
+  let dgSetupS = null;
+  const BOARD_KEY = "shards-delve-board-v32";
+  function deviceBoard() { try { const b = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]"); return Array.isArray(b) ? b.filter(e => e && typeof e.depth === "number") : []; } catch (_) { return []; } }
+  function boardAdd(list, e, cap) { list.push(e); list.sort((a, b) => b.depth - a.depth || a.time - b.time || a.at - b.at); list.length = Math.min(list.length, cap); return list.indexOf(e); }
+  function dgRecord32(r) {
+    const e = { depth: r.deepest, time: r.time, code: r.code, mode: r.mode, mods: r.mods.slice(), path, slot: activeSlot != null ? activeSlot + 1 : 0, at: Date.now(), day: dayStr() };
+    const s = save.dungeon30; s.board = Array.isArray(s.board) ? s.board : []; const iS = boardAdd(s.board, Object.assign({}, e), 10);
+    const dev = deviceBoard(), iD = boardAdd(dev, e, 20); try { localStorage.setItem(BOARD_KEY, JSON.stringify(dev)); } catch (_) { }
+    if (r.mode === "daily") { s.daily = s.daily && s.daily.day === e.day ? s.daily : { day: e.day, best: 0 }; s.daily.best = Math.max(s.daily.best, e.depth); }
+    return { slotRank: iS + 1, deviceRank: iD + 1 };
+  }
+  function dgOpenSetup32() { const last = save.dungeon30.setup || {}; dgSetupS = { ix: 6, mode: last.mode || "random", code: last.code || randCode(), mods: Array.isArray(last.mods) ? last.mods.slice() : [], edit: -1, board: 0, t: 0 }; scene = "dgsetup"; }
+  function dgSetupRows() { return ["seed"].concat(T32().modifiers.map(m => "mod:" + m.id), ["records", "begin", "back"]); }
+  function dgSetupBegin() {
+    const s = dgSetupS, code = s.mode === "daily" ? dailyCode() : s.mode === "custom" ? s.code : randCode();
+    save.dungeon30.setup = { mode: s.mode, code: s.mode === "custom" ? s.code : (save.dungeon30.setup || {}).code || s.code, mods: s.mods.slice() };
+    dgSetupS = null; scene = "hub"; enterDungeon({ code, mode: s.mode, mods: s.mods.slice() });
+  }
+  function updateDgSetup() {
+    const s = dgSetupS, rows = dgSetupRows(); s.t++;
+    if (s.boardView) { if (input.pressed("left") || input.pressed("right")) { s.board ^= 1; synth.sfx("menuMove"); } if (menuBack() || input.pressed("confirm")) { s.boardView = false; synth.sfx("menuMove"); } return; }
+    if (s.edit >= 0) {
+      const ch = (k) => { const a = s.code.split(""), i = SEEDAB.indexOf(a[s.edit]); a[s.edit] = SEEDAB[(i + k + 32) % 32]; s.code = a.join(""); synth.sfx("menuMove"); };
+      if (input.typed32) { const t = input.typed32.toUpperCase(); input.typed32 = ""; for (const c of t) if (SEEDAB.includes(c)) { const a = s.code.split(""); a[s.edit] = c; s.code = a.join(""); s.edit = Math.min(5, s.edit + 1); } synth.sfx("menuMove"); return; }
+      if (input.pressed("up")) ch(1); if (input.pressed("down")) ch(-1);
+      if (input.pressed("left")) s.edit = Math.max(0, s.edit - 1); if (input.pressed("right")) s.edit = Math.min(5, s.edit + 1);
+      if (input.pressed("confirm") || menuBack()) { s.edit = -1; synth.sfx("menu"); }
+      return;
+    }
+    if (input.pressed("up")) { s.ix = (s.ix + rows.length - 1) % rows.length; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { s.ix = (s.ix + 1) % rows.length; synth.sfx("menuMove"); }
+    if (menuBack()) { dgSetupS = null; scene = "hub"; synth.sfx("menuMove"); return; }
+    const r = rows[s.ix], lr = input.pressed("left") ? -1 : input.pressed("right") ? 1 : 0, ok = input.pressed("confirm") && s.t > 6;
+    if (r === "seed" && (lr || ok)) { const M = ["random", "daily", "custom"]; if (ok && s.mode === "custom") { s.edit = 0; input.typed32 = ""; synth.sfx("menu"); return; } s.mode = M[(M.indexOf(s.mode) + (lr || 1) + 3) % 3]; synth.sfx("menuMove"); }
+    else if (r.startsWith("mod:") && (lr || ok)) { const id = r.slice(4), i = s.mods.indexOf(id); if (i >= 0) s.mods.splice(i, 1); else s.mods.push(id); synth.sfx("menuMove"); }
+    else if (r === "records" && ok) { s.boardView = true; synth.sfx("menu"); }
+    else if (r === "begin" && ok) { synth.sfx("menu"); dgSetupBegin(); }
+    else if (r === "back" && ok) { dgSetupS = null; scene = "hub"; synth.sfx("menuMove"); }
+  }
+  function drawDgSetup() {
+    const s = dgSetupS, TT = T32().delve, rows = dgSetupRows(); uiT++;
+    g.globalAlpha = 0.72; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
+    const pw = 360, px = ((W - pw) / 2) | 0, py = 8, ph = H - 16; panel(px, py, pw, ph);
+    drawText(TT.title, W / 2, py + 7, P().order.illumination, "center");
+    const rl = wrapLines(TT.rules, pw - 28); rl.forEach((ln, i) => drawText(ln, W / 2, py + 21 + i * LH, P().ground.smoke, "center"));
+    if (s.boardView) { drawBoard32(px, py + 24 + rl.length * LH, pw); return; }
+    let y = py + 26 + rl.length * LH; const rowH = touchUI() ? 19 : 15;
+    rows.forEach((r, i) => {
+      const sel = s.ix === i, col = sel ? P().order.illumination : P().order.bone;
+      if (sel) rect(px + 10, y - 2, pw - 20, rowH - 1, P().ground.stone2);
+      let label = "", val = "";
+      if (r === "seed") { label = TT.seed; val = s.mode === "daily" ? dgFmt(TT.daily, { d: dayStr().slice(5) }) + "  " + dailyCode() : s.mode === "custom" ? dgFmt(TT.custom, { c: "" }) : TT.random; }
+      else if (r.startsWith("mod:")) { const m = T32().modifiers.find(q => q.id === r.slice(4)); label = (s.mods.includes(m.id) ? "[x] " : "[ ] ") + m.name; val = sel ? "" : ""; if (sel) drawText(m.desc, W / 2, py + ph - 26, P().ground.smoke, "center"); }
+      else label = TT[r];
+      drawText(label, px + 18, y + 1, col); if (val) drawText(val, px + pw - 18 - (r === "seed" && s.mode === "custom" ? 64 : 0), y + 1, col, "right");
+      if (r === "seed" && s.mode === "custom") { const cx0 = px + pw - 76; for (let k = 0; k < 6; k++) { const ex = s.edit === k; drawText(s.code[k], cx0 + k * 10, y + 1, ex ? P().cult.emberLight : col); if (ex) { rect(cx0 + k * 10, y + 11, 7, 1, P().cult.emberLight); tapTarget(cx0 + k * 10 - 2, y - 14, 11, 12, () => input.tap("up")); tapTarget(cx0 + k * 10 - 2, y + 12, 11, 12, () => input.tap("down")); } else if (s.edit >= 0) tapTarget(cx0 + k * 10 - 2, y - 2, 11, rowH, () => { s.edit = k; }); }
+        if (s.edit >= 0) { drawText("^", cx0 + s.edit * 10, y - 9, P().cult.emberLight); drawText("v", cx0 + s.edit * 10, y + 13, P().cult.emberLight); } }
+      if (s.edit < 0) tapTarget(px + 10, y - 2, pw - 20, rowH - 1, () => { if (s.ix === i) input.tap("confirm"); else s.ix = i; });
+      y += rowH;
+    });
+    drawText(s.edit >= 0 ? (touchUI() ? TT.editHintTouch : padUI() ? TT.editHintPad : TT.editHint) : (touchUI() ? TT.hintTouch : padUI() ? TT.hintPad : TT.hint), W / 2, py + ph - 13, P().ground.smoke, "center");
+    if (s.edit >= 0 && touchUI()) { panel(px + pw - 40, py + ph - 30, 32, 16); drawText("OK", px + pw - 24, py + ph - 26, P().order.illumination, "center"); tapTarget(px + pw - 44, py + ph - 34, 40, 24, () => input.tap("confirm")); }
+  }
+  function drawBoard32(px, y0, pw) {
+    const s = dgSetupS, TT = T32().delve, list = s.board ? deviceBoard() : (save.dungeon30.board || []);
+    drawText((s.board ? "< " + TT.boardDevice + " >" : "< " + TT.boardSlot + " >"), W / 2, y0, P().order.illumination, "center");
+    if (!list.length) drawText(TT.boardEmpty, W / 2, y0 + 20, P().ground.smoke, "center");
+    list.slice(0, 10).forEach((e, i) => drawText((i + 1) + ". " + dgFmt(TT.boardRow, { d: e.day || "", n: e.depth, c: e.code || "", mods: e.mods && e.mods.length ? "  +" + e.mods.length : "" }) + (s.board ? "  F" + (e.slot || "?") : ""), px + 18, y0 + 16 + i * 12, i === 0 ? P().order.illumination : P().order.bone));
+    drawText(TT.boardHint, W / 2, H - 21, P().ground.smoke, "center");
+    tapTarget(px, y0 - 4, pw, 14, () => input.tap("right")); tapTarget(0, y0 + 14, W, H, () => input.tap("confirm"));
+  }
+  function enterDungeon(o) {
     if (!path) return;
-    const seed = ((Date.now() ^ ((Math.random() * 1e9) | 0)) >>> 0) || 7;
+    o = o || {}; const code = o.code || randCode(), seed = codeToSeed(code);
     const snap = dgSnap();
     // v3.1: every run starts from the same baseline: no fragments or crown, no charms, base health, starting weapon, no enchants or skills; flask and quiver at base
     save.claimed = {}; save.crown = false; save.charms = { owned: [], equipped: [] }; save.notches = 3; save.vessels = 0; save.v23 = {}; normV23(); ensureWeapons(); recomputeStats();
-    dg = { seed, depth: 1, fails: 0, snap, aur0: V().aurels, nip: 0, frags: [], eggPending: false, egg: false, nipEarned: 0, t: 0, noProg: 0, S: null, rem: 0, kills: 0, cleared: 0, dealt: 0, taken: 0, picks: [], rescued: 0, dissolved: 0, bosses: 0, might: 0, beacon: false, opened: false, live: true, prevBest: save.dungeon30.best | 0 };
+    dg = { code, mode: o.mode || "random", mods: (o.mods || []).slice(), seed, depth: 1, fails: 0, snap, aur0: V().aurels, nip: 0, frags: [], eggPending: false, egg: false, nipEarned: 0, t: 0, noProg: 0, S: null, rem: 0, kills: 0, cleared: 0, dealt: 0, taken: 0, picks: [], rescued: 0, dissolved: 0, bosses: 0, might: 0, beacon: false, opened: false, live: true, prevBest: save.dungeon30.best | 0 };
     save.dungeon30.runs++; persist();
     goScene(() => dgStartFloor());
   }
@@ -3607,7 +3923,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       const m = 1 + 0.06 * dg.depth; boss.hp = boss.maxHp = Math.round(boss.hp * m);
       flaskRefill(true); titleCard = 0; persist(); return;
     }
-    const L = D30().gen(dg.seed, dg.depth);
+    const L = D30().gen(dg.seed, dg.depth, { double: dg.mods.includes("double") });
     window.SHARDS.levels.dungeon30 = L; levelId = "dungeon30"; level = L;
     ART().levels.dungeon30 = ART().levels[L.zone + "_traverse"] || ART().levels[L.zone];
     readQ = []; A26 = null; gTrig26 = false; tip27 = null; hookFx27 = [];
@@ -3617,7 +3933,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     initWorld22(); buildCur(); worldRespawnEnemies();
     cameraX = 0; cameraY = Math.max(0, Math.min(L.h - VH, player.y - VH * 0.6));
     scene = "traverse"; seedAmbient(); fxList = [];
-    ensureWeapons(); coins = []; efx = []; readText = null; flaskRefill(true);
+    ensureWeapons(); coins = []; efx = []; readText = null; if (!(dg.mods.includes("dry") && dg.depth > 1)) flaskRefill(true); else if (dg.flask32 != null) V().flask = dg.flask32;
     if (L.dungeon.rest) { dg.opened = true; }
     if (dg.eggPending) dgEggReveal();
     titleCard = 90; titleCardText = L.title; fade = 16; fadeDir = -1;
@@ -3811,6 +4127,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     scene = "dgpick"; dgPickS = { ix: 1, cards: dgCards(boss), boss, t: 0 }; menuIx = 0; synth.sfx("charmGet"); persist();
   }
   function dgChoose(i) {
+    if (dg) dg.flask32 = V().flask;
     if (!dgPickS || dgPickS.done || !dgPickS.cards[i]) return; dgPickS.done = true;   // one pick per screen: a tap and a key in the same frames must not pick twice
     const c = dgPickS.cards[i]; c.apply(); dg.picks.push(c.name); synth.sfx("charmGet"); recomputeStats();
     dg.depth++; goScene(() => dgStartFloor());
@@ -3862,6 +4179,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       kills: d.kills, cleared: d.cleared, deepest: d.depth, time: Math.round(d.t / 60), dealt: d.dealt, taken: d.taken, aurels: Math.max(0, V().aurels - d.aur0), nip: d.nipEarned,
       picks: d.picks.slice(), rescued: d.rescued + d.dissolved, bosses: d.bosses, fails: d.fails
     };
+    r.code = d.code; r.mode = d.mode; r.mods = d.mods.slice(); if (!abort) Object.assign(r, dgRecord32(r));
     r.homeA = Math.floor(r.aurels / 2); r.homeN = Math.floor(d.nip / 2); r.moth = !!(save.dungeon30 && save.dungeon30.moth); r.frags = d.frags.length;
     save.charms = d.snap.charms; save.notches = d.snap.notches; save.vessels = d.snap.vessels; save.v23 = d.snap.v23; save.claimed = d.snap.claimed; save.crown = d.snap.crown; // run-only upgrades and fragments end here
     if (!abort) { const v = V(); v.aurels += r.homeA; v.nip += r.homeN; v.nipTotal += r.homeN; } else { r.homeA = r.homeN = 0; }
@@ -3881,7 +4199,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     let y = 24 + 12 + vals.length * 15 + 6;
     drawText(r.newBest ? TT.best : dgFmt(TT.bestIs, { n: r.best }), W / 2, y, r.newBest ? P().order.illumination : P().ground.smoke, "center"); y += 14;
     drawText(dgFmt(TT.home, { a: r.homeA, n: r.homeN }), W / 2, y, P().order.nexus, "center");
-    if (r.moth) drawText(TT.moth, W / 2, y + 13, P().order.illumination, "center");
+    if (r.moth) { y += 13; drawText(TT.moth, W / 2, y, P().order.illumination, "center"); }
+    { const D2 = T32().delve; y += 13; drawText(dgFmt(D2.endSeed, { c: r.code, m: D2["mode" + r.mode[0].toUpperCase() + r.mode.slice(1)] }) + (r.mods.length ? "  +" + r.mods.map(id => T32().modifiers.find(m => m.id === id).name).join(", ") : ""), W / 2, y, P().ground.smoke, "center"); if (r.deviceRank && r.deviceRank <= 20) { y += 13; drawText(dgFmt(D2.newRecord, { n: r.deviceRank }), W / 2, y, P().order.illumination, "center"); } }
     drawText(touchUI() ? TT.retTouch : padUI() ? TT.retPad : TT.ret, W / 2, H - 14, P().order.illumination, "center");
     tapTarget(0, 0, W, H, () => input.tap("confirm"));
   }
@@ -3899,6 +4218,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const Tt = T30().hud, boss = scene === "arena";
     const txt = dgFmt(Tt.floor, { n: dg.depth }) + (boss ? "" : level.dungeon.rest ? "   " + dgFmt(level.dungeon.rest === "merchant" ? T30().shop.purse : T30().shop.nipHave, { n: level.dungeon.rest === "merchant" ? dgPurse() : dg.nip }) : "   " + dgFmt(Tt.foes, { n: dg.rem })) + "   " + dgFmt(Tt.fails, { n: dg.fails });
     const w = measure(txt) + 14; panel(((W - w) / 2) | 0, 2, w, 16); drawText(txt, W / 2, 6, P().order.bone, "center");
+    if (dg.code) drawText(dgFmt(T32().delve.hudSeed, { c: dg.code }) + (dg.mods.length ? " +" + dg.mods.length : ""), W / 2, 20, P().ground.smoke, "center");
     if (boss || scene === "pause") return;
     const pulse = 0.35 + 0.25 * Math.sin(animT / 8);
     for (const e of enemies) {
@@ -4166,12 +4486,110 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       else openSettings("title");
     }
   }
+  // ----- v3.2: the opening cutscene, one per path. Blevins is never drawn: only his Deep, his host as
+  // silhouettes, the burst of the Shattering and the moon he is trapped in. -----
+  let i32 = null;
+  function T32I() { return (window.SHARDS.text32 || {}).intro || { common: [], order: [], cult: [] }; }
+  function introShots32(p) { const t = T32I(); return t.common.concat(t[p] || []); }
+  function enterIntro32(then) {
+    i32 = { shots: introShots32(path || "order"), shot: 0, line: 0, t: 0, lt: 0, hold: 0, fade: 24, then: then || enterHub };
+    scene = "intro32";
+  }
+  function endIntro32() {
+    if (!i32) return; const fn = i32.then; i32 = null;
+    save.intro32 = true; persist(); fn();
+  }
+  function updateIntro32() {
+    const q = i32; if (!q) { enterHub(); return; }
+    q.t++; q.lt++; if (q.fade > 0) q.fade--;
+    if (input.pressed("cancel") || input.pressed("back") || input.pressed("pause")) { synth.sfx("menu"); endIntro32(); return; }
+    if (input.held("confirm")) { q.hold++; if (q.hold >= 60) { synth.sfx("menu"); endIntro32(); return; } } else q.hold = 0;
+    if (input.pressed("confirm") || input.pressed("attack")) {
+      const line = q.shots[q.shot][q.line] || "";
+      if (q.lt < line.length * 2) { q.lt = line.length * 2; return; }   // finish the typing first
+      q.line++; q.lt = 0; synth.sfx("dialogue");
+      if (q.line >= q.shots[q.shot].length) { q.line = 0; q.shot++; q.t = 0; q.fade = 24; if (q.shot >= q.shots.length) { endIntro32(); return; } }
+    }
+  }
+  function introBG32(level, scroll) {
+    const la = (ART().levels || {})[level]; if (!la) { rect(0, 0, W, H, P().ground.void); return; }
+    const keep = camPx; camPx = scroll; for (const l of la.layers) drawLayer(l.path, l.f, l.y); camPx = keep;
+  }
+  function drawIntro32() {
+    const q = i32; if (!q) return;
+    const n = q.shot, t = q.t, last = q.shots.length - 1, pp = path || "order";
+    g.save();
+    if (n === 0) {   // the Nexus and the five gods
+      introBG32("aurelion", t * 0.25);
+      g.globalAlpha = 0.55; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
+      blitFrame("in32-nexus", animFrame("in32-nexus", "n", t, 8), W / 2, 100, false);
+      const cols = [P().ground.smoke, P().w22.teal, P().order.illumination, P().order.light, P().order.boneShade];
+      for (let i = 0; i < 5; i++) {
+        const a = t / 90 + i * Math.PI * 2 / 5, r = 62;
+        const x = W / 2 + Math.cos(a) * r, y = 100 + Math.sin(a) * r * 0.45;
+        rect(x - 3, y - 3, 6, 6, P().ground.void); rect(x - 2, y - 2, 4, 4, i === 4 && q.line >= 1 ? P().cult.emberLight : cols[i]);
+      }
+    } else if (n === 1) {   // the Deep and its first children
+      introBG32("deep", t * 0.6);
+      for (let i = 0; i < 4; i++) {
+        const x = ((t * (0.5 + i * 0.12) + i * 140) % (W + 80)) - 40;
+        blitFrame(i % 2 ? "enemy-warped_hog" : "in32-beast", i % 2 ? animFrame("enemy-warped_hog", "walk", t + i * 7, 8) : animFrame("in32-beast", "w", t + i * 5, 9), x, 210 + (i % 2) * 8, false);
+      }
+    } else if (n === 2) {   // the Great War and the Shattering
+      introBG32("vespera", 40 + t * 0.2);
+      g.globalAlpha = 0.35; rect(0, 0, W, H, P().cult.blood || P().ground.void); g.globalAlpha = 1;
+      const meet = Math.min(1, t / 160);
+      for (let i = 0; i < 9; i++) {
+        const row = i % 3, ox = -20 + meet * 150 - i * 18, cx = W + 20 - meet * 150 + i * 18;
+        blitFrame("in32-soldier", animFrame("in32-soldier", "order", t + i * 3, 8), ox, 200 + row * 10, false);
+        blitFrame("in32-soldier", animFrame("in32-soldier", "cult", t + i * 5, 8), cx, 200 + row * 10, true);
+      }
+      if (q.line >= 1) drawPortrait(ART().portraits.noah, W / 2 - 28, 24);
+      if (q.line >= 2) {
+        const bt = q.lt; blitFrame("in32-burst", Math.min(3, (bt / 6) | 0), W / 2, 130, false);
+        const ids = ["heart", "eye", "bone", "blaze", "shadow", "claw"];
+        ids.forEach((id, i) => { const a = i * Math.PI / 3 - Math.PI / 2, r = Math.min(150, bt * 3); blitFrame("ui-frag32", id, W / 2 + Math.cos(a) * r, 130 + Math.sin(a) * r * 0.6, false); });
+        if (bt < 8) { g.globalAlpha = 1 - bt / 8; rect(0, 0, W, H, P().order.light); g.globalAlpha = 1; }
+      }
+    } else if (n === 3) {   // six Apostles, and the moon
+      rect(0, 0, W, H, P().cult.black);
+      for (let i = 0; i < 60; i++) { const sx = (i * 97) % W, sy = (i * 53) % 170; if (((t >> 4) + i) % 7) rect(sx, sy, 1, 1, i % 3 ? P().ground.smoke : P().order.boneShade); }
+      const la3 = ART().levels.blevins; if (la3) { const keep = camPx; camPx = t * 0.15; drawLayer(la3.layers[la3.layers.length - 1].path, la3.layers[la3.layers.length - 1].f, 0); camPx = keep; }
+      const my = Math.max(4, 120 - t * 0.6);
+      blitFrame("in32-moon", (t >> 5) & 1 ? "m1" : "m0", W / 2, my + 40, false);
+      const ap = ["jeriah", "azmardus", "nezradeem", "orchalsius", "silent", "gladius"], ids = ["heart", "eye", "bone", "blaze", "shadow", "claw"];
+      ap.forEach((k, i) => {
+        const x = 30 + i * 72, y = 108, on = t > 20 + i * 14;
+        if (!on) return; drawPortrait(ART().portraits[k], x, y);
+        blitFrame("ui-frag16", ids[i], x + 28, y + 64, false);
+      });
+    } else {   // the path's call
+      introBG32(pp === "cult" ? "cultHub" : "orderHub", 60 + t * 0.1);
+      const fy = 236;
+      blitFrame(pp === "cult" ? "npc-jeriah" : "npc-ryan", animFrame(pp === "cult" ? "npc-jeriah" : "npc-ryan", q.line ? "talk" : "idle", t, 10), W / 2 + 60, fy, true);
+      const px = Math.min(W / 2 - 30, -20 + t * 1.2);
+      blitFrame("player-" + pp, animFrame("player-" + pp, px < W / 2 - 30 ? "run" : "idle", t, 6), px, fy, false);
+    }
+    // letterbox, text, hints
+    rect(0, 0, W, 18, P().ground.void); rect(0, H - 18, W, 18, P().ground.void);
+    if (q.fade > 0) { g.globalAlpha = q.fade / 24; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1; }
+    const line = q.shots[n] && q.shots[n][q.line] || "", shown = line.slice(0, (q.lt / 2) | 0);
+    const lines = wrapLines(line, W - 80), bh = 14 + lines.length * LH;
+    panel(24, H - 24 - bh, W - 48, bh);
+    let left = shown.length;
+    lines.forEach((ln, i) => { const s = ln.slice(0, Math.max(0, left)); left -= ln.length + 1; drawText(s, 40, H - 24 - bh + 8 + i * LH, P().order.bone); });
+    const hint = touchUI() ? "" : (padUI() ? T32I().skipPad : T32I().skipKb);
+    if (hint) drawText(hint, W - 8, 5, P().order.bone, "right");
+    if (touchUI()) { const sw = measure(T32I().skipTouch) + 16; rect(W - sw - 6, 2, sw, 14, P().ground.void); drawText(T32I().skipTouch, W - sw + 2, 5, P().order.nexus); tapTarget(W - sw - 6, 0, sw + 6, 18, () => endIntro32()); tapTarget(0, 18, W, H - 18, () => input.tap("confirm")); }
+    if (q.hold > 0) { rect(W - 108, 14, 100 * q.hold / 60, 2, P().order.nexus); }
+    g.restore();
+  }
   function updatePath() {
     if (input.pressed("left") || input.pressed("right") || input.pressed("up") || input.pressed("down")) {
       menuIx ^= 1; synth.sfx("menuMove");
     }
     if (input.pressed("confirm")) {
-      synth.sfx("menu"); path = menuIx === 0 ? "order" : "cult"; if (pendingNew != null) { beginNew29(pendingNew); pendingNew = null; } save.path = path; normalizeSave(); persist(); enterHub();
+      synth.sfx("menu"); path = menuIx === 0 ? "order" : "cult"; if (pendingNew != null) { beginNew29(pendingNew); pendingNew = null; } save.path = path; normalizeSave(); persist(); if (!save.intro32) enterIntro32(enterHub); else enterHub();
     }
     if (menuBack()) { pendingNew = null; enterFiles(); }
   }
@@ -4206,6 +4624,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (scene !== lastScene) { armedKey = ""; lastScene = scene; }
     input.pollGamepad();
     if (dg && (scene === "traverse" || scene === "arena")) dg.t++;
+    if (rush32 && scene === "arena") rush32.t++;
     if (activeSlot != null && scene !== "pause" && scene !== "settings" && scene !== "path" && scene !== "title" && scene !== "files") { save.playF = (save.playF | 0) + 1; if (++autoT29 >= 3600) { autoT29 = 0; persist(); } }
     if (confirmBox) { updateConfirm(); input.clearJust(); return; }
     if (hitstop > 0) { hitstop--; input.clearJust(); return; }
@@ -4239,11 +4658,15 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "map") updateMap();
     else if (scene === "title") updateTitle();
     else if (scene === "path") updatePath();
+    else if (scene === "intro32") updateIntro32();
     else if (scene === "files") updateFiles();
     else if (scene === "dgpick") updateDgPick();
     else if (scene === "dgfail") updateDgFail();
     else if (scene === "dgend") updateDgEnd();
     else if (scene === "dgshop") updateDgShop();
+    else if (scene === "dgsetup") updateDgSetup();
+    else if (scene === "endgame32") updateEndgame32();
+    else if (scene === "rush32end") updateRushEnd32();
     else if (scene === "settings") updateSettings();
     else if (scene === "hub") {
       if (input.pressed("cancel")) { pauseIx = 0; pausePage = "main"; scene = "pause"; }
@@ -4486,9 +4909,11 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       const tot = path === "order" ? 22 : 16;
       drawActor(fx, animFrame(fx, "fx", tot - p.skill, 4, false), p.x + p.w / 2, p.y + p.h, p.facing < 0);
     }
-    if (stats.strikeW > 20 && p.atk >= 6 && p.atk <= 9) {   // Open Hand / Reaper's Edge: the wider arc shows
+    if (stats.strikeW > 20 && p.atk >= 6 && p.atk <= 9 && !hideW32) {   // Open Hand / Reaper's Edge: the wider arc shows
+      const c32 = !noClip32 && clipGround32(p);
       const ax = p.facing > 0 ? p.x + p.w : p.x - stats.strikeW;
       for (let i = 0; i < 9; i++) { const t = i / 8, yy = p.y + 3 + t * 15, off = Math.sin(t * Math.PI) * 4; rect(wx(ax + (p.facing > 0 ? stats.strikeW - 6 + off * 0.6 : 4 - off * 0.6)), wy(yy), 2, 2, i % 2 ? P().order.illumination : P().order.light); }
+      if (c32) g.restore();
     }
   }
   function bossFrame(b) {
@@ -4600,11 +5025,16 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
   }
   function drawProjectiles() {
+    drawSparks32();
     for (const pr of projectiles) {
       const x = wx(pr.x), y = wy(pr.y), w = Math.round(pr.w * WS), h = Math.round(pr.h * WS);
       const fl = (animT >> 2) & 1;
       if (pr.arrow && pr.kind === "mstaff") { blitFrame("w24-eproj", "mbolt" + ((animT >> 1) & 3), x + (w >> 1), y + (h >> 1), pr.vx < 0); if ((animT & 3) === 0) particles.push({ x: pr.x, y: pr.y + 1, vx: -pr.vx * 0.1, vy: (Math.random() - 0.5) * 0.3, life: 14, color: P().bosses.azmardus.ramp[3] }); continue; }
       if (pr.delay > 0) { if (pr.tele26) rect(x, y + h, w, 2, P().cult.emberLight); continue; }
+      if (pr.az32) { const fr = pr.az32 === "eye" ? "eye" + ((animT >> 3) & 3) : "comet" + ((animT >> 2) % 3), cx = x + (w >> 1), cy = y + (h >> 1);
+        if (pr.life < 20) g.globalAlpha = Math.max(0.2, pr.life / 20);
+        if (pr.az32 === "comet") { g.save(); g.translate(cx, cy); g.rotate(Math.atan2(pr.vy, pr.vx)); blitFrame("az32-proj", fr, -8, 0, false); g.restore(); } else blitFrame("az32-proj", fr, cx, cy, false);
+        g.globalAlpha = 1; continue; }
       if (pr.s26) { const S6 = pr.s26; blitFrame(S6.sh, S6.fr + ((animT >> 2) % S6.n), x + (w >> 1), y + (h >> 1), pr.vx < 0); continue; }
       if (pr.k26 === "flame") { const fh = ((animT >> 1) & 1); rect(x, y + 2, w, h - 2, P().cult.crimson); rect(x + 2, y, w - 4, h, P().cult.emberLight); rect(x + 4, y + 3 - fh, w - 8, h - 4, P().order.illumination); continue; }
       if (pr.k26 === "beam") { for (let i = 0; i < w; i += 2) rect(x + i, y + ((i + animT) & 3), 2, h - 3, i % 4 ? pr.color : P().order.light); rect(x, y, w, 2, P().order.light); rect(x, y + h - 2, w, 2, P().order.light); continue; }
@@ -4891,6 +5321,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         if (!un) { label += "  " + U.side.replace("{need}", q.need); c = P().ground.ash; } else if (cl) { label += "  " + U.cleared; c = P().order.temple; }
         blitFrame("ui-frag16", "claw-dim", 30, ty - 3, false);
       } else if (r.k === "bonusmenu") label = U.bonusRow.replace("{n}", nUn);
+      else if (r.k === "endgame") { label = T32().rush.name + " / " + T32().rush.hard + (save.endSeen32 ? " / " + T32().ngp.offer : ""); blitFrame("ui-frag16", "heart", 30, ty - 3, false); }
       else label = T().hub.travelBack;
       if (sel) c = P().order.illumination;
       drawText(label, 52, ty, c);
@@ -5180,7 +5611,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     drawArenaFront26();
     if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); }
     drawHook27();
-    drawShadows26(); drawAlly26(); drawBless26();
+    drawShadows26(); drawAlly26(); { const c32 = player && !hideW32 && clipGround32(player); if (!hideW32) drawBless26(); if (c32) g.restore(); }
     drawProjectiles(); drawArenaLava26();
     if (tl && level.waters) drawWaters();
     drawFx(); drawEfx();
@@ -5262,11 +5693,15 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "map") drawMap();
     else if (scene === "title") drawTitle();
     else if (scene === "path") drawPath();
+    else if (scene === "intro32") drawIntro32();
     else if (scene === "files") drawFiles();
     else if (scene === "dgpick") drawDgPick();
     else if (scene === "dgfail") drawDgFail();
     else if (scene === "dgend") drawDgEnd();
     else if (scene === "dgshop") drawDgShop();
+    else if (scene === "dgsetup") { drawWorld(); drawDgSetup(); }
+    else if (scene === "endgame32") drawEndgame32();
+    else if (scene === "rush32end") drawRushEnd32();
     else if (scene === "settings") drawSettings();
     else if (scene === "claim") drawClaim();
     else if (scene === "stageclear") { drawWorld(); drawStageClear(); }
@@ -5298,11 +5733,13 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   window.SHARDS.debug = {
     claim(frag) { if (heldByAlly(frag)) return; save.claimed[frag] = true; persist(); },
     claimAll() { for (const z of pathZones()) save.claimed[z.fragment] = true; if (path === "cult") { save.claimed.heart = true; save.crown = true; } persist(); },
+    intro32(p) { if (p) { path = p; save.path = p; } enterIntro32(enterHub); return true; },
+    intro32State() { return i32 ? { shot: i32.shot, line: i32.line, shots: i32.shots.length, hold: i32.hold, text: (i32.shots[i32.shot] || [])[i32.line] } : null; },
     setPath(p) { path = p; save.path = p; if (activeSlot == null) activeSlot = 0; normalizeSave(); persist(); },
     files29() { return sums29(); }, fileState29() { return { scene, ix: fs29.ix, menu: fs29.menu ? { slot: fs29.menu.slot, mode: fs29.menu.mode, ix: fs29.menu.ix, items: fs29.menu.items.map(x => x[0]) } : null, msg: fs29.msgT > 0 ? fs29.msg : "", active: activeSlot, pending: pendingNew, note: slotNote }; },
     elite29() { return { n: enemies.filter(e => e.elite).length, alive: enemies.filter(e => e.elite && !e.dead).length, wait: w22 ? w22.eliteWait.length : -1, lock: !!(w22 && w22.eliteLock), doors: w22 ? w22.doors.filter(d => d.kind === "elite").map(d => d.open) : [], waitRoom: w22 && w22.eliteWait[0] ? w22.eliteWait[0].room : null }; }, worldRespawn29() { worldRespawnEnemies(); }, nez29() { return { n: nezLive29(), cap: boss ? nezCap29(boss) : 0, minions: enemies.filter(e => e.nezMinion).map(e => ({ x: e.x, y: e.y, dead: e.dead, drop: e.drop, summoned: e.summoned, behavior: e.behavior })) }; },
     newFile29(i, p) { beginNew29(i); path = p; save.path = p; normalizeSave(); persist(); }, 
-    dg30() { return dg ? { depth: dg.depth, fails: dg.fails, rem: dg.rem, kills: dg.kills, opened: dg.opened, beacon: dg.beacon, noProg: dg.noProg, rescued: dg.rescued, dissolved: dg.dissolved, picks: dg.picks.slice(), might: dg.might, seed: dg.seed, bosses: dg.bosses, dealt: dg.dealt, taken: dg.taken, t: dg.t } : null; }, dgResult30() { return dgResult; }, dgPick30() { return dgPickS ? { ix: dgPickS.ix, cards: dgPickS.cards.map(c => ({ cat: c.cat, rar: c.rar, name: c.name, desc: c.desc })) } : null; },
+    dg30() { return dg ? { code: dg.code, mode: dg.mode, mods: dg.mods.slice(), depth: dg.depth, fails: dg.fails, rem: dg.rem, kills: dg.kills, opened: dg.opened, beacon: dg.beacon, noProg: dg.noProg, rescued: dg.rescued, dissolved: dg.dissolved, picks: dg.picks.slice(), might: dg.might, seed: dg.seed, bosses: dg.bosses, dealt: dg.dealt, taken: dg.taken, t: dg.t } : null; }, dgResult30() { return dgResult; }, dgPick30() { return dgPickS ? { ix: dgPickS.ix, cards: dgPickS.cards.map(c => ({ cat: c.cat, rar: c.rar, name: c.name, desc: c.desc })) } : null; },
     enterDungeon30() { enterDungeon(); }, dgSetNoProg30(n) { if (dg) dg.noProg = n; }, dgSeed30(n) { if (dg) dg.seed = n; }, dgFloor30(n) { if (dg) { dg.depth = n; dgStartFloor(); } }, dgLevel30() { return level && level.dungeon ? { w: level.w, h: level.h, exit: level.dungeon.exit, elite: level.dungeon.elite, swap: level.dungeon.swap, theme: level.dungeon.theme, spots: level.dungeon.spots.length } : null; },
     dgCardsAt30(depth, seed, boss) { if (!dg) return null; const a = dg.depth, b = dg.seed; dg.depth = depth; dg.seed = seed; const c = dgCards(!!boss); dg.depth = a; dg.seed = b; return c.map(x => ({ cat: x.cat, rar: x.rar })); },
     dgShop30() { return dgShopS ? { ix: dgShopS.ix, msg: dgShopS.msg, items: dgShopS.items.map(i => ({ name: i.name, price: i.price, cur: i.cur, sold: !!i.sold, rar: i.rar })) } : null; }, dgShopBuy30(i) { if (dgShopS) dgShopBuy(i); }, dgNpc30() { return level && level.dungeon && level.dungeon.npc ? { npc: level.dungeon.npc, rest: level.dungeon.rest, near: dgNpcNear() } : null; }, dgPurse30() { return dg ? { aur: dgPurse(), nip: dg.nip } : null; }, dgAddAur30(n) { V().aurels += n; }, dgAddNip30(n) { if (dg) dg.nip += n; },
@@ -5314,6 +5751,35 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     dgEnemy30(i) { const e = enemies[i]; if (!e) return null; const cx = e.x + e.w / 2, cy = e.y + e.h / 2; return { dead: e.dead, x: e.x, y: e.y, pinned: level.platforms.some(p => !p.oneWay && cx > p.x + 1 && cx < p.x + p.w - 1 && cy > p.y + 2 && cy < p.y + p.h - 2) }; },
     dgSnapshot30() { const v = V(); return { charms: JSON.stringify(save.charms), vessels: save.vessels, notches: save.notches, melee: JSON.stringify(v.melee.owned), main: v.melee.main, flaskMax: v.flaskMax, aurels: v.aurels, nip: v.nip, enchs: JSON.stringify(v.enchs), claimed: JSON.stringify(save.claimed), crown: !!save.crown, hpMax: maxHpNow(), arrowMax: v.arrowMax, skills: JSON.stringify(save.skills26 || save.skills || null), pals: 0 }; },
     cardTap31() { const s = dgPickS; if (!s) return null; const r = canvas.getBoundingClientRect(), cw = 140, gap = 10, x0 = ((W - (3 * cw + 2 * gap)) / 2) | 0, i = s.ix, x = x0 + i * (cw + gap) + cw / 2, y = 100; return { x: r.left + x / W * r.width, y: r.top + y / H * r.height }; },
+    bakeDump32() { const n = bakedSheet32(playerSheet()); const S = sheetOf(n); const c = atlas.images.get(S.path); return { name: n, url: c.toDataURL ? c.toDataURL() : null }; }, hideWeapon32(v) { hideW32 = !!v; }, noClip32(v) { noClip32 = !!v; },
+    weaponGround32(id, noclip) {
+      const v = V(); if (!v.melee.owned.includes(id)) v.melee.owned.push(id); v.melee.main = id; ensureWeapons(); recomputeStats(); noClip32 = !!noclip;
+      const plan = [["", 20], ["right", 24], ["", 6], ["strike", 1], ["", 14], ["strike", 1], ["", 8], ["strike", 1], ["", 22], ["left", 12], ["", 4], ["hold", 46], ["", 24], ["jump", 1], ["", 8], ["strike", 1], ["", 30], ["strike", 1], ["", 3], ["strike", 1], ["", 3], ["strike", 1], ["", 30]];
+      let worst = 0, sum = 0, n = 0;
+      const set = (k, on) => input.setTouch(k, on);
+      for (const [k, len] of plan) for (let i = 0; i < len; i++) {
+        if (k === "right" || k === "left") set(k, true); if (k === "hold") set("strike", true);
+        if ((k === "strike" || k === "jump") && i === 0) input.tap(k);
+        update(); set("right", false); set("left", false); if (k !== "hold" || i === len - 1) set("strike", false);
+        player.hp = player.maxHp;
+        const q = groundBelow32(player); if (!q || !player.onGround) continue;
+        const y0 = wy(q.y) + 1, x0 = Math.max(0, Math.max(wx(q.x) + 3, wx(player.x) - 90)), x1 = Math.min(W, Math.min(wx(q.x + q.w) - 3, wx(player.x) + 100));   // 3px margin: the ledge lip if (x1 - x0 < 4 || y0 >= H) continue;
+        bl26.length = 0;   // blessing FX (random sparkles) are ground effects, audited by eye in the shots, not here
+        const keepT = animT, rd = () => Uint8ClampedArray.from(g.getImageData(x0, y0, x1 - x0, 24).data);
+        hideW32 = true; draw(); const a = rd(); animT = keepT; hideW32 = false; draw(); const b = rd(); animT = keepT; hideW32 = true; draw(); const c2 = rd(); animT = keepT; hideW32 = false;
+        // count pixels the weapon changed; pixels that flicker between two identical hidden draws (time-based glows) are ignored
+        let d = 0; for (let j = 0; j < a.length; j += 4) if ((a[j] !== b[j] || a[j + 1] !== b[j + 1] || a[j + 2] !== b[j + 2]) && a[j] === c2[j] && a[j + 1] === c2[j + 1] && a[j + 2] === c2[j + 2]) d++;
+        worst = Math.max(worst, d); sum += d; n++;
+      }
+      noClip32 = false; return { worst, sum, frames: n };
+    },
+    eg32() { return { endgame: endgame32(), rush: rush32 && { i: rush32.i, n: rush32.list.length, t: rush32.t }, hard: hard32, dyes: Object.keys(save.dyes32 || {}), dye: save.dye32 || null, rushSave: save.rush32 || null, ngp: save.ngp | 0, endSeen: !!save.endSeen32, res: rushRes32 }; },
+    startRush32() { startRush32(); }, hardStart32(z) { hardStart32(z); }, killBoss32() { this.killBoss(); }, beginNGP32() { beginNGP32(); }, setEndSeen32() { save.endSeen32 = true; persist(); },
+    remix32(id, ng) { const L = window.SHARDS.levels[id]; remixSeals32(L, id, ng); return L.items.map(it => ({ id: it.id, type: it.type, x: it.x, y: it.y })); },
+    azMove32(m) { if (boss) { boss.cd = 9999; boss.move = null; startMove(boss, m); } }, azProj32() { return projectiles.filter(p => p.az32).map(p => ({ k: p.az32, x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life, home: p.home32 | 0 })); }, sparks32() { return sparks32.length; }, bossInfo32() { return boss ? { x: boss.x, y: boss.y, visible: boss.visible, move: boss.move, phase: boss.phase, cd: boss.cd } : null; },
+    dgEnter32(o) { enterDungeon(o); }, dgFinish32(a) { dgFinish(a); }, openDgSetup32() { dgOpenSetup32(); },
+    openEndgame32() { scene = "endgame32"; eg32Ix = 0; }, setDye32(id) { save.dye32 = id; save.dyes32 = save.dyes32 || {}; if (id) save.dyes32[id] = 1; }, bakeKey32() { return bakeKey32(); },
+    dgSetup32() { return dgSetupS ? { ix: dgSetupS.ix, mode: dgSetupS.mode, code: dgSetupS.code, mods: dgSetupS.mods.slice(), edit: dgSetupS.edit, board: !!dgSetupS.boardView } : null; }, dgDaily32(ds) { return dailyCode(ds); }, dgCodeSeed32(c) { return codeToSeed(c); }, deviceBoard32() { return deviceBoard(); },
     throwErrors31(n) { dbgThrow31 = n; }, errors31() { return { n: window.SHARDS.errors | 0, rec: window.SHARDS.recovered | 0 }; },
     enemyPixels31(type, swap) {
       if (!dg || !level.dungeon) return -1; const cx = player.x + 40, p = level.platforms.find(q => q.k === 'ground' && player.x + 40 > q.x && player.x + 40 < q.x + q.w) || { y: player.y + player.h };
@@ -6674,6 +7140,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     requestAnimationFrame(frame);   // always schedule the next frame: an exception must never freeze the game
   }
   // v3.1 watchdog: an exception in update/draw/scene change is logged and the game recovers to a valid state instead of freezing.
+  let hideW32 = false, noClip32 = false;
   let dbgThrow31 = 0, errRun31 = 0, okFrames31 = 0;
   function watchdog31(e) {
     errRun31++; okFrames31 = 0; acc = 0;

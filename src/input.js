@@ -65,6 +65,7 @@
 
     _bind() {
       window.addEventListener("keydown", (e) => {
+        if (e.key && e.key.length === 1 && /[A-Za-z0-9]/.test(e.key)) this.typed32 = ((this.typed32 || "") + e.key).slice(-8);   // v3.2: seed entry
         if (this.lastDevice !== "kb" && this.onDevice) { this.lastDevice = "kb"; this.onDevice("kb"); }
         this.lastDevice = "kb";
         const k = this._norm(e);

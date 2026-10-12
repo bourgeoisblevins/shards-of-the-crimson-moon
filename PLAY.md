@@ -239,3 +239,24 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
 * Cards now show pictures with rarity frames. From floor 6 Epic/Legendary **fragment cards** appear (Crown on the cult path); they last for the run.
 * Runs always start from a bare baseline; your real gear is restored afterwards.
 * Collecting all six fragments in one run reveals a secret companion.
+
+## v3.2: intro, endgame, NG+, Delve seeds
+
+- **Intro.** A new file opens with a short cutscene for your path. It covers the Nexus, the Deep, the Great War and the Shattering, then hands you to Ryan (Order) or General Jeriah (cult).
+  - Confirm or tap advances the text.
+  - To skip, hold confirm for a second, or press Esc or B, or tap SKIP.
+- **Endgame** (on the hub travel list, once you hold every fragment on your path, or after an ending):
+  - **Boss Rush.** Fight every boss on your path in a row. Your HP carries over, and you get one flask back between fights. Your first clear unlocks the Pilgrim's Gold cloak dye.
+  - **Hard rematches.** Bosses have more HP, move faster and hit harder. Your first win against each one unlocks that boss's cloak dye.
+  - **Cloak dyes.** Choose a dye in the Endgame menu. It recolours your cloak everywhere except in the Delve.
+  - **New Game+.** Start the story again and keep your charms, weapons, enchantments, skills, aurels and NIP. Enemies and bosses get tougher with each cycle, and the seals move to different secret spots.
+- **Delve setup.** The portal now opens a setup screen with these options:
+  - **Seed.** Choose Random, Daily (everyone gets the same dungeon that day), or a 6-character code you can type and share. The code is shown on the HUD and on the results screen.
+  - **Modifiers:**
+    - Glass Cannon: you deal and take double damage.
+    - Double Enemies.
+    - Hasty Foes.
+    - Dry Flask: your flask isn't refilled after the first floor.
+  - **Records.** See the best depths for this file and for this device (the device board covers every file), plus today's daily best.
+- **Azmardus.** He now casts red comet bolts, a three-comet volley and a slow homing eye-orb (only one at a time). Magic sparks gather where he is about to reappear after a teleport.
+- **Look.** Fragments, including the cult Crown, are now part of the player sprite instead of being pasted on top. Weapons no longer poke into the floor art.
