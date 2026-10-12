@@ -162,11 +162,12 @@
     normV23();
     if ((save.version | 0) === 23 && !save.migratedFrom) save.migratedFrom = "v2.3";
     if ((save.version | 0) === 24 && !save.migratedFrom) save.migratedFrom = "v2.4";
-    normV25(); normV26(); normV27(); normV28(); normV29();
+    normV25(); normV26(); normV27(); normV28(); normV29(); normV30();
     if ((save.version | 0) === 26 && !save.migratedFrom) save.migratedFrom = "v2.6";
     if ((save.version | 0) === 27 && !save.migratedFrom) save.migratedFrom = "v2.7";
     if ((save.version | 0) === 28 && !save.migratedFrom) save.migratedFrom = "v2.8";
-    save.version = 29;
+    if ((save.version | 0) === 29 && !save.migratedFrom) save.migratedFrom = "v2.9";
+    save.version = 30;
   }
   normalizeSave();
   function persist() {
@@ -176,12 +177,12 @@
       vibration: vibrationOn(), difficulty, padScale: padScaleCur, scheme: touchScheme,
       ledgeAssist: !(save.settings && save.settings.ledgeAssist === false)
     };
-    save.version = 29;
+    save.version = 30;
     const gl = {}; for (const k of GLOBAL_KEYS) gl[k] = save.settings[k];
     SL.setGlobals(gl); // volume, touch layout, vibration, ledge assist, fullscreen: shared by every file
     if (activeSlot == null && DEBUGMODE() && save.path) activeSlot = 0; // test convenience: debug helpers that set a path before any file was picked use File 1
     if (activeSlot != null) {
-      if (SL.write(activeSlot, save)) { saveFlash = 80; const m = SL.meta(); m.last = { slot: activeSlot, ts: Date.now() }; SL.setMeta(m); }
+      if (SL.write(activeSlot, dg ? dgView() : save)) { saveFlash = 80; const m = SL.meta(); m.last = { slot: activeSlot, ts: Date.now() }; SL.setMeta(m); }
       else saveFail = 260;
     }
     if (DEBUGMODE()) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} } // debug builds mirror the active file under the old key (tests read it)
@@ -407,6 +408,7 @@
   }
   function toast(text) { popup = { text, t: 150 }; }
   function wz() {
+    if (dg && level && level.dungeon) return dg.S || (dg.S = dgFreshS());
     const zid = level && level.zone; if (!zid) return null;
     if (!save.world[zid]) save.world[zid] = { seals: {}, doors: {}, broken: {}, items: {}, blocks: {}, elites: {}, levers: {}, cp: null, map: {}, lit: {} };
     return save.world[zid];
@@ -638,6 +640,7 @@
   }
   const PW_IDS = ["ember", "gale", "ward", "guard", "speed"];
   function onEnemyKilled(e) {
+    if (dg) { dg.kills++; dg.noProg = 0; }
     v23Kill(e);
     if (stats.tithe && ++w22.tithe >= 4) { w22.tithe = 0; if (player.hp < player.maxHp) { player.hp++; synth.sfx("heal"); fxAdd("claim", player.x + 6, player.y + 6, {}); } }
     if (!level.tiled || !w22) return;
@@ -1149,8 +1152,8 @@
     const z = window.SHARDS.zones.find(z => z.id === zoneId);
     const ramp = (z && P().bosses[z.palette || z.bossId]) ? P().bosses[z.palette || z.bossId].ramp : P().ground.ash;
     const T22L = level && level.tiled, DR = diffRules(), el = !!def.elite;
-    const hp0 = Math.max(1, Math.round(st.hp * (T22L ? DR.hp : 1) * (el ? 3.2 : 1)));
-    const dmg0 = st.damage + (T22L && (st.behavior === "charger" || st.behavior === "jumper") ? 1 : 0) + (el ? 1 : 0);
+    const hp0 = Math.max(1, Math.round(st.hp * (T22L ? DR.hp : 1) * (el ? 3.2 : 1) * (def.hpMul || 1)));
+    const dmg0 = st.damage + (T22L && (st.behavior === "charger" || st.behavior === "jumper") ? 1 : 0) + (el ? 1 : 0) + (def.dmgAdd || 0);
     return {
       type: def.type, x: def.x, y: def.y, w: st.w, h: st.h, elite: el, clearStage: !!def.clear, id: def.id || null, drop: def.drop || null, lockRoom: def.room || null,
       vx: 0, vy: 0, onGround: false, facing: -1,
@@ -1199,9 +1202,10 @@
   function openSettings(from) { scene = "settings"; settingsIx = 0; settingsFrom = from || "title"; }
 
   function enterHub() {
+    if (dg) { dgFinish(); return; }
     if (!path) { enterPath(); return; }
     levelId = path === "order" ? "orderHub" : "cultHub"; save.lastZone = "hub";
-    level = window.SHARDS.levels[levelId];
+    level = window.SHARDS.levels[levelId]; level.dungeonGate = { x: 16, y: 116, w: 28, h: 48 };
     recomputeStats();
     player = makePlayer(level.spawn.x, level.spawn.y);
     boss = null; A26 = null; enemies = []; projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = [];
@@ -1221,6 +1225,7 @@
     if (!save.tut27 || typeof save.tut27 !== "object") save.tut27 = {};
     if (!save.hooks27 || typeof save.hooks27 !== "object") save.hooks27 = { used: 0, swings: 0, ledges: 0 };
   }
+  function normV30() { const d = save.dungeon30 && typeof save.dungeon30 === "object" ? save.dungeon30 : {}; save.dungeon30 = { best: Math.max(0, d.best | 0), runs: Math.max(0, d.runs | 0), kills: Math.max(0, d.kills | 0) }; }
   function normV29() { save.playF = Math.max(0, Math.min(2e9, Math.floor(+save.playF || 0))); if (typeof save.lastZone !== "string") save.lastZone = null; }
   function normV28() {
     if (!save.settings || typeof save.settings !== "object") save.settings = {};
@@ -2078,6 +2083,7 @@
   }
   // ----- replay rematch -----
   function enterRematch26(frag) {
+    if (dg) { dgBossDown(); return; }
     const N = W23(), n = Math.round(N.coin.boss * W26().rematch.aurelsMul);
     V().aurels += n; if (W26().rematch.nip) { V().nip += W26().rematch.nip; V().nipTotal += W26().rematch.nip; }
     save.replays[frag] = (save.replays[frag] | 0) + 1; persist();
@@ -2322,6 +2328,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
   let lastClaimed = null;
   function enterClaim(frag) {
+    if (dg) { dgBossDown(); return; }
     if (frag && save.claimed[frag]) { enterRematch26(frag); return; }
     scene = "claim"; lastClaimed = frag; claimT = 0;
     const tmpl = path === "order" ? T().claim.order : T().claim.cult;
@@ -2332,7 +2339,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     { const zz = window.SHARDS.zones.find(z => z.fragment === frag); claimExtra = awardBoss(zz ? zz.bossId : frag); }
     synth.sfx("claim"); rumble("claim");
   }
-  function enterDefeat() { scene = "defeat"; menuIx = 0; synth.sfx("death"); }
+  function enterDefeat() { if (dg) { dgDeath(); return; } scene = "defeat"; menuIx = 0; synth.sfx("death"); }
   function enterEnding() {
     endHead26 = ""; endSecret26 = "";
     scene = "ending";
@@ -2580,6 +2587,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const Cc = W24().charm;
     let b = (stats.stand && player.hp <= 2 ? 1 : 0) + stats.reson + (stats.ashen && ashenOn() ? Cc.ashen.dmg : 0) + (player.faithT > 0 ? Cc.faith.dmg : 0);
     let d = base + Math.min(3, b);   // v2.4 cap: situational/charm bonuses never add more than +3 before Glass Heart
+    if (dg) d += dg.might;
     return stats.glass ? d * 2 : d;
   }
   function hurtPlayer(n, kbDir, src) {
@@ -2599,7 +2607,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     { const cut = (player.sgT > 0 ? Cc.guard.cut : 0) + (player.faithT > 0 ? Cc.faith.cut : 0); if (cut) { n = Math.max(0, n - cut); if (n === 0) { player.inv = 36; synth.sfx("guardUp"); fx24.push({ sh: "fx24-small", nm: "guard", n: 4, x: player.x + 6, y: player.y + 10, t: 0, rate: 3 }); return; } } }
     if (stats.sGuard && !(player.sgCD > 0)) { player.sgT = Cc.guard.window; player.sgCD = Cc.guard.cd; synth.sfx("guardUp"); fx24.push({ sh: "fx24-small", nm: "guard", n: 4, x: player.x + 6, y: player.y + 10, t: 0, rate: 3 }); }
     player.snake = 0; player.chargeT = 0;
-    player.hp -= n; player.inv = D.inv + stats.invBonus; flash = 4; shake = 6;
+    player.hp -= n; if (dg) dg.taken += n; player.inv = D.inv + stats.invBonus; flash = 4; shake = 6;
     const armored = player.atk > 0 && player.hit26 && player.hit26.armor;
     if (armored) { player.hurtT = 6; }
     else {
@@ -2621,6 +2629,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (e.blocks >= 3) { e.blocks = 0; e.guardT = 0; e.sm = 0; e.stun = 46; e.anim = "idle"; toast(T28().guardBreak); }
       return;
     }
+    if (dg) { dg.dealt += n; dg.noProg = 0; }
     e.hp -= n; e.inv = hitCtx ? Math.max(5, Math.min(12, Math.round(10 * wpn().cd))) : 12; knock(e, o);
     if (e.behavior === "bound") { e.attackT = 0; }
     e.anim = "hurt"; synth.sfx("enemyHurt"); doHitstop(2); shake = 3; rumble("hit");
@@ -2633,6 +2642,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function damageBoss(n) {
     if (!boss || boss.inv > 0 || boss.dead) return;
     if (A26) { n = bossHit26(boss, n); if (!(n > 0)) return; }
+    if (dg) dg.dealt += n;
     boss.hp -= n; boss.inv = 16;
     boss.vx = player.facing * 0.5; boss.vy = -0.3;
     if (hitCtx) applyEnch(boss, true);
@@ -3510,6 +3520,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       }
     }
     if (nearTravel && input.pressed("confirm")) { synth.sfx("menu"); enterTravel(); }
+    else if (nearDungeon() && input.pressed("confirm")) { synth.sfx("menu"); openConfirm(T30().hub.confirmTitle, T30().hub.confirmBody, () => enterDungeon()); }
   }
   function updateTravel() {
     const rows = travelRows(), n = rows.length;
@@ -3533,6 +3544,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (level.tiled && w22) {
       if (readText) { if (input.pressed("confirm") || menuBack()) { readText = readQ.length ? readQ.shift() : null; if (!readText) endRead28(); } input.clearJust(); return; }
       updateWorld22Pre(); tipTick27(); plainsTick28();
+      if (dg && level.dungeon && dgTick()) return;
       if (level.guardianGate && !gTrig26 && aabb(player, level.guardianGate)) { gTrig26 = true; synth.sfx("gate"); goScene(() => enterGuardian26()); }
       if (updateInteract()) return;
       updatePlayer(); playerStrikeHit(); updateEnemies(); updateProjectiles(); updateParticles(); updateWorld22Post(); updateAmbient(); updateCamera(); updateCoins(); updateEfx();
@@ -3563,6 +3575,243 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     for (const m of teleMarks) m.life--;
     teleMarks = teleMarks.filter(m => m.life > 0);
   }
+  // ================= v3.0: the Dungeon (Delve mode) =================
+  const T30 = () => window.SHARDS.text30, D30 = () => window.SHARDS.dungeon30;
+  function dgFmt(str, o) { return fmtT29(str, o); }
+  let dg = null, dgResult = null, dgPickS = null, dgFailS = null;
+  const NIP_FIX = { order: ["serpentguard", "purifyflame", "unbrokenfaith"], cult: ["snakecharmer", "magikexp", "crimsonhunger", "shatteredshadow", "ashencovenant"] };
+  const dgSnap = () => JSON.parse(JSON.stringify({ charms: save.charms, notches: save.notches, vessels: save.vessels, v23: save.v23 }));
+  const dgView = () => Object.assign({}, save, { charms: dg.snap.charms, notches: dg.snap.notches, vessels: dg.snap.vessels, v23: dg.snap.v23 }); // what autosave writes during a run: the run-only upgrades never reach the file
+  function enterDungeon() {
+    if (!path) return;
+    const seed = ((Date.now() ^ ((Math.random() * 1e9) | 0)) >>> 0) || 7;
+    dg = { seed, depth: 1, fails: 0, snap: dgSnap(), aur0: V().aurels, nipEarned: 0, t: 0, noProg: 0, S: null, rem: 0, kills: 0, cleared: 0, dealt: 0, taken: 0, picks: [], rescued: 0, dissolved: 0, bosses: 0, might: 0, beacon: false, opened: false, live: true, prevBest: save.dungeon30.best | 0 };
+    save.dungeon30.runs++; persist();
+    goScene(() => dgStartFloor());
+  }
+  function dgFreshS() { return { seals: {}, doors: {}, broken: {}, items: {}, blocks: {}, elites: {}, levers: {}, cp: null, map: {}, lit: {} }; }
+  function dgStartFloor() {
+    dgFailS = null; dgPickS = null; dg.noProg = 0; dg.beacon = false; dg.opened = false; dg.S = dgFreshS(); dg.rem = 0;
+    save.dungeon30.best = Math.max(save.dungeon30.best | 0, dg.depth);
+    if (D30().isBoss(dg.depth)) {
+      const zone = D30().BOSS_ZONES[((dg.depth / 5 - 1) | 0) % D30().BOSS_ZONES.length];
+      enterArena(zone);
+      introHold = 0; bossIntroCard = 0; introPages = [""]; introPage = 0;
+      const m = 1 + 0.06 * dg.depth; boss.hp = boss.maxHp = Math.round(boss.hp * m);
+      flaskRefill(true); titleCard = 0; persist(); return;
+    }
+    const L = D30().gen(dg.seed, dg.depth);
+    window.SHARDS.levels.dungeon30 = L; levelId = "dungeon30"; level = L;
+    ART().levels.dungeon30 = ART().levels[L.zone + "_traverse"] || ART().levels[L.zone];
+    readQ = []; A26 = null; gTrig26 = false; tip27 = null; hookFx27 = [];
+    recomputeStats(); powers = {};
+    player = makePlayer(L.spawn.x, L.spawn.y); boss = null;
+    projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = []; cameraX = 0; cameraY = 0; pickups = [];
+    initWorld22(); buildCur(); worldRespawnEnemies();
+    cameraX = 0; cameraY = Math.max(0, Math.min(L.h - VH, player.y - VH * 0.6));
+    scene = "traverse"; seedAmbient(); fxList = [];
+    ensureWeapons(); coins = []; efx = []; readText = null; flaskRefill(true);
+    titleCard = 90; titleCardText = L.title; fade = 16; fadeDir = -1;
+    setMusic(L.zone); persist();
+  }
+  const dgAlive = () => enemies.filter(e => !e.dead);
+  function dgRescue(e) {
+    const sp = level.dungeon.spots; if (!sp.length) return;
+    const px = player.x + 6, py = player.y + 20; let best = sp[0], bd = 1e9;
+    for (const s of sp) { const dx = Math.abs(s.x - px); let d = Math.abs(dx - 110) + Math.abs(s.y - py) * 2 + (dx < 50 ? 200 : 0); if (d < bd) { bd = d; best = s; } }
+    e.x = best.x - e.w / 2; e.y = best.y - e.h - 1; e.vx = e.vy = 0; e.stun = 0; e.fell = false; e.pin = 0; e.inv = 24; e.alert = 600; e.onGround = false;
+    fxAdd("puff", e.x + e.w / 2, e.y + e.h, {}); dg.rescued++; synth.sfx("telegraph");
+  }
+  function dgDissolve(e) {
+    e.hp = 0; e.dead = true; e.anim = "death"; e.animT = 0; dg.dissolved++; fxAdd("puff", e.x + e.w / 2, e.y + e.h, {});
+    if (e.elite && w22) { for (const d of eliteDoors()) d.open = true; w22.eliteLock = null; }
+  }
+  function dgWatch(e) { // out of bounds or pinned inside solid ground: bring it back at once
+    if (e.dead) return;
+    const L = level;
+    if (e.fell || e.y > L.h + 8 || e.x < -24 || e.x > L.w + 24) { e.fell = false; dgRescue(e); toast(T30().hud.rescued); return; }
+    let inside = false; const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+    for (const p of L.platforms) if (!p.oneWay && cx > p.x + 1 && cx < p.x + p.w - 1 && cy > p.y + 2 && cy < p.y + p.h - 2) { inside = true; break; }
+    e.pin = inside ? (e.pin | 0) + 1 : 0;
+    if (e.pin > 30) { dgRescue(e); toast(T30().hud.rescued); }
+  }
+  function dgTick() {
+    const alive = dgAlive(); dg.noProg++;
+    for (const e of alive) dgWatch(e);
+    const rem = alive.length + (w22 ? w22.eliteWait.length : 0); dg.rem = rem;
+    if (rem > 0) {
+      // no progress for a long time: the last foes glow (15 s), are brought to the player (25 s), and finally crumble (50 s)
+      if (dg.noProg === 900) { dg.beacon = true; toast(T30().hud.beacon); synth.sfx("telegraph"); }
+      if (dg.noProg === 1500) { for (const e of alive) dgRescue(e); if (alive.length) toast(T30().hud.rescued); }
+      if (dg.noProg === 3000) { for (const e of alive) dgDissolve(e); if (alive.length) toast(T30().hud.dissolved); }
+    } else if (!dg.opened) { dg.opened = true; dg.beacon = false; toast(T30().hud.open); synth.sfx("door"); }
+    const ex = level.dungeon.exit;
+    if (aabb(player, { x: ex.x - 10, y: ex.y, w: ex.w + 20, h: ex.h }) && input.pressed("confirm") && !player.dead) {
+      if (rem === 0) { dg.cleared++; synth.sfx("gate"); goScene(() => dgOpenPick(false)); return true; }
+      toast(T30().hud.locked); synth.sfx("locked");
+    }
+    return false;
+  }
+  function dgBossDown() { dg.bosses++; dg.kills++; dg.cleared++; goScene(() => dgOpenPick(true)); }
+  // ----- upgrade cards -----
+  function dgCards(boss) {
+    const R = D30().rng((dg.seed * 31 + dg.depth * 7 + 3) >>> 0), ri = (n) => Math.floor(R() * n), d = dg.depth;
+    const rarRoll = () => { const w = [Math.max(10, 70 - d * 5), 25 + d * 1.5, 5 + d * 2, d >= 8 ? (d - 7) * 2 : 0]; if (boss) { w[0] = 0; w[1] *= 0.5; w[2] *= 1.5; w[3] = Math.max(w[3], 3); } let t = R() * (w[0] + w[1] + w[2] + w[3]); for (let i = 0; i < 4; i++) { if (t < w[i]) return i; t -= w[i]; } return 0; };
+    const v = V(), TT = T30().pick, W = W23(), cats = ["charm", "weapon", "upgrade", "upgrade", "nip", "aurels"];
+    for (let i = cats.length - 1; i > 0; i--) { const j = ri(i + 1); [cats[i], cats[j]] = [cats[j], cats[i]]; }
+    const cards = [], used = new Set();
+    const make = (cat) => {
+      const rar = rarRoll();
+      if (cat === "charm") {
+        const bad = NIP_FIX[path === "order" ? "cult" : "order"];
+        const pool = W22().charmOrder.filter(c => !save.charms.owned.includes(c) && !bad.includes(c));
+        if (!pool.length) return null; const id = pool[ri(pool.length)];
+        return { cat, rar, id, name: dgFmt(TT.charm, { name: charmName(id) }), desc: TT.charmDesc, apply() { addCharm(id, true); if (!save.charms.equipped.includes(id)) save.charms.equipped.push(id); while (notchUsed() > save.notches) save.notches++; } };
+      }
+      if (cat === "weapon") {
+        const ids = Object.keys(W.weapons).filter(w => !W.ranged.includes(w)); const id = ids[ri(ids.length)], ench = W.ench, t1 = ench[ri(ench.length)];
+        let t2 = null; if (rar === 3) { const o = ench.filter(x => x !== t1); t2 = o[ri(o.length)]; }
+        const k = rar === 0 ? 1 : rar === 1 ? 2 : 3;
+        return { cat, rar, id, name: dgFmt(TT.weapon, { name: weaponName(id) }), desc: t2 ? dgFmt(TT.weaponDescMax, { ench: enchName(t1), ench2: enchName(t2) }) : dgFmt(TT.weaponDesc, { ench: enchName(t1), k }),
+          apply() { if (!v.melee.owned.includes(id)) v.melee.owned.push(id); v.melee.main = id; if (!v.enchs) v.enchs = {}; v.enchs[id] = { [t1]: k }; v.ench[id] = { t: t1, k }; if (t2) { v.enchs[id][t2] = 3; v.ench[id] = { t: t2, k: 3 }; } } };
+      }
+      if (cat === "nip") { const n = [1, 2, 3, 5][rar]; return { cat, rar, name: TT.nip, desc: dgFmt(TT.nipDesc, { n }), apply() { v.nip += n; v.nipTotal += n; dg.nipEarned += n; } }; }
+      if (cat === "aurels") { const n = [40, 90, 180, 350][rar]; return { cat, rar, name: TT.aurels, desc: dgFmt(TT.aurelsDesc, { n }), apply() { v.aurels += n; } }; }
+      const subs = ["vital", "flask", "might", "mend", "quiver"].filter(s => !(s === "flask" && v.flaskMax >= 7) && !(s === "might" && dg.might >= 4));
+      const s = subs[ri(subs.length)];
+      if (s === "vital") { const n = [1, 1, 2, 3][rar]; return { cat: "upgrade", sub: s, rar, name: TT.vital, desc: dgFmt(TT.vitalDesc, { n }), apply() { save.vessels = (save.vessels | 0) + n; } }; }
+      if (s === "flask") return { cat: "upgrade", sub: s, rar, name: TT.flask, desc: TT.flaskDesc, apply() { v.flaskMax = Math.min(7, v.flaskMax + 1); } };
+      if (s === "might") return { cat: "upgrade", sub: s, rar, name: TT.might, desc: TT.mightDesc, apply() { dg.might++; } };
+      if (s === "mend") return { cat: "upgrade", sub: s, rar, name: TT.mend, desc: TT.mendDesc, apply() { save.vessels = (save.vessels | 0) + 1; } };
+      const n = [2, 3, 4, 6][rar]; return { cat: "upgrade", sub: s, rar, name: TT.quiver, desc: dgFmt(TT.quiverDesc, { n }), apply() { v.arrowMax = Math.min(20, v.arrowMax + n); v.arrows = v.arrowMax; } };
+    };
+    for (const cat of cats) {
+      if (cards.length >= 3) break;
+      if (cat === "upgrade" ? cards.some(c => c.cat === "upgrade") : used.has(cat)) continue;
+      const c = make(cat); if (!c) continue; used.add(cat); cards.push(c);
+    }
+    return cards;
+  }
+  function dgOpenPick(boss) {
+    scene = "dgpick"; dgPickS = { ix: 1, cards: dgCards(boss), boss, t: 0 }; menuIx = 0; synth.sfx("charmGet"); persist();
+  }
+  function dgChoose(i) {
+    const c = dgPickS.cards[i]; c.apply(); dg.picks.push(c.name); synth.sfx("charmGet"); recomputeStats();
+    dg.depth++; goScene(() => dgStartFloor());
+  }
+  function updateDgPick() {
+    const s = dgPickS, n = s.cards.length; s.t++;
+    if (input.pressed("left")) { s.ix = (s.ix + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("right")) { s.ix = (s.ix + 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("confirm") && s.t > 12) { synth.sfx("menu"); dgChoose(s.ix); }
+  }
+  const dgRarCol = () => [P().order.boneShade, P().order.nexus, P().cult.emberLight, P().order.illumination];
+  function drawDgPick() {
+    const s = dgPickS, TT = T30().pick; uiT++;
+    drawImg(ART().ui.title.path, 0, 0); g.globalAlpha = 0.78; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
+    drawText(TT.heading, W / 2, 10, P().order.illumination, "center");
+    drawText(dgFmt(TT.sub, { n: dg.depth }), W / 2, 24, P().ground.smoke, "center");
+    const cw = 140, gap = 10, x0 = ((W - (3 * cw + 2 * gap)) / 2) | 0, y0 = 46, ch = 150, col = dgRarCol();
+    s.cards.forEach((c, i) => {
+      const x = x0 + i * (cw + gap), sel = s.ix === i;
+      panel(x, y0 - (sel ? 4 : 0), cw, ch, sel ? "panelSel" : "panel");
+      rect(x + 4, y0 + 4 - (sel ? 4 : 0), cw - 8, 3, col[c.rar]);
+      drawText(TT.rar[c.rar], x + cw / 2, y0 + 14 - (sel ? 4 : 0), col[c.rar], "center");
+      const lines = wrapLines(c.name, cw - 16);
+      lines.forEach((ln, k) => drawText(ln, x + cw / 2, y0 + 36 + k * LH - (sel ? 4 : 0), sel ? P().order.illumination : P().order.bone, "center"));
+      wrapLines(c.desc, cw - 16).forEach((ln, k) => drawText(ln, x + cw / 2, y0 + 36 + (lines.length + 1) * LH + k * LH - (sel ? 4 : 0), P().ground.smoke, "center"));
+      tapTarget(x, y0, cw, ch, () => { if (s.ix === i) input.tap("confirm"); else s.ix = i; });
+    });
+    drawText(touchUI() ? TT.hintTouch : padUI() ? TT.hintPad : TT.hint, W / 2, H - 16, P().ground.smoke, "center");
+  }
+  // ----- failure, end of run -----
+  function dgDeath() {
+    synth.sfx("death"); dg.fails++;
+    if (dg.fails >= 3) { dgFinish(); return; }
+    scene = "dgfail"; dgFailS = { n: dg.fails, t: 0 }; menuIx = 0;
+  }
+  function updateDgFail() { dgFailS.t++; if (input.pressed("confirm") && dgFailS.t > 20) { synth.sfx("menu"); goScene(() => dgStartFloor()); } }
+  function drawDgFail() {
+    const TT = T30().fail; rect(0, 0, W, H, P().ground.obsidian);
+    drawText(dgFmt(TT.title, { n: dgFailS.n }), W / 2, 96, P().cult.emberLight, "center");
+    drawText(TT.body, W / 2, 116, P().order.bone, "center");
+    for (let i = 0; i < 3; i++) rect(W / 2 - 24 + i * 18, 136, 12, 12, i < dgFailS.n ? P().cult.ember : P().ground.stone3);
+    drawText(touchUI() ? TT.promptTouch : padUI() ? TT.promptPad : TT.prompt, W / 2, 166, P().order.illumination, "center");
+    tapTarget(0, 0, W, H, () => input.tap("confirm"));
+  }
+  function dgFinish(abort) {
+    if (!dg) return;
+    const d = dg, r = {
+      kills: d.kills, cleared: d.cleared, deepest: d.depth, time: Math.round(d.t / 60), dealt: d.dealt, taken: d.taken, aurels: Math.max(0, V().aurels - d.aur0), nip: d.nipEarned,
+      picks: d.picks.slice(), rescued: d.rescued + d.dissolved, bosses: d.bosses, fails: d.fails
+    };
+    r.homeA = Math.floor(r.aurels / 2); r.homeN = Math.floor(r.nip / 2);
+    save.charms = d.snap.charms; save.notches = d.snap.notches; save.vessels = d.snap.vessels; save.v23 = d.snap.v23; // run-only upgrades end here
+    if (!abort) { const v = V(); v.aurels += r.homeA; v.nip += r.homeN; v.nipTotal += r.homeN; } else { r.homeA = r.homeN = 0; }
+    const s = save.dungeon30; r.best = Math.max(s.best | 0, d.depth); r.newBest = d.depth > d.prevBest; s.best = r.best; s.kills += d.kills;
+    dg = null; dgPickS = null; dgFailS = null; recomputeStats(); persist();
+    if (abort) return;
+    dgResult = r; scene = "dgend"; menuIx = 0; setMusic("title"); synth.sfx("bossDefeat");
+  }
+  function updateDgEnd() { dgResult.t = (dgResult.t | 0) + 1; if (input.pressed("confirm") && dgResult.t > 20) { synth.sfx("menu"); goScene(() => enterHub()); } }
+  function drawDgEnd() {
+    const r = dgResult, TT = T30().end; uiT++;
+    drawImg(ART().ui.title.path, 0, 0); g.globalAlpha = 0.8; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
+    drawText(TT.title, W / 2, 8, P().cult.emberLight, "center");
+    const mm = Math.floor(r.time / 60), ss = r.time % 60, vals = [r.kills, r.cleared, r.deepest, mm + ":" + String(ss).padStart(2, "0"), r.dealt, r.taken, r.aurels, r.nip, r.picks.length, r.rescued];
+    panel(70, 24, W - 140, 12 + vals.length * 15);
+    vals.forEach((v, i) => { drawText(TT.rows[i], 84, 31 + i * 15, P().order.bone); drawText(String(v), W - 84, 31 + i * 15, P().order.illumination, "right"); });
+    let y = 24 + 12 + vals.length * 15 + 6;
+    drawText(r.newBest ? TT.best : dgFmt(TT.bestIs, { n: r.best }), W / 2, y, r.newBest ? P().order.illumination : P().ground.smoke, "center"); y += 14;
+    drawText(dgFmt(TT.home, { a: r.homeA, n: r.homeN }), W / 2, y, P().order.nexus, "center");
+    drawText(touchUI() ? TT.retTouch : padUI() ? TT.retPad : TT.ret, W / 2, H - 14, P().order.illumination, "center");
+    tapTarget(0, 0, W, H, () => input.tap("confirm"));
+  }
+  // ----- in-floor drawing -----
+  function dgSwapFilter() {
+    const s = level.dungeon && level.dungeon.swap; if (!s || s === "none") return;
+    g.save(); g.globalCompositeOperation = "color"; g.globalAlpha = 0.5; g.fillStyle = D30().SWAPHEX[s]; g.fillRect(0, 0, W, H); g.restore();
+  }
+  function dgArrow(sx, sy, col) {
+    const cx = Math.max(10, Math.min(W - 10, sx)), cy = Math.max(26, Math.min(H - 26, sy)), dx = sx - cx, dy = sy - cy, h = Math.abs(dx) > Math.abs(dy);
+    const sgn = h ? Math.sign(dx) : Math.sign(dy);
+    for (let i = 0; i < 5; i++) { if (h) rect(cx - sgn * i, cy - (4 - i), 2, (4 - i) * 2 + 1, col); else rect(cx - (4 - i), cy - sgn * i, (4 - i) * 2 + 1, 2, col); }
+  }
+  function drawDgHud() {
+    const Tt = T30().hud, boss = scene === "arena";
+    const txt = dgFmt(Tt.floor, { n: dg.depth }) + (boss ? "" : "   " + dgFmt(Tt.foes, { n: dg.rem })) + "   " + dgFmt(Tt.fails, { n: dg.fails });
+    const w = measure(txt) + 14; panel(((W - w) / 2) | 0, 2, w, 16); drawText(txt, W / 2, 6, P().order.bone, "center");
+    if (boss || scene === "pause") return;
+    const pulse = 0.35 + 0.25 * Math.sin(animT / 8);
+    for (const e of enemies) {
+      if (e.dead) continue;
+      const sx = wx(e.x + e.w / 2), sy = wy(e.y), off = sx < 0 || sx > W || sy < 0 || sy > H;
+      if (dg.beacon || dg.rem <= 3) { g.globalAlpha = pulse; rect(sx - 1, 0, 3, Math.max(0, sy - 6), P().order.illumination); rect(sx - 6, sy - 10, 13, 3, P().order.illumination); g.globalAlpha = 1; }
+      if (off && (dg.beacon || dg.rem <= 5)) dgArrow(sx, sy, P().cult.emberLight);
+    }
+    if (dg.opened) { const ex = level.dungeon.exit, sx = wx(ex.x + 12), sy = wy(ex.y); if (sx < 0 || sx > W) dgArrow(sx, sy, P().order.illumination); }
+  }
+  function drawDgExit() { // the way down: a door (the elite door art) that stays shut until the floor is clear
+    const ex = level.dungeon.exit, open = dg && dg.opened;
+    if (!onScr(ex.x, ex.y, 24, 48)) return;
+    dg.exitT = open ? Math.min(1, (dg.exitT || 0) + 0.06) : 0;
+    blitFrame("w22-door-elite", open ? "open" + Math.min(3, Math.floor(dg.exitT * 4)) : "closed0", wx(ex.x + 12), wy(ex.y + 48), false);
+    if (open) { g.globalAlpha = 0.3 + 0.2 * Math.sin(animT / 7); rect(wx(ex.x + 4), wy(ex.y + 6), 16, 40, P().order.illumination); g.globalAlpha = 1; }
+  }
+  function dgExitPrompt() {
+    if (!dg || !level.dungeon || scene !== "traverse") return;
+    const ex = level.dungeon.exit;
+    if (aabb(player, { x: ex.x - 10, y: ex.y, w: ex.w + 20, h: ex.h })) { const Tt = T30().hud; drawPrompt(ex.x + 12, ex.y - 4, dg.opened ? (touchUI() ? Tt.exitTouch : padUI() ? Tt.exitPad : Tt.exit) : Tt.locked); }
+  }
+  // ----- hub portal -----
+  function nearDungeon() { const gt = level && level.dungeonGate; return !!(gt && player && Math.abs(player.x + 6 - (gt.x + gt.w / 2)) < 26 && Math.abs(player.y - (gt.y + gt.h - 22)) < 30); }
+  function drawDungeonGate() {
+    const gt = level.dungeonGate; if (!gt) return;
+    const sh = "gate-vespera";
+    drawActor(sh, animFrame(sh, "idle", animT, 8), gt.x + gt.w / 2, gt.y + gt.h, false, "pal:" + P().cult.ember);
+    g.globalAlpha = 0.18 + 0.1 * Math.sin(animT / 9); rect(wx(gt.x + 4), wy(gt.y + 8), gt.w - 8, gt.h - 12, P().cult.emberLight); g.globalAlpha = 1;
+    const tt = T30().hub.name, tw = measure(tt) + 8; panel(wx(gt.x), wy(gt.y) - 18, tw, 14); drawText(tt, wx(gt.x) + 4, wy(gt.y) - 15, P().cult.emberLight);
+  }
   // ================= v2.9: save slots, file select, Continue, export / import =================
   const T29 = () => window.SHARDS.text29;
   const fmtT29 = (str, o) => str.replace(/\{(\w+)\}/g, (_, k) => o[k]);
@@ -3588,7 +3837,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     o.recovered = r.state === "recovered";
     return o;
   }
-  function verLabel29(n) { return n >= 29 ? "v2.9" : n >= 22 ? "v2." + (n - 20) : n > 0 ? "v2.0" : "v?"; }
+  function verLabel29(n) { return n >= 30 ? "v3.0" : n >= 29 ? "v2.9" : n >= 22 ? "v2." + (n - 20) : n > 0 ? "v2.0" : "v?"; }
   function sums29() { return [0, 1, 2].map(summary29); }
   // the file Continue joins: the last played one, else the most recently saved of the rest
   function continueSlot29() {
@@ -3606,6 +3855,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     SL.setMeta(m);
   }
   function detach29() { // leave the active file (saved first) and go back to a blank state
+    if (dg) dgFinish("abort");
     if (activeSlot != null) { try { persist(); } catch (_) {} }
     activeSlot = null; pendingNew = null;
     const keepDiff = "standard";
@@ -3836,6 +4086,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function update() {
     if (scene !== lastScene) { armedKey = ""; lastScene = scene; }
     input.pollGamepad();
+    if (dg && (scene === "traverse" || scene === "arena")) dg.t++;
     if (activeSlot != null && scene !== "pause" && scene !== "settings" && scene !== "path" && scene !== "title" && scene !== "files") { save.playF = (save.playF | 0) + 1; if (++autoT29 >= 3600) { autoT29 = 0; persist(); } }
     if (confirmBox) { updateConfirm(); input.clearJust(); return; }
     if (hitstop > 0) { hitstop--; input.clearJust(); return; }
@@ -3870,6 +4121,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "title") updateTitle();
     else if (scene === "path") updatePath();
     else if (scene === "files") updateFiles();
+    else if (scene === "dgpick") updateDgPick();
+    else if (scene === "dgfail") updateDgFail();
+    else if (scene === "dgend") updateDgEnd();
     else if (scene === "settings") updateSettings();
     else if (scene === "hub") {
       if (input.pressed("cancel")) { pauseIx = 0; pausePage = "main"; scene = "pause"; }
@@ -4058,6 +4312,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       const lit = allClaimed();
       drawActor(path === "order" ? "altar-order" : "altar-cult", animFrame(path === "order" ? "altar-order" : "altar-cult", lit ? "lit" : "idle", animT, 8), a.x + a.w / 2, a.y + a.h, false);
     }
+    if (level.dungeonGate && scene !== "dgpick") drawDungeonGate();
     if (level.travelPad) {
       const pad = level.travelPad;
       drawActor("travel-pad", animFrame("travel-pad", path === "order" ? "order" : "cult", animT, 7), pad.x + pad.w / 2, pad.y, false);
@@ -4468,6 +4723,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (nearGuide && !hubSaid) drawPrompt(guide.x + 8, guide.y - 14, pu ? T().pad.talk : T().prompts.talk);
       if (nearMerchantNow()) drawPrompt(merchantPos().x + 8, merchantPos().y - 14, pu ? T23().shop.promptTalk : (touchUI() ? T23().shop.promptTalkTouch : T23().shop.promptTalkKb));
       if (nearTravel) drawPrompt(pad.x + pad.w / 2, pad.y - 22, pu ? T().pad.travel : T().prompts.travel);
+      if (nearDungeon()) { const gt = level.dungeonGate, hh = T30().hub; drawPrompt(gt.x + gt.w / 2, gt.y - 18, pu ? hh.promptPad : touchUI() ? hh.promptTouch : hh.prompt); if (save.dungeon30.best) drawText(dgFmt(hh.best, { n: save.dungeon30.best }), wx(gt.x) + 2, wy(gt.y) - 26, P().ground.smoke); }
       if (nearAltar) drawPrompt(level.altar.x + 8, level.altar.y - 8, pu ? T().pad.altar : T().prompts.altar);
     }
     if (nearGuide && hubSaid) {
@@ -4787,7 +5043,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     animT++;
     camPx = Math.round(cameraX * WS); camPy = Math.round(cameraY * WS);
     const tl = !!(level.tiled && w22);
-    if (tl) { drawTiledBG(); drawBirds28(); drawInteriors28(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); drawPlains28(); } else drawBG();
+    if (tl) { drawTiledBG(); drawBirds28(); drawInteriors28(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); drawPlains28(); if (dg && level.dungeon) { dgSwapFilter(); drawDgExit(); } } else drawBG();
     drawInteractables();
     if (tl) drawWorldItems();
     drawPickups();
@@ -4810,6 +5066,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (tl && level.dark) drawDarkness();
     drawArenaDark26();
     if (player) drawHUD();
+    if (dg && (level.dungeon || scene === "arena")) drawDgHud();
+    dgExitPrompt();
     drawTip27();
     if (save.secret && save.secret.glass && scene === "hub") blitFrame("fx26-moonglass", "moonglass" + ((animT >> 3) % 4), W - 14, 92, false);
     if (boss && (scene === "arena" || scene === "pause")) drawBossBar();
@@ -4879,6 +5137,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "title") drawTitle();
     else if (scene === "path") drawPath();
     else if (scene === "files") drawFiles();
+    else if (scene === "dgpick") drawDgPick();
+    else if (scene === "dgfail") drawDgFail();
+    else if (scene === "dgend") drawDgEnd();
     else if (scene === "settings") drawSettings();
     else if (scene === "claim") drawClaim();
     else if (scene === "stageclear") { drawWorld(); drawStageClear(); }
@@ -4914,6 +5175,18 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     files29() { return sums29(); }, fileState29() { return { scene, ix: fs29.ix, menu: fs29.menu ? { slot: fs29.menu.slot, mode: fs29.menu.mode, ix: fs29.menu.ix, items: fs29.menu.items.map(x => x[0]) } : null, msg: fs29.msgT > 0 ? fs29.msg : "", active: activeSlot, pending: pendingNew, note: slotNote }; },
     elite29() { return { n: enemies.filter(e => e.elite).length, alive: enemies.filter(e => e.elite && !e.dead).length, wait: w22 ? w22.eliteWait.length : -1, lock: !!(w22 && w22.eliteLock), doors: w22 ? w22.doors.filter(d => d.kind === "elite").map(d => d.open) : [], waitRoom: w22 && w22.eliteWait[0] ? w22.eliteWait[0].room : null }; }, worldRespawn29() { worldRespawnEnemies(); }, nez29() { return { n: nezLive29(), cap: boss ? nezCap29(boss) : 0, minions: enemies.filter(e => e.nezMinion).map(e => ({ x: e.x, y: e.y, dead: e.dead, drop: e.drop, summoned: e.summoned, behavior: e.behavior })) }; },
     newFile29(i, p) { beginNew29(i); path = p; save.path = p; normalizeSave(); persist(); }, 
+    dg30() { return dg ? { depth: dg.depth, fails: dg.fails, rem: dg.rem, kills: dg.kills, opened: dg.opened, beacon: dg.beacon, noProg: dg.noProg, rescued: dg.rescued, dissolved: dg.dissolved, picks: dg.picks.slice(), might: dg.might, seed: dg.seed, bosses: dg.bosses, dealt: dg.dealt, taken: dg.taken, t: dg.t } : null; }, dgResult30() { return dgResult; }, dgPick30() { return dgPickS ? { ix: dgPickS.ix, cards: dgPickS.cards.map(c => ({ cat: c.cat, rar: c.rar, name: c.name, desc: c.desc })) } : null; },
+    enterDungeon30() { enterDungeon(); }, dgSetNoProg30(n) { if (dg) dg.noProg = n; }, dgSeed30(n) { if (dg) dg.seed = n; }, dgFloor30(n) { if (dg) { dg.depth = n; dgStartFloor(); } }, dgLevel30() { return level && level.dungeon ? { w: level.w, h: level.h, exit: level.dungeon.exit, elite: level.dungeon.elite, swap: level.dungeon.swap, theme: level.dungeon.theme, spots: level.dungeon.spots.length } : null; },
+    dgCardsAt30(depth, seed, boss) { if (!dg) return null; const a = dg.depth, b = dg.seed; dg.depth = depth; dg.seed = seed; const c = dgCards(!!boss); dg.depth = a; dg.seed = b; return c.map(x => ({ cat: x.cat, rar: x.rar })); },
+    dgBreakEnemy30(i, mode) { const e = enemies.filter(x => !x.dead)[i]; if (!e) return; if (mode === "fall") { e.y = level.h + 60; } else { e.y = 330 + 10; e.vy = 0; } },
+    dgEnemy30(i) { const e = enemies[i]; if (!e) return null; const cx = e.x + e.w / 2, cy = e.y + e.h / 2; return { dead: e.dead, x: e.x, y: e.y, pinned: level.platforms.some(p => !p.oneWay && cx > p.x + 1 && cx < p.x + p.w - 1 && cy > p.y + 2 && cy < p.y + p.h - 2) }; },
+    dgSnapshot30() { const v = V(); return { charms: JSON.stringify(save.charms), vessels: save.vessels, notches: save.notches, melee: JSON.stringify(v.melee.owned), main: v.melee.main, flaskMax: v.flaskMax, aurels: v.aurels, nip: v.nip, enchs: JSON.stringify(v.enchs) }; },
+    dgDamage30(n) { const g0 = godMode; godMode = false; for (let i = 0; i < n; i++) { player.inv = 0; player.dodge = 0; hurtPlayer(1, 1, null); } godMode = g0; },
+    dgOpenPick30() { dg.cleared++; dgOpenPick(false); },
+    dgElite30() { return { waiting: w22 ? w22.eliteWait.length : 0, alive: enemies.filter(e => e.elite && !e.dead).length, doorsClosed: w22 ? eliteDoors().some(d => !d.open) : false }; },
+    dgForceCard30(cat) { const s0 = dg.seed; for (let s = 1; s < 300; s++) { dg.seed = s; const c = dgCards(false), i = c.findIndex(x => x.cat === cat); if (i >= 0) { dgPickS.cards = c; dgPickS.ix = i; return i; } } dg.seed = s0; return -1; },
+    saveAndTitle29() { saveAndTitle29(); }, confirmOpen() { return !!confirmBox; },
+    dgKillAll30() { for (const e of enemies) if (!e.dead) { e.hp = 1; e.inv = 0; damageEnemy(e, 99); } if (w22) for (const d of w22.eliteWait) { } }, dgGate30() { return level && level.dungeonGate ? Object.assign({}, level.dungeonGate) : null; }, dgNear30() { return nearDungeon(); }, dgSave30() { return Object.assign({}, save.dungeon30); }, dgForceDeath30() { godMode = false; if (player) { player.inv = 0; player.dodge = 0; hurtPlayer(99, 1, null); } }, dgPickChoose30(i) { if (dgPickS) { dgPickS.ix = i; input.tap && 0; dgChoose(i); } },
     openFiles29() { enterFiles(); }, loadLast29() { const c = continueSlot29(); return c ? loadSlot29(c.i) : false; }, loadSlot29(i) { return loadSlot29(i); }, playSlot29(i) { playSlot29(i); }, activeSlot29() { return activeSlot; }, meta29() { return SL.meta(); }, titleState29() { return { scene, menuIx, cont: titleCont29 ? { i: titleCont29.i, name: titleCont29.name, playF: titleCont29.playF } : null, note: slotNote }; },
     lastExport29() { return lastExport29; }, importText29(i, t) { return importText29(i, t); }, importTarget29(i) { importTarget29 = i; ensureImportInput29(); }, setPlayF29(n) { save.playF = n; }, playF29() { return save.playF | 0; }, saving29() { return { flash: saveFlash, fail: saveFail }; }, slotsRead29(i) { return SL.read(i); }, enterTitle29() { enterTitle(); },
     travelZones() { return pathZones().map(z => z.id); },
@@ -5285,7 +5558,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const n = rg[0] + Math.floor((r2 == null ? Math.random() : r2) * (rg[1] - rg[0] + 1));
     return Math.max(0, Math.min(have, n));
   }
-  function applyDeathLoss() { const v = V(), n = rollAurelLoss(v.aurels); v.aurels -= n; deathLoss = n; lossMsg = n; persist(); }
+  function applyDeathLoss() { if (dg) return; const v = V(), n = rollAurelLoss(v.aurels); v.aurels -= n; deathLoss = n; lossMsg = n; persist(); }
   // ----- confirm modal -----
   function openConfirm(title, body, yes, no) { confirmBox = { title, body, yes, no, ix: 1 }; synth.sfx("confirmOpen"); }
   function updateConfirm() {

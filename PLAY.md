@@ -223,3 +223,13 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
 - **Settings scope:** volume, fullscreen, vibration, touch layout and size, and Ledge assist are **global** (shared by every file). **Difficulty is per file**, as is everything else (flask, aurels, NIP, charms, weapons, enchants, skills, stages, bonus unlocks, tablets, maps, shrines).
 - **Mini bosses** (red outline) no longer exist until you are inside their room and the gate has shut behind you, so they cannot be lured out or shot through the gate. This also holds after dying, resting or replaying.
 - **Nezradeem** raises sewer skeletons from the floor in phases 2 and 3 (at most 2, then 3 at a time; they throw arcing bones and drop nothing).
+
+## v3.0: the Dungeon (Delve mode)
+
+- **Where:** a red portal marked "Delve into the Dungeon" stands at the left end of both the Order and Cult hubs. Stand beside it and press Enter (pad A, touch OK); a confirm modal explains the rules first.
+- **Floors:** each floor is generated from a seed out of the game's own floors, ledges, spikes and enemies, on one of seven zone looks (Vespera, Deep, Aurelion, Deep Lairs, Monastery, Sakura, Sandria) and one of seven palette filters (none, ember, gold, verdigris, violet, frost, ash). Kill every foe and the door at the right end opens; press Enter at the door to descend. The counter at the top shows floor, foes left and failures.
+- **Stuck foes:** an enemy that falls out of the level or gets pinned in the ground is put back on a floor at once. If nothing is hit or killed for 15 s the last foes glow with a beacon and edge arrows point to them; at 25 s they are teleported beside you; at 50 s they crumble away so the floor can never soft-lock.
+- **Upgrades:** after each floor pick 1 of 3 cards (a charm, an enchanted weapon, Vitality / Deeper Flask / Might / Mending / Quiver, NIP or aurels). Rarity (Common, Rare, Epic, Legendary) rises with depth. Every 3rd floor (3, 8, 13...) ends in a gated mini boss; every 5th floor is a boss from the existing arenas.
+- **3 failures** end the run and show the stats (kills, floors cleared, deepest floor, time, damage dealt and taken, aurels, NIP, upgrades picked, foes rescued). OK returns to the hub. The first two failures just restart the same floor.
+- **What you keep:** every upgrade is for the run only (charms, weapons, enchants, health, flask, quiver are restored to your pre-run file). Half of the aurels and NIP you earned in the run come home. Best depth is kept per save file.
+- **Quitting:** leaving through the pause menu (To the hub) ends the run and shows the stats; "Save and return to title" abandons it (no rewards).
