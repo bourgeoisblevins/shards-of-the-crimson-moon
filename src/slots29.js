@@ -63,7 +63,7 @@ window.SHARDS = window.SHARDS || {};
       if (!d) return { ok: false, error: "This is not a Shards of the Crimson Moon save." };
       if (d.path !== "order" && d.path !== "cult" && d.path !== null) return { ok: false, error: "The save has no valid path (Order or cult)." };
       if (!d.claimed || typeof d.claimed !== "object" || Array.isArray(d.claimed)) return { ok: false, error: "The save has no fragment record." };
-      if ((d.version | 0) > 30) return { ok: false, error: "This save is from a newer version of the game (v" + (d.version | 0) + ")." };
+      if ((d.version | 0) > 31) return { ok: false, error: "This save is from a newer version of the game (v" + (d.version | 0) + ")." };
       return { ok: true, data: JSON.parse(JSON.stringify(d)) };
     }
   };

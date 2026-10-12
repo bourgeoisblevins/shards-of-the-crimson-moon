@@ -233,3 +233,9 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
 - **3 failures** end the run and show the stats (kills, floors cleared, deepest floor, time, damage dealt and taken, aurels, NIP, upgrades picked, foes rescued). OK returns to the hub. The first two failures just restart the same floor.
 - **What you keep:** every upgrade is for the run only (charms, weapons, enchants, health, flask, quiver are restored to your pre-run file). Half of the aurels and NIP you earned in the run come home. Best depth is kept per save file.
 - **Quitting:** leaving through the pause menu (To the hub) ends the run and shows the stats; "Save and return to title" abandons it (no rewards).
+
+## v3.1: Dungeon updates
+* Rest floors (every 4th floor): talk to the **Merchant** (aurels) or the **Enchanter** (NIP) with the interact button; purchases last for the run. The exit is open on rest floors.
+* Cards now show pictures with rarity frames. From floor 6 Epic/Legendary **fragment cards** appear (Crown on the cult path); they last for the run.
+* Runs always start from a bare baseline; your real gear is restored afterwards.
+* Collecting all six fragments in one run reveals a secret companion.
