@@ -260,3 +260,8 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
   - **Records.** See the best depths for this file and for this device (the device board covers every file), plus today's daily best.
 - **Azmardus.** He now casts red comet bolts, a three-comet volley and a slow homing eye-orb (only one at a time). Magic sparks gather where he is about to reappear after a teleport.
 - **Look.** Fragments, including the cult Crown, are now part of the player sprite instead of being pasted on top. Weapons no longer poke into the floor art.
+
+## v3.2.1: intro fixes
+- **Fragments in the intro.** The Shattering and Apostle scenes now show the true six fragments on both paths, with Jeriah holding the Heart.
+- **New cult scene.** The cult intro has a scene about the Crown of the Crimson King: it is kept in the Plains Capital's cathedral archive, guarded by the golden serpent, and stands in for the Heart in the ritual.
+- **War and Deep scenes.** The Deep scene now uses the in-game hogs and pigs. The Great War scene shows Golden Order monks, Noah John's disciples, cult acolytes and the six Apostles fighting, and a wall of fire sweeps across after it.

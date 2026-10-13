@@ -45,5 +45,5 @@ window.SHARDS.text32.intro = {
     ["Six Apostles claimed the pieces.", "His soul cut a rift into the Crimson Moon. It cannot leave without a body.", "It is still up there. Waiting."]
   ],
   order: [["Centuries on, Ryan still keeps the Order, his blessed blade unaging.", "\"The fragments must never be joined again.\"", "\"Go, monk. Take them from the Apostles, and keep them apart.\""]],
-  cult: [["Of the six, only General Jeriah still hears him.", "\"Our own Apostles will not give up what is his.\"", "\"Go, acolyte. Hunt them. The Crimson King must return.\""]]
+  cult: [["Rejoining the pieces takes a ritual, and the ritual needs the Heart. General Jeriah keeps the Heart.", "So the cult seeks the Crown of the Crimson King, which the Order sealed away.", "It lies in the cathedral archive of the Plains Capital, guarded by a golden serpent.", "Worn in the ritual, the Crown stands in for the Heart."], ["Of the six, only General Jeriah still hears him.", "\"Our own Apostles will not give up what is his.\"", "\"Go, acolyte. Hunt them. The Crimson King must return.\""]]
 };

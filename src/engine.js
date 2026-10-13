@@ -4486,98 +4486,143 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       else openSettings("title");
     }
   }
-  // ----- v3.2: the opening cutscene, one per path. Blevins is never drawn: only his Deep, his host as
-  // silhouettes, the burst of the Shattering and the moon he is trapped in. -----
-  let i32 = null;
+  // ----- v3.2: the opening cutscene, one per path. Blevins is never drawn: only his Deep, the armies of the War,
+  // the burst of the Shattering and the moon he is trapped in. v3.2.1: real in-game sprites for the Deep and the
+  // War, a fire sweep after the War, the true six fragments on both paths, and a cult-only Crown scene. -----
+  let i32 = null, introRaw32 = false;
+  const FRAG6_32 = ["heart", "eye", "bone", "blaze", "shadow", "claw"];
+  const APOS6_32 = ["jeriah", "azmardus", "nezradeem", "orchalsius", "silent", "gladius"];
   function T32I() { return (window.SHARDS.text32 || {}).intro || { common: [], order: [], cult: [] }; }
-  function introShots32(p) { const t = T32I(); return t.common.concat(t[p] || []); }
+  function introShots32(p) {
+    const t = T32I(), c = t.common, own = t[p] || [], mk = (k, lines) => { const a = (lines || []).slice(); a.k = k; return a; };
+    const out = [mk("nexus", c[0]), mk("deep", c[1]), mk("war", c[2]), mk("fire", []), mk("moon", c[3])];
+    if (p === "cult") { out.push(mk("crown", own[0]), mk("call", own[1])); } else out.push(mk("call", own[0]));
+    return out;
+  }
   function enterIntro32(then) {
     i32 = { shots: introShots32(path || "order"), shot: 0, line: 0, t: 0, lt: 0, hold: 0, fade: 24, then: then || enterHub };
     scene = "intro32";
   }
   function endIntro32() {
-    if (!i32) return; const fn = i32.then; i32 = null;
+    if (!i32) return; const fn = i32.then; window.__lastIntroDrawn32 = Object.keys(i32.drawn || {}); i32 = null;
     save.intro32 = true; persist(); fn();
   }
+  function nextShot32(q) { q.line = 0; q.lt = 0; q.shot++; q.t = 0; q.fade = q.shots[q.shot - 1].k === "fire" ? 0 : 24; if (q.shot >= q.shots.length) { endIntro32(); return true; } if (q.shots[q.shot].k === "fire") synth.sfx("ignite"); return false; }
   function updateIntro32() {
     const q = i32; if (!q) { enterHub(); return; }
     q.t++; q.lt++; if (q.fade > 0) q.fade--;
     if (input.pressed("cancel") || input.pressed("back") || input.pressed("pause")) { synth.sfx("menu"); endIntro32(); return; }
     if (input.held("confirm")) { q.hold++; if (q.hold >= 60) { synth.sfx("menu"); endIntro32(); return; } } else q.hold = 0;
+    const sh = q.shots[q.shot];
+    if (sh.k === "fire") { if (q.t >= 96) nextShot32(q); return; }   // the fire sweep plays by itself (about 1.6 s)
     if (input.pressed("confirm") || input.pressed("attack")) {
-      const line = q.shots[q.shot][q.line] || "";
+      const line = sh[q.line] || "";
       if (q.lt < line.length * 2) { q.lt = line.length * 2; return; }   // finish the typing first
       q.line++; q.lt = 0; synth.sfx("dialogue");
-      if (q.line >= q.shots[q.shot].length) { q.line = 0; q.shot++; q.t = 0; q.fade = 24; if (q.shot >= q.shots.length) { endIntro32(); return; } }
+      if (q.line >= sh.length) nextShot32(q);
     }
   }
   function introBG32(level, scroll) {
     const la = (ART().levels || {})[level]; if (!la) { rect(0, 0, W, H, P().ground.void); return; }
     const keep = camPx; camPx = scroll; for (const l of la.layers) drawLayer(l.path, l.f, l.y); camPx = keep;
   }
+  // a sheet frame drawn at a scale (anchor = feet), for the small armies
+  function blitScaled32(name, frame, x, y, sc, flip) { g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(sc, sc); blitFrame(name, frame, 0, 0, flip); g.restore(); }
+  function introFrag32(sheet, id, x, y) { if (i32) (i32.drawn = i32.drawn || {})[i32.shots[i32.shot].k + ":" + id] = 1; introRaw32 = true; blitFrame(sheet, id, x, y, false); introRaw32 = false; }
+  function drawWar32(t, q) {
+    introBG32("vespera", 40 + t * 0.2);
+    g.globalAlpha = 0.35; rect(0, 0, W, H, P().cult.blood); g.globalAlpha = 1;
+    const gy = 196, meet = Math.min(1, t / 140);
+    // embers drifting up
+    for (let i = 0; i < 30; i++) { const ex = (i * 53 + t * 0.4) % W, ey = H - ((i * 37 + t * (0.6 + (i % 3) * 0.3)) % 200); rect(ex, ey, 1 + (i % 2), 1 + (i % 2), i % 3 ? P().cult.emberLight : P().order.illumination); }
+    // left: the Golden Order's monks and the disciples of Noah John; right: the host (acolytes) and the six Apostles
+    const L = [["enemy-monk_staff", "walk", "attack", 0.9], ["player-order", "run", "atk1_", 0.8], ["enemy-monk_brawler", "walk", "attack", 0.85], ["enemy-monk_bell", "walk", "attack", 0.9]];
+    for (let i = 0; i < 10; i++) {
+      const [sh, wa, aa, sc] = L[i % 4], row = i % 3, x = -30 + meet * 150 - (i >> 1) * 22 + row * 6, fight = meet >= 1 && ((t + i * 11) % 70) < 24;
+      blitScaled32(sh, animFrame(sh, fight ? aa : wa, t + i * 5, 7), x, gy - 14 + row * 9, sc, false);
+    }
+    for (let i = 0; i < 9; i++) {
+      const row = i % 3, x = W + 30 - meet * 150 + (i >> 1) * 22 - row * 6, fight = meet >= 1 && ((t + i * 13) % 70) < 24;
+      blitScaled32("player-cult", animFrame("player-cult", fight ? "atk1_" : "run", t + i * 4, 6), x, gy - 14 + row * 9, 0.85, true);
+    }
+    APOS6_32.forEach((k, i) => {   // the Apostles, small, in the thick of it
+      const sh = "boss-" + k, x = W - 40 - meet * 120 + (i % 3) * 30 - (i >> 1) * 8, y = gy - 22 + (i % 2) * 14, fight = meet >= 1 && ((t + i * 17) % 80) < 30;
+      blitScaled32(sh, animFrame(sh, fight ? "atk1_active" : (meet < 1 ? "walk" : "idle"), t + i * 3, 8), x, y, 0.55, true);
+    });
+    if (q.line >= 1) drawPortrait(ART().portraits.noah, W / 2 - 28, 24);
+    if (q.line >= 2) {
+      const bt = q.lt; blitFrame("in32-burst", Math.min(3, (bt / 6) | 0), W / 2, 130, false);
+      FRAG6_32.forEach((id, i) => { const a = i * Math.PI / 3 - Math.PI / 2, r = Math.min(150, bt * 3); introFrag32("ui-frag32", id, W / 2 + Math.cos(a) * r, 130 + Math.sin(a) * r * 0.6); });
+      if (bt < 8) { g.globalAlpha = 1 - bt / 8; rect(0, 0, W, H, P().order.light); g.globalAlpha = 1; }
+    }
+  }
+  function drawFire32(t) {
+    // the nations fall: a wall of flame sweeps left to right; behind it the ruined skyline smoulders
+    introBG32("vespera", 40 + t * 0.6);
+    const front = -60 + t * 6.2;
+    g.globalAlpha = 0.8; rect(0, 0, Math.max(0, front - 30), H, P().cult.black); g.globalAlpha = 1;
+    const ramp = [P().cult.blood, P().cult.crimson, P().cult.ember, P().cult.emberLight, P().order.illumination, P().order.light];
+    for (let x = Math.max(0, Math.floor(front - 140)); x < Math.min(W, front + 10); x += 3) {
+      const d = front - x, hgt = Math.min(1, (d + 10) / 34) * Math.max(0, 230 - d * 1.2) * (0.6 + 0.4 * Math.abs(Math.sin(x * 0.13 + t * 0.35))) + 20 * Math.sin(x * 0.05 + t * 0.2);
+      for (let k = 0; k < 6; k++) { const hh = hgt * (1 - k * 0.16); if (hh <= 0) continue; rect(x, H - hh, 3, hh, ramp[k]); }
+    }
+    for (let i = 0; i < 40; i++) { const sx = front - 20 - ((i * 29) % 160), sy = H - ((i * 41 + t * 3) % 240); if (sx > 0 && sx < W) rect(sx, sy, 2, 2, i % 2 ? P().cult.emberLight : P().order.illumination); }
+    if (t > 76) { g.globalAlpha = Math.min(1, (t - 76) / 20); rect(0, 0, W, H, P().cult.black); g.globalAlpha = 1; }
+  }
+  function drawCrown32(t) {
+    // the cathedral archive of the Plains Capital: the golden serpent coiled round the Crown of the Crimson King
+    introBG32(ART().levels.guardian ? "guardian" : "capital", 30 + t * 0.15);
+    g.globalAlpha = 0.45; rect(0, 0, W, H, P().cult.black); g.globalAlpha = 1;
+    blitScaled32("boss-guardian", animFrame("boss-guardian", "idle", t, 10), W / 2 + 110, 206, 0.95, true);
+    const bob = Math.round(Math.sin(t / 20) * 2);
+    rect(W / 2 - 60, 160, 40, 46, P().ground.stone2); rect(W / 2 - 62, 158, 44, 4, P().ground.stone3);   // the plinth
+    for (let i = 0; i < 3; i++) { g.globalAlpha = 0.07 + 0.03 * Math.sin(t / 12 + i); rect(W / 2 - 50 - i * 3, 128 - i * 3 + bob, 20 + i * 6, 20 + i * 6, P().cult.emberLight); }
+    g.globalAlpha = 1; blitFrame("fx26-crown32", "crown", W / 2 - 40, 150 + bob, false);
+    drawPortrait(ART().portraits.jeriah, 24, 24); introFrag32("ui-frag32", "heart", 24 + 70, 52);
+  }
   function drawIntro32() {
     const q = i32; if (!q) return;
-    const n = q.shot, t = q.t, last = q.shots.length - 1, pp = path || "order";
+    const sh = q.shots[q.shot], k = sh.k, t = q.t, pp = path || "order";
     g.save();
-    if (n === 0) {   // the Nexus and the five gods
+    if (k === "nexus") {   // the Nexus and the five gods
       introBG32("aurelion", t * 0.25);
       g.globalAlpha = 0.55; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
       blitFrame("in32-nexus", animFrame("in32-nexus", "n", t, 8), W / 2, 100, false);
       const cols = [P().ground.smoke, P().w22.teal, P().order.illumination, P().order.light, P().order.boneShade];
       for (let i = 0; i < 5; i++) {
-        const a = t / 90 + i * Math.PI * 2 / 5, r = 62;
-        const x = W / 2 + Math.cos(a) * r, y = 100 + Math.sin(a) * r * 0.45;
-        rect(x - 3, y - 3, 6, 6, P().ground.void); rect(x - 2, y - 2, 4, 4, i === 4 && q.line >= 1 ? P().cult.emberLight : cols[i]);
+        const a = t / 90 + i * Math.PI * 2 / 5, r = 62, x = W / 2 + Math.cos(a) * r, y = 100 + Math.sin(a) * r * 0.45;
+        blitFrame("in32-god", "g" + ((t >> 3) & 1), x, y, false); g.globalAlpha = 0.85; rect(x - 2, y - 2, 4, 4, i === 4 && q.line >= 1 ? P().cult.emberLight : cols[i]); g.globalAlpha = 1;
       }
-    } else if (n === 1) {   // the Deep and its first children
+    } else if (k === "deep") {   // the Deep and its first children (the in-game warped hogs and Deep pigs)
       introBG32("deep", t * 0.6);
-      for (let i = 0; i < 4; i++) {
-        const x = ((t * (0.5 + i * 0.12) + i * 140) % (W + 80)) - 40;
-        blitFrame(i % 2 ? "enemy-warped_hog" : "in32-beast", i % 2 ? animFrame("enemy-warped_hog", "walk", t + i * 7, 8) : animFrame("in32-beast", "w", t + i * 5, 9), x, 210 + (i % 2) * 8, false);
-      }
-    } else if (n === 2) {   // the Great War and the Shattering
-      introBG32("vespera", 40 + t * 0.2);
-      g.globalAlpha = 0.35; rect(0, 0, W, H, P().cult.blood || P().ground.void); g.globalAlpha = 1;
-      const meet = Math.min(1, t / 160);
-      for (let i = 0; i < 9; i++) {
-        const row = i % 3, ox = -20 + meet * 150 - i * 18, cx = W + 20 - meet * 150 + i * 18;
-        blitFrame("in32-soldier", animFrame("in32-soldier", "order", t + i * 3, 8), ox, 200 + row * 10, false);
-        blitFrame("in32-soldier", animFrame("in32-soldier", "cult", t + i * 5, 8), cx, 200 + row * 10, true);
-      }
-      if (q.line >= 1) drawPortrait(ART().portraits.noah, W / 2 - 28, 24);
-      if (q.line >= 2) {
-        const bt = q.lt; blitFrame("in32-burst", Math.min(3, (bt / 6) | 0), W / 2, 130, false);
-        const ids = ["heart", "eye", "bone", "blaze", "shadow", "claw"];
-        ids.forEach((id, i) => { const a = i * Math.PI / 3 - Math.PI / 2, r = Math.min(150, bt * 3); blitFrame("ui-frag32", id, W / 2 + Math.cos(a) * r, 130 + Math.sin(a) * r * 0.6, false); });
-        if (bt < 8) { g.globalAlpha = 1 - bt / 8; rect(0, 0, W, H, P().order.light); g.globalAlpha = 1; }
-      }
-    } else if (n === 3) {   // six Apostles, and the moon
+      const herd = [["enemy-warped_hog", 0.5, 60, 1.4], ["enemy-deep_pig", 0.35, 170, 1], ["enemy-warped_hog", 0.62, 290, 1.4], ["enemy-deep_pig", 0.42, 400, 1], ["enemy-warped_hog", 0.55, 510, 1.4]];
+      herd.forEach(([s, sp, ph, sc], i) => { const x = ((t * sp + ph) % (W + 120)) - 60; blitScaled32(s, animFrame(s, (t + i * 20) % 200 < 30 ? "idle" : "walk", t + i * 7, 8), x, 200 + (i % 2) * 8, sc * 1.6, false); });
+    } else if (k === "war") drawWar32(t, q);
+    else if (k === "fire") drawFire32(t);
+    else if (k === "moon") {   // six Apostles, six fragments (the same six on both paths), and the moon
       rect(0, 0, W, H, P().cult.black);
       for (let i = 0; i < 60; i++) { const sx = (i * 97) % W, sy = (i * 53) % 170; if (((t >> 4) + i) % 7) rect(sx, sy, 1, 1, i % 3 ? P().ground.smoke : P().order.boneShade); }
       const la3 = ART().levels.blevins; if (la3) { const keep = camPx; camPx = t * 0.15; drawLayer(la3.layers[la3.layers.length - 1].path, la3.layers[la3.layers.length - 1].f, 0); camPx = keep; }
       const my = Math.max(4, 120 - t * 0.6);
       blitFrame("in32-moon", (t >> 5) & 1 ? "m1" : "m0", W / 2, my + 40, false);
-      const ap = ["jeriah", "azmardus", "nezradeem", "orchalsius", "silent", "gladius"], ids = ["heart", "eye", "bone", "blaze", "shadow", "claw"];
-      ap.forEach((k, i) => {
-        const x = 30 + i * 72, y = 108, on = t > 20 + i * 14;
-        if (!on) return; drawPortrait(ART().portraits[k], x, y);
-        blitFrame("ui-frag16", ids[i], x + 28, y + 64, false);
-      });
-    } else {   // the path's call
+      APOS6_32.forEach((ap, i) => { const x = 30 + i * 72, y = 108; if (t <= 20 + i * 14) return; drawPortrait(ART().portraits[ap], x, y); introFrag32("ui-frag16", FRAG6_32[i], x + 28, y + 64); });
+    } else if (k === "crown") drawCrown32(t);
+    else {   // the path's call
       introBG32(pp === "cult" ? "cultHub" : "orderHub", 60 + t * 0.1);
-      const fy = 236;
-      blitFrame(pp === "cult" ? "npc-jeriah" : "npc-ryan", animFrame(pp === "cult" ? "npc-jeriah" : "npc-ryan", q.line ? "talk" : "idle", t, 10), W / 2 + 60, fy, true);
+      const fy = 236, npc = pp === "cult" ? "npc-jeriah" : "npc-ryan";
+      blitFrame(npc, animFrame(npc, q.line ? "talk" : "idle", t, 10), W / 2 + 60, fy, true);
       const px = Math.min(W / 2 - 30, -20 + t * 1.2);
       blitFrame("player-" + pp, animFrame("player-" + pp, px < W / 2 - 30 ? "run" : "idle", t, 6), px, fy, false);
     }
-    // letterbox, text, hints
     rect(0, 0, W, 18, P().ground.void); rect(0, H - 18, W, 18, P().ground.void);
     if (q.fade > 0) { g.globalAlpha = q.fade / 24; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1; }
-    const line = q.shots[n] && q.shots[n][q.line] || "", shown = line.slice(0, (q.lt / 2) | 0);
-    const lines = wrapLines(line, W - 80), bh = 14 + lines.length * LH;
-    panel(24, H - 24 - bh, W - 48, bh);
-    let left = shown.length;
-    lines.forEach((ln, i) => { const s = ln.slice(0, Math.max(0, left)); left -= ln.length + 1; drawText(s, 40, H - 24 - bh + 8 + i * LH, P().order.bone); });
+    const line = sh[q.line] || "", shown = line.slice(0, (q.lt / 2) | 0);
+    if (line) {
+      const lines = wrapLines(line, W - 80), bh = 14 + lines.length * LH;
+      panel(24, H - 24 - bh, W - 48, bh);
+      let left = shown.length;
+      lines.forEach((ln, i) => { const s = ln.slice(0, Math.max(0, left)); left -= ln.length + 1; drawText(s, 40, H - 24 - bh + 8 + i * LH, P().order.bone); });
+    }
     const hint = touchUI() ? "" : (padUI() ? T32I().skipPad : T32I().skipKb);
     if (hint) drawText(hint, W - 8, 5, P().order.bone, "right");
     if (touchUI()) { const sw = measure(T32I().skipTouch) + 16; rect(W - sw - 6, 2, sw, 14, P().ground.void); drawText(T32I().skipTouch, W - sw + 2, 5, P().order.nexus); tapTarget(W - sw - 6, 0, sw + 6, 18, () => endIntro32()); tapTarget(0, 18, W, H - 18, () => input.tap("confirm")); }
@@ -4713,7 +4758,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   // Draw a frame so the sheet anchor (ax, ay: feet centre for actors) lands on screen point
   // (px, py). flip mirrors around the anchor. mode "flash" draws the hit silhouette in light.
   function blitFrame(name, frame, px, py, flip, mode) {
-    if (path === "cult" && typeof frame === "string" && /^heart(-dim|-held)?$/.test(frame) && (name === "ui-frag16" || name === "ui-hud" || name === "ui-frag32")) { name = name === "ui-frag32" ? "fx26-crown32" : "fx26-crown16"; frame = frame === "heart" ? "crown" : "crown-dim"; }
+    if (path === "cult" && !introRaw32 && typeof frame === "string" && /^heart(-dim|-held)?$/.test(frame) && (name === "ui-frag16" || name === "ui-hud" || name === "ui-frag32")) { name = name === "ui-frag32" ? "fx26-crown32" : "fx26-crown16"; frame = frame === "heart" ? "crown" : "crown-dim"; }
     const s = sheetOf(name); if (!s) return false;
     const img = atlas.images.get(s.path); if (!img) return false;
     const fi = frameIndex(s, frame);
@@ -5734,7 +5779,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     claim(frag) { if (heldByAlly(frag)) return; save.claimed[frag] = true; persist(); },
     claimAll() { for (const z of pathZones()) save.claimed[z.fragment] = true; if (path === "cult") { save.claimed.heart = true; save.crown = true; } persist(); },
     intro32(p) { if (p) { path = p; save.path = p; } enterIntro32(enterHub); return true; },
-    intro32State() { return i32 ? { shot: i32.shot, line: i32.line, shots: i32.shots.length, hold: i32.hold, text: (i32.shots[i32.shot] || [])[i32.line] } : null; },
+    intro32State() { return i32 ? { shot: i32.shot, kind: i32.shots[i32.shot].k, kinds: i32.shots.map(x => x.k), drawn: Object.keys(i32.drawn || {}), line: i32.line, shots: i32.shots.length, hold: i32.hold, text: (i32.shots[i32.shot] || [])[i32.line] } : null; },
     setPath(p) { path = p; save.path = p; if (activeSlot == null) activeSlot = 0; normalizeSave(); persist(); },
     files29() { return sums29(); }, fileState29() { return { scene, ix: fs29.ix, menu: fs29.menu ? { slot: fs29.menu.slot, mode: fs29.menu.mode, ix: fs29.menu.ix, items: fs29.menu.items.map(x => x[0]) } : null, msg: fs29.msgT > 0 ? fs29.msg : "", active: activeSlot, pending: pendingNew, note: slotNote }; },
     elite29() { return { n: enemies.filter(e => e.elite).length, alive: enemies.filter(e => e.elite && !e.dead).length, wait: w22 ? w22.eliteWait.length : -1, lock: !!(w22 && w22.eliteLock), doors: w22 ? w22.doors.filter(d => d.kind === "elite").map(d => d.open) : [], waitRoom: w22 && w22.eliteWait[0] ? w22.eliteWait[0].room : null }; }, worldRespawn29() { worldRespawnEnemies(); }, nez29() { return { n: nezLive29(), cap: boss ? nezCap29(boss) : 0, minions: enemies.filter(e => e.nezMinion).map(e => ({ x: e.x, y: e.y, dead: e.dead, drop: e.drop, summoned: e.summoned, behavior: e.behavior })) }; },
