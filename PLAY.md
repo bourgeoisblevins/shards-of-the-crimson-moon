@@ -263,5 +263,17 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
 
 ## v3.2.1: intro fixes
 - **Fragments in the intro.** The Shattering and Apostle scenes now show the true six fragments on both paths, with Jeriah holding the Heart.
-- **New cult scene.** The cult intro has a scene about the Crown of the Crimson King: it is kept in the Plains Capital's cathedral archive, guarded by the golden serpent, and stands in for the Heart in the ritual.
+- **New cult scene.** The cult intro has a scene about the Crown of the Crimson King: it is kept in the Plains Capital's cathedral archive, guarded by the golden serpent, and the ritual that joins the fragments needs it (Jeriah already keeps the Heart).
 - **War and Deep scenes.** The Deep scene now uses the in-game hogs and pigs. The Great War scene shows Golden Order monks, Noah John's disciples, cult acolytes and the six Apostles fighting, and a wall of fire sweeps across after it.
+
+## v3.2.2: Delve and inventory fixes
+- **Weapons stay whole:** the weapon and its swing effects are drawn over the floor, so a staff or whip tip below your feet is never cut off.
+- **Delve setup screen:** its own torch-lit background. A cursor marks the selected row and the other rows are grayed. Modifiers are `[X]` / `[ ]` checkboxes, and each shows its reward. The description under the list says what the selected row does and how much more you take home. Modifier bonuses add up: Glass Cannon +25%, Double Enemies +25%, Hasty Foes +15%, Dry Flask +15%. The bonus applies to the aurels and NIP you take home and is shown on the run summary. Keyboard, pad and touch all work.
+- **Rest floors:** leaving the Merchant or Enchanter floor through the door takes you straight to the next floor, with no upgrade card.
+- **Wave floors:** from floor 4, about one floor in seven (4, 11, 25, 32...) is a wave floor. Enemies come in 3 to 5 waves near you. Waves get larger and enemies get tougher the deeper you go. The door opens after the last wave.
+- **Stuck enemies:** if a floor has had no progress for 45 s, a beacon marks the remaining enemies. They are teleported to you at 90 s and crumble at 150 s. Enemies that fall out of bounds or get stuck in walls are still rescued at once.
+- **Crown lore:** in the story the Crown does not replace the Heart. General Jeriah already keeps the Heart, and the cult needs the Crown for the ritual that joins the fragments. In gameplay, the Crown takes the Heart's stage slot so both paths have the same number of stages.
+- **Inventory:** on the Charms tab, the notches, fragments and tip no longer overlap the grid. **LB / RB** switch tabs, and the tab bar shows the button glyphs.
+- **New Game+ marker:** a New Game+ file shows a "+" after the path on the file select and in the title screen's Continue caption (for example "Cult acolyte+"). Later cycles show "+2", "+3" and so on.
+- **Cloak dyes:** the Cloak dye row opens a picker that lists every dye. Tap a dye (or select it and press Enter / A) to wear it; the choice is saved. Locked dyes are grayed out with a lock, and the menu notes: "Boss rematches and Boss Rush unlock new dyes." Tapping a locked dye shows the same note. On phones each tile is at least 44 px tall.
+- **New Game+ cycles:** the next cycle (NG+2, NG+3...) unlocks only after you defeat the final boss of your current cycle. Until then the option is grayed out and says why. Existing saves are kept. An NG+ save from before this fix unlocks its next cycle once the current cycle is finished.

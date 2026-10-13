@@ -25,6 +25,9 @@ window.SHARDS = window.SHARDS || {};
   const dmgAdd = (d) => (d >= 11 ? 2 : d >= 6 ? 1 : 0);
   const FB = 560, HH = 640, STEPY = 34, MINFY = FB - 300;
   const isRest = (d) => d % 4 === 2 && d % 5 !== 0;
+  // v3.2.2: wave floors, like the bonus stages' arenas: the floor before each boss (4, 9, 19, 24, 29, 39...), unless it is a rest floor
+  const isWave = (d) => d >= 4 && d % 5 === 4 && !isRest(d) && !isBoss(d) && !isElite(d);
+  const waveCount = (d) => Math.min(5, 3 + Math.floor(d / 12)), waveSize = (d, i) => Math.min(9, 2 + Math.floor(d / 4) + i);
   const restKind = (d) => (((d - 2) / 4) | 0) % 2 === 0 ? "merchant" : "enchanter";
   function finish(L, plats, haz, enemyDefs) { return L; }
   // v3.1: vertical floors. The route climbs and drops between floor levels (stairs of one-way ledges, zig-zag towers, hook steps), forks into a
@@ -102,12 +105,19 @@ window.SHARDS = window.SHARDS || {};
         enemies.push({ type: t, x: chamberX + 150, y: fy - st.h, elite: true, id: "dg-elite", room: { x: chamberX + 20, y: 0, w: 320, h: HH }, hpMul: hpMul(depth), dmgAdd: dmgAdd(depth) });
       }
     }
+    let waves = null, waveSlots = null;
+    if (!rest && isWave(depth)) {
+      waves = [];
+      for (let i = 0; i < waveCount(depth); i++) { const wv = []; for (let k = 0; k < waveSize(depth, i); k++) wv.push({ type: pick(types), hpMul: hpMul(depth), dmgAdd: dmgAdd(depth) }); if (opts && opts.double) wv.push(...wv.map((e) => Object.assign({}, e))); waves.push(wv); }
+      enemies.length = 0;
+      waveSlots = slots.filter((s) => s.x > 120).map((s) => ({ x: Math.round(s.x), top: s.top }));
+    }
     const kind = rest ? restKind(depth) : null;
     return {
-      w: W, h: HH, bg: theme.id, kind: "traverse", zone: theme.id, title: (rest ? (kind === "merchant" ? "Dungeon - Merchant, Floor " : "Dungeon - Enchanter, Floor ") : "Dungeon - Floor ") + depth, ambient: theme.ambient, tiled: true, dark: !!theme.dark && !rest,
+      w: W, h: HH, bg: theme.id, kind: "traverse", zone: theme.id, title: (rest ? (kind === "merchant" ? "Dungeon - Merchant, Floor " : "Dungeon - Enchanter, Floor ") : waves ? "Dungeon - Waves, Floor " : "Dungeon - Floor ") + depth, ambient: theme.ambient, tiled: true, dark: !!theme.dark && !rest,
       spawn: { x: 40, y: FB - 20 }, platforms: plats, hazards: haz, enemies, doors, swings, ledges, gaps27: gaps, movers, crumbles, blinks, blades, fallers,
-      dungeon: { seed, depth, exit, spots, swap, theme: theme.id, elite, chamberX, rest: kind, npc: rest ? { x: 300, y: FB } : null, braz, kinds: kinds.slice() }
+      dungeon: { seed, depth, exit, spots, swap, theme: theme.id, elite, chamberX, rest: kind, waves, waveSlots, npc: rest ? { x: 300, y: FB } : null, braz, kinds: kinds.slice() }
     };
   }
-  window.SHARDS.dungeon30 = { gen, G, H, isRest, restKind, FB, HH, THEMES, SWAPS, SWAPHEX, TIERS, BOSS_ZONES, isBoss, isElite, enemyCount, hpMul, dmgAdd, allowed, rng };
+  window.SHARDS.dungeon30 = { gen, G, H, isRest, isWave, waveCount, waveSize, restKind, FB, HH, THEMES, SWAPS, SWAPHEX, TIERS, BOSS_ZONES, isBoss, isElite, enemyCount, hpMul, dmgAdd, allowed, rng };
 })();

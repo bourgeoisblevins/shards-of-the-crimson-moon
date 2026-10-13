@@ -7,7 +7,7 @@ window.SHARDS = window.SHARDS || {};
       best: "Deepest floor: {n}" },
     hud: { floor: "Floor {n}", foes: "Foes {n}", fails: "Failures {n}/3", open: "The way down is open.", exit: "Enter: Descend", exitPad: "{A} Descend", exitTouch: "OK: Descend",
       rescued: "A stray foe was brought back.", beacon: "The last foes glow.", dissolved: "A lost foe crumbles away.", locked: "Defeat every foe first." },
-    frag: { crown: "The Crown", crownDesc: "Stands in for the Heart: +1 max health, and the Crown shows.",
+    frag: { crown: "The Crown", crownDesc: "The Crown of the Crimson King: +1 max health, and the Crown shows.",
       desc: { heart: "+1 max health. The Heart shows.", eye: "Wider strikes. The Eye shows.", bone: "Longer safety after a hit. The Bone shows.", blaze: "Skills burn hotter. The Blaze shows.", shadow: "A longer dodge. The Shadow shows.", claw: "Frost cannot hold you. The Claw shows." } },
     shop: { merchant: "The Merchant", enchanter: "The Enchanter", purse: "Purse: {n} aurels", nipHave: "Run NIP: {n}", leave: "Leave", sold: "Sold", refund: "+{n} NIP", need: "Need {n} more {cur}.", bought: "Taken: {name}", aurels: "aurels",
       heal: "Healing Draught", healDesc: "Heal fully and refill the flask.", enchant: "{ench} {k}", enchantDesc: "Enchant your {weapon} (this run).", sharpen: "Sharpen", sharpenDesc: "+1 strike damage.", disenchant: "Disenchant", disenchantDesc: "Strip an enchant, get 1 NIP back.",

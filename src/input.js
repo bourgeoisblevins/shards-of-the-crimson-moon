@@ -51,7 +51,7 @@
       this.padMap = {
         // v2 layout (Ryan): A jump + confirm/interact, B dodge + back, X strike, Y skill, Start pause.
         // In play A interacts instead of jumping while a prompt is up (engine padInteract).
-        jump: 0, confirm: 0, dodge: 1, back: 1, strike: 2, skill: 3, cancel: 9, flask: 4, shoot: 5, inv: 8, guard: 6, hook: 7,
+        jump: 0, confirm: 0, dodge: 1, back: 1, strike: 2, skill: 3, cancel: 9, flask: 4, shoot: 5, inv: 8, guard: 6, hook: 7, tabL: 4, tabR: 5,
         // axes and D-pad handled separately
       };
       this._bind();

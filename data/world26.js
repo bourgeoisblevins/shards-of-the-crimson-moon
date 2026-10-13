@@ -3,7 +3,7 @@
 // (see CANON_SUMMARY.md); the forms and look come from the archive (blevins, shattering-of-the-blevins, crimson-moon and the six fragment entries).
 (function () {
   var S = window.SHARDS;
-  S.VERSION = "v3.2.1";   // single source for the title screen (the build bumps this constant)
+  S.VERSION = "v3.2.2";   // single source for the title screen (the build bumps this constant)
   S.w26 = {
     hpMul: { jeriah: 1.25, azmardus: 1.2, nezradeem: 1.25, orchalsius: 1.2, silent: 1.2, gladius: 1.15 },
     blevins: { hp: 78, forms: [1, 0.74, 0.5, 0.26], size: { 1: [22, 52], 2: [62, 40], 3: [34, 50], 4: [46, 62] }, speed: { 1: 0.6, 2: 0.55, 3: 0.85, 4: 0.5 } },
@@ -46,7 +46,7 @@
         "Noah John has returned from the heavens. He stands at your side. Hold the line."
       ],
       cult: [
-        "The ritual burns. The Crown takes its place and the six fragments knit Blevins whole beside you.",
+        "The ritual burns. General Jeriah lays the Heart with the others, the Crown binds them, and the six fragments knit Blevins whole beside you.",
         "A light tears the sky. Noah John comes down from the heavens, a staff of gold in his hand, to end it.",
         "\"I will not let him walk again.\" Fight at Blevins' side."
       ],
@@ -58,7 +58,7 @@
     },
     altar28: {
       order: ["You step up to the altar and draw the six fragments from your pack. One by one you set them on the stone.", "The sixth fragment settles. The altar burns crimson and the red Moon climbs the sky. Something answers."],
-      cult: ["You climb to the altar with the Crown of the Crimson King and the five fragments. You set them on the stone, the Crown last.", "The Crown takes its place. The altar burns red and the Crimson Moon rises. The ritual has begun."]
+      cult: ["You climb to the altar with the Crown of the Crimson King and the five fragments. General Jeriah brings the Heart. You set them on the stone, the Crown last.", "The Crown binds the pieces. The altar burns red and the Crimson Moon rises. The ritual has begun."]
     },
     story: {
       order: [

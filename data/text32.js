@@ -10,14 +10,31 @@ window.SHARDS.text32 = {
     hint: "Up/Down: choose   Enter/Left/Right: change   Esc: back", hintPad: "{A} change  {B} back", hintTouch: "Tap a row to change it",
     hudSeed: "Seed {c}", endSeed: "Seed {c} ({m})", modeRandom: "random", modeDaily: "daily", modeCustom: "custom",
     boardTitle: "Records", boardSlot: "This file", boardDevice: "This device", boardEmpty: "No runs yet.", boardRow: "{d}  Floor {n}  {c}{mods}",
-    boardHint: "Left/Right: file / device   Esc: back", newRecord: "New record: #{n} on this device"
+    boardHint: "Left/Right: file / device   Esc: back", wave: "Wave {i} / {n}", newRecord: "New record: #{n} on this device"
   },
   modifiers: [
-    { id: "glass", name: "Glass Cannon", desc: "Deal double damage, take double damage." },
-    { id: "double", name: "Double Enemies", desc: "A twin stands beside every foe." },
-    { id: "hasty", name: "Hasty Foes", desc: "Enemies move and act faster." },
-    { id: "dry", name: "Dry Flask", desc: "The flask does not refill between floors." }
+    { id: "glass", name: "Glass Cannon", bonus: 25, desc: "You deal double damage, and you take double damage." },
+    { id: "double", name: "Double Enemies", bonus: 25, desc: "A twin stands beside every foe." },
+    { id: "hasty", name: "Hasty Foes", bonus: 15, desc: "Enemies move and act faster." },
+    { id: "dry", name: "Dry Flask", bonus: 15, desc: "Your flask does not refill between floors." }
   ],
+  setup33: {
+    title: "Delve: prepare the descent",
+    seedRow: "Seed: {v}", seedRandom: "Random", seedDaily: "Daily ({d})", seedCustom: "Custom {c}",
+    on: "[X]", off: "[ ]", bonus: "+{n}%", total: "Rewards taken home: +{n}%", totalNone: "Rewards taken home: normal",
+    rewardLine: "Rewards taken home +{n}%.",
+    descRandom: "A new dungeon every run. Rewards taken home: normal.",
+    descDaily: "Daily: everyone who delves today gets the same floors, cards and shops. Code {c}. Rewards taken home: normal.",
+    descCustom: "Replay or share a dungeon by its 6-character code. Enter to type it. Rewards taken home: normal.",
+    descRecords: "Your best runs on this file and on this device.",
+    descBegin: "Every run starts from scratch. 3 failures end it. Half the aurels and NIP you earn come home.",
+    descBack: "Return to the hub.",
+    records: "Records", begin: "Begin the descent", back: "Back",
+    deepest: "Deepest floor reached: {n}", dailyNone: "No daily runs yet.", dailyBest: "Today's daily best: floor {n}",
+    hint: "Up/Down: choose   Enter: change   Esc: back", hintPad: "{A} change  {B} back", hintTouch: "Tap a row to choose it, tap again to change it",
+    endBonus: "Modifier bonus +{n}%"
+  },
+
   rush: {
     name: "Boss Rush", hard: "Hard Rematches", hardShort: "Hard",
     locked: "Defeat every apostle on your path first.",
@@ -28,11 +45,11 @@ window.SHARDS.text32 = {
     rewardRush: "Reward: the Pilgrim's Gold cloak dye.", rewardDye: "Reward: the {name} cloak dye.", already: "You already have this dye.",
     ok: "Enter: back to the hub", okPad: "{A} back to the hub", okTouch: "Tap: back to the hub"
   },
-  dyes: { label: "Cloak dye", none: "Natural" },
+  dyes: { label: "Cloak dye", none: "Natural", back: "Back", title: "Cloak dyes", locked: "Locked.", lockTag: "locked", wornTag: "worn", wearing: "Wearing {name}.", tapWear: "Tap to wear it.", keyWear: "Enter / A: wear it.", note: "Boss rematches and Boss Rush unlock new dyes." },
   ngp: {
     offer: "New Game+", offerDesc: "Begin again with your charms, weapons and skills. Enemies are stronger and the seals hide in new places.",
     confirm: "Start New Game+ on this file? Fragments, stages and map progress reset; charms, weapons, enchants and skills stay.",
-    tag: "NG+{n}", line: "I remember you\u2026 from another age."
+    tag: "NG+{n}", lockTag: "(locked)", locked: "Defeat the final boss of this cycle to unlock NG+{n}.", line: "I remember you\u2026 from another age."
   }
 };
 
@@ -45,5 +62,5 @@ window.SHARDS.text32.intro = {
     ["Six Apostles claimed the pieces.", "His soul cut a rift into the Crimson Moon. It cannot leave without a body.", "It is still up there. Waiting."]
   ],
   order: [["Centuries on, Ryan still keeps the Order, his blessed blade unaging.", "\"The fragments must never be joined again.\"", "\"Go, monk. Take them from the Apostles, and keep them apart.\""]],
-  cult: [["Rejoining the pieces takes a ritual, and the ritual needs the Heart. General Jeriah keeps the Heart.", "So the cult seeks the Crown of the Crimson King, which the Order sealed away.", "It lies in the cathedral archive of the Plains Capital, guarded by a golden serpent.", "Worn in the ritual, the Crown stands in for the Heart."], ["Of the six, only General Jeriah still hears him.", "\"Our own Apostles will not give up what is his.\"", "\"Go, acolyte. Hunt them. The Crimson King must return.\""]]
+  cult: [["General Jeriah already keeps the Heart. The other pieces must be taken back.", "But the ritual that joins the fragments needs one thing more: the Crown of the Crimson King.", "The Order sealed it in the cathedral archive of the Plains Capital, guarded by a golden serpent.", "Without the Crown, the pieces cannot be joined."], ["Of the six, only General Jeriah still hears him.", "\"Our own Apostles will not give up what is his.\"", "\"Go, acolyte. Hunt them. The Crimson King must return.\""]]
 };
