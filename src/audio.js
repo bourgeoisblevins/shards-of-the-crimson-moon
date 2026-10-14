@@ -1049,6 +1049,20 @@
       tone(A, o, t, { wave: "p12", f: 1500, f2: 900, dur: 0.05, vol: 0.07 });
     },
     bow(A, o, t) { tone(A, o, t, { wave: "tri", f: 120, f2: 190, dur: 0.1, vol: 0.2 }); },
+    // ---- v3.2.3: shurikens and blow darts ----
+    shurikenThrow(A, o, t) {
+      noise(A, o, t, { dur: 0.09, vol: 0.22, type: "bandpass", fq: 4200, fq2: 2600, Q: 3, a: 0.003 });
+      tone(A, o, t, { wave: "p12", f: 2100, f2: 1700, dur: 0.04, vol: 0.05 }); tone(A, o, t + 0.05, { wave: "p12", f: 1900, f2: 1500, dur: 0.03, vol: 0.04 });
+    },
+    shurikenPop(A, o, t) {
+      noise(A, o, t, { dur: 0.06, vol: 0.32, type: "highpass", fq: 2400, metal: true, rate: 3 });
+      tone(A, o, t, { wave: "p25", f: 980, f2: 420, dur: 0.07, vol: 0.14 });
+    },
+    dartBlow(A, o, t) {
+      noise(A, o, t, { dur: 0.1, vol: 0.26, type: "lowpass", fq: 1400, fq2: 600, a: 0.01 });
+      tone(A, o, t + 0.02, { wave: "tri", f: 340, f2: 520, dur: 0.05, vol: 0.12 });
+    },
+    stun(A, o, t) { nT(A, o, t, [91, 86, 91, 86], 0.045, { wave: "p12", dur: 0.05, vol: 0.07 }); },
     arrowHit(A, o, t) {
       noise(A, o, t, { dur: 0.05, vol: 0.3, type: "lowpass", fq: 3000, fq2: 800 });
       tone(A, o, t, { wave: "p25", f: 520, f2: 260, dur: 0.05, vol: 0.12 });

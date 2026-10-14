@@ -177,7 +177,7 @@
       vibration: vibrationOn(), difficulty, padScale: padScaleCur, scheme: touchScheme,
       ledgeAssist: !(save.settings && save.settings.ledgeAssist === false)
     };
-    save.version = 31;
+    save.version = 31; save.build33 = window.SHARDS.VERSION;   // v3.2.3: the file select shows the real build
     const gl = {}; for (const k of GLOBAL_KEYS) gl[k] = save.settings[k];
     SL.setGlobals(gl); // volume, touch layout, vibration, ledge assist, fullscreen: shared by every file
     if (activeSlot == null && DEBUGMODE() && save.path) activeSlot = 0; // test convenience: debug helpers that set a path before any file was picked use File 1
@@ -457,6 +457,31 @@
     }
     if (ent.y > level.h + 24) ent.fell = true;
   }
+  // v3.2.3: gates cannot be jumped, flown, dashed, swung or climbed past. The collision column runs from the gate up to the ceiling above it
+  // (or far above the level top when there is none), it gives no wall slide / wall jump, and gateClamp33 stops any crossing that slips through.
+  function gateTop33(d) {
+    let top = -2000;
+    for (const q of level.platforms || []) { if (q.oneWay || q.k === "oneway") continue; if (q.x < d.x + d.w && q.x + q.w > d.x && q.y + q.h <= d.y + 1) top = Math.max(top, q.y + q.h); }
+    return top;
+  }
+  function gateCol33(d) {
+    if (d.top33 == null) d.top33 = gateTop33(d);
+    const c = d.col33 || (d.col33 = { k: "gate", solid: true, noWall: true, gate33: true });
+    c.x = d.x; c.w = d.w; c.y = d.top33; c.h = d.y + d.h - d.top33; return c;
+  }
+  let gateStops33 = 0;
+  function gateClamp33(p, x0) {
+    if (!w22 || !level || !level.tiled) return;
+    for (const d of w22.doors) {
+      if (d.open) continue; const top = d.top33 == null ? (d.top33 = gateTop33(d)) : d.top33;
+      if (p.y + p.h <= top || p.y >= d.y + d.h) continue;
+      const mid = d.x + d.w / 2, a = x0 + p.w / 2 < mid, b = p.x + p.w / 2 < mid, inside = p.x + p.w > d.x && p.x < d.x + d.w;
+      if (a !== b || inside) {
+        p.x = a ? d.x - p.w : d.x + d.w; p.vx = 0; p.dashing = 0; gateStops33++;
+        if (p.hook) { p.hook = null; p.noGrab27 = 12; }
+      }
+    }
+  }
   function plats() { return (level && level.tiled && w22) ? w22.cur : (level ? level.platforms : []); }
 
   // ---------- tiled level runtime ----------
@@ -498,7 +523,7 @@
     for (const c of w22.crumbles) if (c.state < 2) cur.push(c);
     for (const b of w22.blinks) if (b.isOn) cur.push(b);
     for (const b of w22.bellPlats) if ((w22.bellT[b.bell] || 0) > 0) cur.push(b);
-    for (const d of w22.doors) { d.solid = !d.open; if (d.solid) cur.push(d); }
+    for (const d of w22.doors) { d.solid = !d.open; if (d.solid) cur.push(gateCol33(d)); }   // v3.2.3: a closed gate is a wall up to the ceiling (no wall slide)
     for (const b of w22.breaks) cur.push(b);
     for (const b of w22.blocks) cur.push(b);
     w22.cur = cur.filter(Boolean);
@@ -542,6 +567,7 @@
     if (key === w22.lastCell) return; w22.lastCell = key;
     const S = w22.S, r = gathered("eye") ? 2 : 1;
     for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) S.map[(cx + i) + "," + (cy + j)] = 1;
+    if (!dg && (w22.mapSave33 == null || animT - w22.mapSave33 > 180)) { w22.mapSave33 = animT; persist(); }   // v3.2.3: explored cells are saved with the file
   }
   function worldRespawnEnemies() {
     const S = wz();
@@ -1178,38 +1204,98 @@
     if (popup && popup.t > 0) { popup.t--; const tw = Math.min(W - 40, measure(popup.text) + 24); panel(((W - tw) / 2) | 0, 112, tw, 24); drawText(popup.text, W / 2, 120, P().order.illumination, "center"); }
   }
   // ---------- Map screen ----------
-  function updateMap() { if (menuBack() || input.pressed("confirm")) scene = "pause"; }
+  // ---------- v3.2.3: stage map, Hollow Knight style ----------
+  // Explored 80x60 cells fill in (saved per stage per file in save.world[zone].map; a Delve floor keeps its own and shows that floor only),
+  // rooms get clean outlines along the explored edge, icons mark shrines, seals, gates, the boss arena, the exit, found secrets and NPCs.
+  // Keyboard: arrows pan, Enter / X zoom, Esc back.  Pad: stick / d-pad pan, A or LB/RB zoom, B back.  Touch: +/- buttons, tap the map to centre, Back.
+  let map33 = { z: 0, cx: 0, cy: 0, log: null };
+  function mapOpen33() { if (w22 && !dg) persist(); map33.z = 0; if (player) { map33.cx = player.x + player.w / 2; map33.cy = player.y + player.h / 2; } }
+  function mapGeom33() {
+    const bx = 16, by = 30, bw = W - 32, bh = 178, fit = Math.min(bw / level.w, bh / level.h), Z = [fit, Math.min(0.5, fit * 2.5), Math.min(0.9, fit * 5)];
+    const sc = Z[map33.z] || fit;
+    let ox, oy;
+    if (map33.z === 0) { ox = bx + ((bw - level.w * sc) / 2) | 0; oy = by + ((bh - level.h * sc) / 2) | 0; }
+    else {
+      const hw = bw / 2 / sc, hh = bh / 2 / sc;
+      map33.cx = level.w * sc <= bw ? level.w / 2 : Math.max(hw, Math.min(level.w - hw, map33.cx)); map33.cy = level.h * sc <= bh ? level.h / 2 : Math.max(hh, Math.min(level.h - hh, map33.cy));
+      ox = Math.round(bx + bw / 2 - map33.cx * sc); oy = Math.round(by + bh / 2 - map33.cy * sc);
+    }
+    return { bx, by, bw, bh, sc, ox, oy, nz: Z.length };
+  }
+  function mapZoom33(d) { const n = 3; map33.z = Math.max(0, Math.min(n - 1, map33.z + d)); if (player && map33.z > 0 && d > 0 && map33.z === 1) { map33.cx = player.x; map33.cy = player.y; } synth.sfx("menuMove"); }
+  function updateMap() {
+    if (menuBack()) { scene = "pause"; return; }
+    if (input.pressed("confirm") || input.pressed("strike")) mapZoom33(map33.z >= 2 ? -2 : 1);
+    if (input.pressed("tabR")) mapZoom33(1); if (input.pressed("tabL")) mapZoom33(-1);
+    if (map33.z > 0 && level) { const G = mapGeom33(), sp = 4 / G.sc; if (input.held("left")) map33.cx -= sp; if (input.held("right")) map33.cx += sp; if (input.held("up")) map33.cy -= sp; if (input.held("down")) map33.cy += sp; }
+  }
+  function mapIcon33(k, x, y, on) {
+    x = Math.round(x); y = Math.round(y); const C = P(), dk = C.ground.void;
+    if (k === "you") { const bl = (uiT >> 4) & 1; if (bl) { rect(x - 5, y - 1, 11, 3, C.order.illumination); rect(x - 1, y - 5, 3, 11, C.order.illumination); } rect(x - 3, y - 3, 7, 7, dk); rect(x - 2, y - 2, 5, 5, bl ? C.order.light : C.order.illumination); rect(x - 1, y - 1, 3, 3, C.cult.ember); return; }
+    if (k === "shrine") { rect(x - 3, y - 3, 7, 7, dk); rect(x - 1, y - 3, 3, 2, on ? C.order.illumination : C.ground.ash); rect(x - 2, y - 1, 5, 3, on ? C.cult.ember : C.ground.smoke); rect(x - 3, y + 2, 7, 1, C.order.bone); return; }
+    if (k === "seal") { rect(x - 2, y - 3, 5, 7, dk); rect(x - 3, y - 2, 7, 5, dk); rect(x - 1, y - 2, 3, 5, path === "cult" ? C.cult.ember : C.order.nexus); rect(x - 2, y - 1, 5, 3, path === "cult" ? C.cult.ember : C.order.nexus); rect(x, y, 1, 1, C.order.light); return; }
+    if (k === "gate") { rect(x - 2, y - 4, 5, 9, dk); rect(x - 1, y - 3, 3, 7, on ? C.ground.stone3 : C.cult.crimson); rect(x, y - 3, 1, 7, on ? C.ground.smoke : C.cult.emberLight); return; }
+    if (k === "boss") { rect(x - 4, y - 3, 9, 8, dk); rect(x - 3, y - 2, 7, 5, C.order.bone); rect(x - 2, y + 3, 5, 1, C.order.bone); rect(x - 2, y - 1, 2, 2, dk); rect(x + 1, y - 1, 2, 2, dk); rect(x, y + 1, 1, 1, dk); return; }
+    if (k === "exit") { rect(x - 3, y - 4, 7, 9, dk); rect(x - 2, y - 3, 5, 7, C.order.nexus); rect(x - 1, y - 2, 3, 6, dk); rect(x - 1, y - 3, 3, 1, C.order.illumination); return; }
+    if (k === "secret") { rect(x - 3, y, 7, 1, C.order.illumination); rect(x, y - 3, 1, 7, C.order.illumination); rect(x - 1, y - 1, 3, 3, C.order.light); return; }
+    if (k === "npc") { rect(x - 3, y - 4, 7, 9, dk); rect(x - 1, y - 3, 3, 3, C.order.bone); rect(x - 2, y, 5, 4, path === "cult" ? C.cult.ember : C.order.nexus); return; }
+    if (k === "lore") { rect(x - 2, y - 3, 5, 7, dk); rect(x - 1, y - 2, 3, 5, C.ground.smoke); rect(x - 1, y - 1, 3, 1, dk); return; }
+  }
   function drawMap() {
     uiT++;
     drawImg(ART().ui.menuBg.path, 0, 0);
     panel(8, 8, W - 16, H - 16);
-    const TT = T22().map;
-    drawText(TT.heading + (level && level.title ? ": " + level.title : ""), 24, 18, P().order.illumination);
-    tapTarget(0, 0, W, H, () => input.tap("cancel"));
-    if (!level || !level.tiled || !w22) { drawText("-", W / 2, 120, P().ground.smoke, "center"); return; }
-    const S = w22.S, bx = 24, by = 40, bw = W - 48, bh = 170, sc = Math.min(bw / level.w, bh / level.h), ox = bx + ((bw - level.w * sc) / 2) | 0, oy = by + ((bh - level.h * sc) / 2) | 0;
+    const TT = T22().map, M = T32().map33, t = touchUI();
+    const title = dg ? dgFmt(M.floor, { n: dg.depth }) : (level && level.title ? level.title : "");
+    drawText(TT.heading + (title ? ": " + title : ""), 24, 15, P().order.illumination);
+    if (!level || !level.tiled || !w22) { drawText("-", W / 2, 120, P().ground.smoke, "center"); tapTarget(0, 0, W, H, () => input.tap("cancel")); return; }
+    const S = w22.S, G = mapGeom33(), { bx, by, bw, bh, sc, ox, oy } = G, CW = 80, CH = 60, nx = Math.ceil(level.w / CW), ny = Math.ceil(level.h / CH);
+    const has = (cx, cy) => !!S.map[cx + "," + cy], seen = (x, y) => has(Math.floor(x / CW), Math.floor(y / CH));
+    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc, log = [];
     rect(bx, by, bw, bh, P().ground.void);
-    const seen = (x, y) => !!S.map[Math.floor(x / 80) + "," + Math.floor(y / 60)];
-    for (let cx = 0; cx < Math.ceil(level.w / 80); cx++) for (let cy = 0; cy < Math.ceil(level.h / 60); cy++) if (S.map[cx + "," + cy]) rect(ox + cx * 80 * sc, oy + cy * 60 * sc, Math.ceil(80 * sc), Math.ceil(60 * sc), P().ground.obsidian);
-    for (const p of w22.statics) {
-      for (let x = p.x; x < p.x + p.w; x += 40) if (seen(x, p.y) || seen(x, p.y + p.h)) {
-        const xe = Math.min(p.x + p.w, x + 40);
-        rect(ox + x * sc, oy + p.y * sc, Math.max(1, Math.ceil((xe - x) * sc)), Math.max(1, Math.round(Math.min(p.h, 16) * sc)), p.oneWay ? P().order.boneShade : P().order.temple);
-      }
+    g.save(); g.beginPath(); g.rect(bx, by, bw, bh); g.clip();
+    // unexplored: a faint dotted grid, so the stage size reads
+    for (let cx = 0; cx < nx; cx++) for (let cy = 0; cy < ny; cy++) if (!has(cx, cy)) rect(X(cx * CW + CW / 2), Y(cy * CH + CH / 2), 1, 1, P().ground.stone3);
+    // explored rooms: fill, then an outline along every explored / unexplored edge
+    let cells = 0;
+    for (let cx = 0; cx < nx; cx++) for (let cy = 0; cy < ny; cy++) if (has(cx, cy)) { cells++; rect(X(cx * CW), Y(cy * CH), Math.ceil(CW * sc) + 1, Math.ceil(CH * sc) + 1, P().ground.obsidian); }
+    const ol = P().order.boneShade;
+    for (let cx = 0; cx < nx; cx++) for (let cy = 0; cy < ny; cy++) if (has(cx, cy)) {
+      const x0 = Math.round(X(cx * CW)), y0 = Math.round(Y(cy * CH)), x1 = Math.round(X((cx + 1) * CW)), y1 = Math.round(Y((cy + 1) * CH));
+      if (!has(cx, cy - 1)) rect(x0, y0, x1 - x0 + 1, 1, ol); if (!has(cx, cy + 1)) rect(x0, y1, x1 - x0 + 1, 1, ol);
+      if (!has(cx - 1, cy)) rect(x0, y0, 1, y1 - y0 + 1, ol); if (!has(cx + 1, cy)) rect(x1, y0, 1, y1 - y0 + 1, ol);
     }
-    for (const c of w22.cps) if (seen(c.x, c.y)) rect(ox + c.x * sc - 1, oy + c.y * sc - 1, 4, 4, c.lit ? P().order.illumination : P().order.templeDeep);
-    for (const it of w22.items) if (!it.taken && it.type === "seal" && seen(it.x, it.y)) rect(ox + it.x * sc - 1, oy + it.y * sc - 1, 4, 4, path === "cult" ? P().cult.ember : P().order.nexus);
-    for (const d of w22.doors) if (seen(d.x, d.y)) rect(ox + d.x * sc, oy + d.y * sc, 2, Math.max(2, 48 * sc), d.open ? P().ground.stone3 : P().cult.crimson);
-    if (level.bossGate) { const gt = level.bossGate; if (seen(gt.x, gt.y) || true) rect(ox + gt.x * sc - 1, oy + gt.y * sc - 1, 5, 5, P().cult.ember); }
-    if ((animT >> 3) & 1) rect(ox + (player.x + 6) * sc - 1, oy + (player.y + 10) * sc - 1, 3, 3, P().order.light);
-    rect(bx, by, bw, 1, P().order.templeDeep); rect(bx, by + bh - 1, bw, 1, P().order.templeDeep); rect(bx, by, 1, bh, P().order.templeDeep); rect(bx + bw - 1, by, 1, bh, P().order.templeDeep);
-    const pk = path === "cult" ? "cult" : "order";
-    blitFrame("ui22-hud", "seal-" + pk, 24, 218, false); drawText(sealCount() + "/" + sealNeed(), 44, 221, P().order.bone);
-    rect(100, 221, 4, 4, P().order.illumination); drawText("Shrine", 108, 221, P().ground.smoke);
-    rect(160, 221, 4, 4, P().cult.ember); drawText("Gate", 168, 221, P().ground.smoke);
-    rect(206, 221, 4, 4, path === "cult" ? P().cult.ember : P().order.nexus); drawText("Seal", 214, 221, P().ground.smoke);
-    drawText(padUI() ? TT.hint : (touchUI() ? TT.hintTouch : TT.hintKb), W / 2, 244, P().ground.smoke, "center");
+    // terrain inside explored cells
+    for (const p of w22.statics) for (let x = p.x; x < p.x + p.w; x += 40) if (seen(x, p.y) || seen(x, p.y + p.h)) {
+      const xe = Math.min(p.x + p.w, x + 40);
+      rect(X(x), Y(p.y), Math.max(1, Math.ceil((xe - x) * sc)), Math.max(1, Math.round(Math.min(p.h, 16) * sc)), p.oneWay ? P().order.boneShade : P().order.temple);
+    }
+    const icon = (k, x, y, on) => { if (!seen(x, y)) return; mapIcon33(k, X(x), Y(y), on); log.push(k); };
+    for (const tb of w22.tablets) icon("lore", tb.x + 8, tb.y + 12);
+    for (const c of w22.cps) icon("shrine", c.x + 10, c.y + 20, c.lit);
+    for (const it of w22.items) { if (it.type === "seal" && !it.taken) icon("seal", it.x + 7, it.y + 8); else if (it.type !== "seal" && it.type !== "bonusprize" && it.taken) icon("secret", it.x + 7, it.y + 8); }
+    for (const b of level.breakables || []) if (S.broken && S.broken[b.id]) icon("secret", b.x + (b.w || 16) / 2, b.y + (b.h || 16) / 2);
+    for (const d of w22.doors) icon("gate", d.x + d.w / 2, d.y + d.h / 2, d.open);
+    if (level.bossGate) { const q = level.bossGate; if (seen(q.x, q.y) || (S.map && Object.keys(S.map).length > 0 && !dg)) { mapIcon33("boss", X(q.x + q.w / 2), Y(q.y + q.h / 2)); log.push("boss"); } }
+    if (dg && level.dungeon) { const e = level.dungeon.exit; icon("exit", e.x + e.w / 2, e.y + e.h / 2); if (level.dungeon.npc) icon("npc", level.dungeon.npc.x, level.dungeon.npc.y - 10); }
+    if (player) { mapIcon33("you", X(player.x + player.w / 2), Y(player.y + player.h / 2)); log.push("you"); }
+    g.restore();
+    const fr = P().order.templeDeep; rect(bx, by, bw, 1, fr); rect(bx, by + bh - 1, bw, 1, fr); rect(bx, by, 1, bh, fr); rect(bx + bw - 1, by, 1, bh, fr);
+    // legend
+    const L = [["you", M.you], ["shrine", M.shrine, true], ["seal", M.seal], ["gate", M.gate], ["boss", M.boss], ["exit", M.exit], ["secret", M.secret], ["npc", M.npc]];
+    let lx = 22; const ly = by + bh + 9;
+    for (const [k, lab, on] of L) { mapIcon33(k, lx + 3, ly + 3, on); drawText(lab, lx + 10, ly - 1, P().ground.smoke); lx += 18 + measure(lab); }
+    drawText(dgFmt(M.explored, { n: Math.round(cells / (nx * ny) * 100) }) + (map33.z ? "   " + dgFmt(M.zoom, { n: map33.z + 1 }) : ""), W - 84, 15, P().ground.smoke, "right");
+    const hint = t ? M.hintTouch : padUI() ? M.hintPad : M.hintKb; drawText(hint, W / 2, H - 22, P().ground.ash, "center");
+    if (t) {
+      const bt = (x, lab, fn) => { panel(x, by + 4, 26, 22); drawText(lab, x + 13, by + 10, P().order.illumination, "center"); tapTarget(x - 4, by, 34, 30, fn); };
+      bt(bx + bw - 62, "-", () => mapZoom33(-1)); bt(bx + bw - 32, "+", () => mapZoom33(1));
+      panel(bx + 4, by + 4, 40, 22); drawText(TT.back, bx + 24, by + 10, P().order.illumination, "center"); tapTarget(bx, by, 48, 30, () => input.tap("cancel"));
+      tapTarget(bx, by + 30, bw, bh - 30, () => { const tp = input.lastTap33; if (tp && map33.z > 0) { map33.cx = (tp.x - ox) / sc; map33.cy = (tp.y - oy) / sc; } else if (map33.z === 0) mapZoom33(1); });
+    }
+    map33.log = { icons: log, cells, total: nx * ny, z: map33.z, sc: +sc.toFixed(4), cx: Math.round(map33.cx), cy: Math.round(map33.cy), title };
   }
+
 
   // ---------- entities ----------
   function makePlayer(x, y) {
@@ -2213,7 +2299,9 @@
 
   // ---------- v3.2 endgame: Boss Rush, hard rematches (cloak dyes), New Game+ (seal remix) ----------
   let rush32 = null, hard32 = null, eg32Ix = 0, rushRes32 = null;
-  function endgame32() { const zs = pathZones(); return zs.length > 0 && zs.every(z => save.claimed[z.fragment]); }
+  // v3.2.3: Boss Rush, hard rematches and the next NG+ cycle share one rule: the final boss of the current cycle is beaten (its ending seen).
+  // endCycle33 records the cycle whose ending was seen; NG+ sets it to -1. Older saves without the record that saw the ending unlock at once.
+  function endgame32() { if (!save.endSeen32 || !pathZones().length) return false; return save.endCycle33 == null || save.endCycle33 === (save.ngp | 0); }
   function rushZones32() { return pathZones().map(z => z.id); }
   function dyeList32() {
     const B = P().bosses, L = (id) => { const r = (B[id] && B[id].ramp || []).slice().sort((a, b) => { const l = (h) => { const c = hexRGB32(h); return c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11; }; return l(a) - l(b); }); return [r[1] || r[0], r[2] || r[1], r[3] || r[2]].filter(Boolean); };
@@ -2357,13 +2445,13 @@
   }
   // v3.2.2: the next NG+ cycle unlocks only once the final boss of the current cycle is beaten (the ending of this cycle was seen).
   // Older saves: a first-cycle file that saw the ending is ready; an NG+ file without the record must finish its cycle first.
-  function ngpReady33() { if (!save.endSeen32) return false; const c = save.endCycle33 != null ? save.endCycle33 : ((save.ngp | 0) ? -1 : 0); return c === (save.ngp | 0); }
+  function ngpReady33() { return endgame32(); }
   function beginNGP32() {
     if (!ngpReady33()) { synth.sfx("locked"); toast(ngpLockMsg33()); return; }
     const o = save, keep = { path: o.path, charms: o.charms, notches: o.notches, vessels: o.vessels, v23: o.v23, dungeon30: o.dungeon30, dyes32: o.dyes32, dye32: o.dye32, rush32: o.rush32, settings: o.settings, playF: o.playF, deaths: o.deaths, migratedFrom: o.migratedFrom, endSeen32: true, ngp: (o.ngp | 0) + 1, hooks27: o.hooks27, tut27: o.tut27, tutorial: o.tutorial, intro32: o.intro32 };
     save = Object.assign(defaultSave(), JSON.parse(JSON.stringify(keep)));
     if (save.v23) { save.v23.bossNip = {}; save.v23.shop = save.v23.shop || {}; }
-    normalizeSave(); persist(); toast(dgFmt(T32().ngp.tag, { n: save.ngp })); goScene(() => enterHub());
+    save.endCycle33 = -1; normalizeSave(); persist(); toast(dgFmt(T32().ngp.tag, { n: save.ngp })); goScene(() => enterHub());
   }
   // NG+ seal remix: each traverse's seals trade places with that level's optional secret spots (pickups the reach checker already proves reachable)
   function remixSeals32(L, id, ng) {
@@ -2509,7 +2597,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function travelRows() {
     const rows = pathZones().map(z => ({ k: "zone", z }));
     for (const q of S25().filter(q => q.kind === "side" && !(q.cultOnly && path !== "cult"))) rows.push({ k: "stage", s: q });
-    rows.push({ k: "bonusmenu" }); if (endgame32() || save.endSeen32) rows.push({ k: "endgame" }); rows.push({ k: "back" });
+    rows.push({ k: "bonusmenu" }); if (path) rows.push({ k: "endgame" }); rows.push({ k: "back" });
     return rows;
   }
   function updateBonus() {
@@ -2683,7 +2771,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
 
   // ---------- player update (v2.2: charms, powerups, wall-jump, double jump, ice, wind) ----------
-  function updatePlayer() {
+  function updatePlayer() { const x0 = player ? player.x : 0; updatePlayerCore33(); if (player && !player.dead) gateClamp33(player, x0); }
+  function updatePlayerCore33() {
     const p = player, tiled = !!(level && level.tiled && w22);
     const rs = (a, b) => tiled ? resolve2(a, b) : resolve(a, b);
     if (p.dead) {
@@ -3482,6 +3571,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     b.t++; b.animT = (b.animT || 0) + 1;
     if (A26 && bossPre26(b)) return;
     if (introHold > 0) { b.vx = 0; resolve(b, level.platforms); return; }
+    if (b.stun33 > 0) { b.stun33--; b.vx *= 0.8; return; }   // v3.2.3: blow-dart stun (short on bosses)
     const dx = player.x - b.x;
     if (!b.move) b.facing = dx < 0 ? -1 : 1;
     if (!b.fly) b.vy = Math.min(4.5, b.vy + 0.18);
@@ -3655,16 +3745,16 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
 
   function updateProjectiles() {
-    updateSparks32();
+    updateSparks32(); tickStuck33();
     for (const pr of projectiles) {
       if (pr.delay > 0) { pr.delay--; continue; }
       pr.x += pr.vx; pr.y += pr.vy; pr.life--; if (pr.g26) pr.vy += pr.g26; if (pr.tick32) pr.tick32(pr);
       if (pr.ground && pr.vy < 0 && pr.life < 25) pr.vy = 0;
       if (pr.arrow) {
         pr.vy += pr.grav;
-        for (const e of enemies) if (!e.dead && aabb(pr, e)) { damageEnemy(e, arrowDmg(pr.dmg), { kb: 0.55, stun: 5 }); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; }
+        for (const e of enemies) if (!e.dead && aabb(pr, e)) { damageEnemy(e, arrowDmg(pr.dmg), { kb: pr.kind === "darts" ? 0.15 : 0.55, stun: 5 }); onRangedHit33(pr, e, false); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; }
         if (pr.life > 0 && targetHit26(pr, 1)) pr.life = 0;
-        if (pr.life > 0 && boss && !boss.dead && boss.visible && aabb(pr, bossCore(boss))) { damageBoss(arrowDmg(pr.dmg)); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); }
+        if (pr.life > 0 && boss && !boss.dead && boss.visible && aabb(pr, bossCore(boss))) { damageBoss(arrowDmg(pr.dmg)); onRangedHit33(pr, boss, true); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); }
         if (pr.life > 0 && level.tiled && w22) { for (const p of w22.cur) if (p.solid && aabb(pr, p)) { pr.life = 0; synth.sfx("arrowHit"); efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; } worldStrike({ x: pr.x, y: pr.y, w: pr.w, h: pr.h }); }
         continue;
       }
@@ -4089,7 +4179,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   const FRAG_ORDER = () => window.SHARDS.fragmentOrder || ["heart", "eye", "bone", "blaze", "shadow", "claw"];
   function dgIconOf(kind, id) {
     if (kind === "charm") return { sheet: W24().newCharms.includes(id) ? "ui24-charm" : "ui22-charm", frame: id };
-    if (kind === "weapon") return { sheet: id === "mstaff" ? "ui24-wicon" : (id === "whip" || id === "katana") ? "ui26-wicon" : "ui23-wicon", frame: id };
+    if (kind === "weapon") return { sheet: id === "shuriken" || id === "darts" ? "ui33-wicon" : id === "mstaff" ? "ui24-wicon" : (id === "whip" || id === "katana") ? "ui26-wicon" : "ui23-wicon", frame: id };
     if (kind === "fragment") return path === "cult" && id === "heart" ? { sheet: "fx26-crown32", frame: "crown" } : { sheet: "ui-frag32", frame: id };
     return { sheet: "dg31-icons", frame: kind };
   }
@@ -4107,6 +4197,10 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       const k = rar === 0 ? 1 : rar === 1 ? 2 : 3;
       return { cat, rar, id, ench: t1, icon: dgIconOf("weapon", id), name: dgFmt(TT.weapon, { name: weaponName(id) }), desc: t2 ? dgFmt(TT.weaponDescMax, { ench: enchName(t1), ench2: enchName(t2) }) : dgFmt(TT.weaponDesc, { ench: enchName(t1), k }),
         apply() { if (!v.melee.owned.includes(id)) v.melee.owned.push(id); v.melee.main = id; if (!v.enchs) v.enchs = {}; v.enchs[id] = { [t1]: k }; v.ench[id] = { t: t1, k }; if (t2) { v.enchs[id][t2] = 3; v.ench[id] = { t: t2, k: 3 }; } } };
+    }
+    if (cat === "ranged") {   // v3.2.3: ranged weapons join the Delve pool (shurikens, blow darts, knives, Magik Staff)
+      const ids = W.ranged.filter(r => r !== "bow" && !v.ranged.owned.includes(r)); if (!ids.length) return null; const id = ids[ri(ids.length)];
+      return { cat, rar, id, icon: dgIconOf("weapon", id), name: dgFmt(TT.weapon, { name: weaponName(id) }), desc: T23().weapon.desc[id] || "", apply() { if (!v.ranged.owned.includes(id)) v.ranged.owned.push(id); v.ranged.main = id; v.arrows = v.arrowMax; } };
     }
     if (cat === "nip") { const n = [1, 2, 3, 5][rar]; return { cat, rar, icon: dgIconOf("nip"), name: TT.nip, desc: dgFmt(TT.nipDesc, { n }), apply() { dg.nip += n; dg.nipEarned += n; } }; }
     if (cat === "aurels") { const n = [40, 90, 180, 350][rar]; return { cat, rar, icon: dgIconOf("aurels"), name: TT.aurels, desc: dgFmt(TT.aurelsDesc, { n }), apply() { v.aurels += n; } }; }
@@ -4126,7 +4220,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function dgRarRoll(R, d, boss) { const w = [Math.max(10, 70 - d * 5), 25 + d * 1.5, 5 + d * 2, d >= 8 ? (d - 7) * 2 : 0]; if (boss) { w[0] = 0; w[1] *= 0.5; w[2] *= 1.5; w[3] = Math.max(w[3], 3); } let t = R() * (w[0] + w[1] + w[2] + w[3]); for (let i = 0; i < 4; i++) { if (t < w[i]) return i; t -= w[i]; } return 0; }
   function dgCards(boss) {
     const R = D30().rng((dg.seed * 31 + dg.depth * 7 + 3) >>> 0), ri = (n) => Math.floor(R() * n), d = dg.depth;
-    const cats = ["charm", "weapon", "upgrade", "upgrade", "nip", "aurels"];
+    const cats = ["charm", "weapon", "upgrade", "upgrade", "nip", "aurels", "ranged"];
     for (let i = cats.length - 1; i > 0; i--) { const j = ri(i + 1); [cats[i], cats[j]] = [cats[j], cats[i]]; }
     const cards = [], used = new Set();
     // v3.1: from floor 6 a fragment card (Epic, Legendary from floor 12) is offered about every other pick, and always after a boss; each fragment once per run
@@ -4371,7 +4465,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (!r.data) return o;
     const d = r.data, cl = d.claimed || {};
     o.path = d.path; o.crown = !!d.crown; o.frags = Math.min(6, Object.keys(cl).filter(k => cl[k]).length);
-    o.total = 6; o.playF = d.playF | 0; o.ver = d.version | 0; o.saved = r.saved || 0;
+    o.total = 6; o.playF = d.playF | 0; o.ver = d.version | 0; o.build = typeof d.build33 === "string" ? d.build33 : null; o.saved = r.saved || 0;
     const v = d.v23 || {}; o.aurels = v.aurels | 0; o.nip = v.nip | 0;
     const st = d.stages || {}; o.cleared = Math.min(8, Object.keys(st).filter(k => st[k] && st[k].cleared).length);
     o.pct = Math.min(100, Math.round(o.frags / 6 * 70 + o.cleared / 8 * 30));
@@ -4381,7 +4475,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     o.recovered = r.state === "recovered";
     return o;
   }
-  function verLabel29(n) { return n >= 31 ? "v3.1" : n >= 30 ? "v3.0" : n >= 29 ? "v2.9" : n >= 22 ? "v2." + (n - 20) : n > 0 ? "v2.0" : "v?"; }
+  function verLabel29(n) { return n >= 31 ? "v3.1+" : n >= 30 ? "v3.0" : n >= 29 ? "v2.9" : n >= 22 ? "v2." + (n - 20) : n > 0 ? "v2.0" : "v?"; }
   function sums29() { return [0, 1, 2].map(summary29); }
   // the file Continue joins: the last played one, else the most recently saved of the rest
   function continueSlot29() {
@@ -4497,7 +4591,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (sm.path === "cult") blitFrame(ic, sm.crown ? "crown" : "pipOff", x + 62 + nF * 12, y + 19, false);
     drawText(F.aurels + " " + sm.aurels + "   " + F.nip + " " + sm.nip, x + w - 8, y + 20, P().order.boneShade, "right");
     drawText((sm.zone || "") , x + 62, y + 35, P().ground.smoke);
-    drawText((sm.recovered ? F.recovered + "  " : "") + fmtT29(F.ver, { v: verLabel29(sm.ver) }), x + w - 8, y + 35, sm.recovered ? P().cult.emberLight : P().ground.smoke, "right");
+    drawText((sm.recovered ? F.recovered + "  " : "") + fmtT29(F.ver, { v: sm.build || verLabel29(sm.ver) }), x + w - 8, y + 35, sm.recovered ? P().cult.emberLight : P().ground.smoke, "right");
   }
   function drawFiles() {
     uiT++;
@@ -5195,6 +5289,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (pr.arrow) {
         const s = sheetOf("w23-proj"), img = s && atlas.images.get(s.path);
         if (img) {
+          if (pr.kind === "shuriken") { blitFrame("w33-proj", "shur" + ((animT >> 1) & 3), x + w / 2, y + h / 2, pr.vx < 0); continue; }
+          if (pr.kind === "darts") { const ds = sheetOf("w33-dart"), di = ds && atlas.images.get(ds.path); if (di) { g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(Math.atan2(pr.vy, pr.vx)); g.drawImage(di, ((animT >> 2) & 1) * ds.fw, 0, ds.fw, ds.fh, -ds.ax, -ds.ay, ds.fw, ds.fh); g.restore(); } continue; }
           const fi = frameIndex(s, pr.kind === "bow" ? "arrow" : "knife" + ((animT >> 1) & 3)), ang = pr.kind === "bow" ? Math.atan2(pr.vy, pr.vx) : 0;
           g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(ang); if (pr.kind !== "bow" && pr.vx < 0) g.scale(-1, 1);
           g.drawImage(img, (fi % (s.cols || s.n)) * s.fw, 0, s.fw, s.fh, -s.ax, -s.ay, s.fw, s.fh); g.restore();
@@ -5470,7 +5566,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         if (!un) { label += "  " + U.side.replace("{need}", q.need); c = P().ground.ash; } else if (cl) { label += "  " + U.cleared; c = P().order.temple; }
         blitFrame("ui-frag16", "claw-dim", 30, ty - 3, false);
       } else if (r.k === "bonusmenu") label = U.bonusRow.replace("{n}", nUn);
-      else if (r.k === "endgame") { label = T32().rush.name + " / " + T32().rush.hard + (save.endSeen32 ? " / " + T32().ngp.offer : ""); blitFrame("ui-frag16", "heart", 30, ty - 3, false); }
+      else if (r.k === "endgame") { label = T32().rush.name + " / " + T32().rush.hard + (save.endSeen32 ? " / " + T32().ngp.offer : "") + (endgame32() ? "" : "  " + T32().ngp.lockTag); blitFrame("ui-frag16", "heart", 30, ty - 3, false); }
       else label = T().hub.travelBack;
       if (sel) c = P().order.illumination;
       drawText(label, 52, ty, c);
@@ -5596,7 +5692,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (padAt(p.x, p.y)) continue;
       for (let i = drawnTargets.length - 1; i >= 0; i--) {
         const tg = drawnTargets[i];
-        if (p.x >= tg.x && p.x < tg.x + tg.w && p.y >= tg.y && p.y < tg.y + tg.h) { tg.fn(); break; }
+        if (p.x >= tg.x && p.x < tg.x + tg.w && p.y >= tg.y && p.y < tg.y + tg.h) { input.lastTap33 = p; tg.fn(); break; }
       }
     }
     syncPads(e.touches);
@@ -5757,6 +5853,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     drawEnemies(); drawCoins();
     drawArenaBack26();
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
+    drawStuck33();
     drawArenaFront26();
     if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); }
     drawHook27();
@@ -5931,6 +6028,51 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     dgSetup33() { return dgSetupS ? { ix: dgSetupS.ix, mode: dgSetupS.mode, mods: dgSetupS.mods.slice(), rows: dgSetupRows(), desc: window.__dgDesc33 || '' } : null; },
     sum29(i) { return summary29(i); }, titleCont33() { return titleCont29 ? { name: titleCont29.name, i: titleCont29.i } : null; },
     openDye33() { dyeOpen33(); }, dye33() { return dye33 ? { ix: dye33.ix, msg: dye33.msg, dye: save.dye32 || null, items: dyeItems33().map(d => d.back ? 'back' : (d.id || 'none') + (dyeHas33(d) ? '' : ':locked')), view: window.__dye33 || null } : null; },
+    gates33() { return w22 ? w22.doors.map(d => ({ id: d.id, kind: d.kind || '', x: d.x, y: d.y, w: d.w, h: d.h, open: !!d.open, top: d.top33 == null ? gateTop33(d) : d.top33 })) : []; }, gateStops33() { return gateStops33; }, closeGate33(i) { const d = w22 && w22.doors[i]; if (d) { d.open = false; d.openT = 0; } },
+    gateSim33(i, side, strat, frames) {
+      const d = w22 && w22.doors[i]; if (!d) return null; d.open = false; d.openT = 0;
+      const v = V(); if (!v.melee.owned.includes("whip")) v.melee.owned.push("whip"); v.melee.main = "whip"; ensureWeapons(); recomputeStats();
+      const boost = () => { stats.airJumps = 2; stats.sparrow = true; stats.grip = true; powers.gale = 999; powers.speed = 999; player.hp = player.maxHp; };
+      boost();
+      player.x = side < 0 ? d.x - 30 : d.x + d.w + 18; player.y = d.y + d.h - player.h - 2; player.vx = player.vy = 0; player.hook = null; player.dead = false;
+      const dir = side < 0 ? "right" : "left", mid = d.x + d.w / 2, startLeft = player.x + player.w / 2 < mid;
+      const keys = ["left", "right", "up", "jump", "dodge", "hook"]; const set = (k, on) => input.setTouch(k, on);
+      let crossed = false, maxUp = 0, warped = false;
+      for (let f = 0; f < (frames || 300); f++) {
+        boost(); keys.forEach(k => set(k, false)); set(dir, true);
+        const S = strat;
+        if (S === "walljump" || S === "combo") { if (f % 9 === 0) input.tap("jump"); }
+        if (S === "double" && (f === 0 || f === 14 || f === 28 || f === 60 || f === 74)) input.tap("jump");
+        if (S === "wings") { if (f === 0 || f === 16 || f === 32) input.tap("jump"); else set("jump", true); }
+        if (S === "dash" || S === "combo") { if (f % 40 === 0) input.tap("jump"); if (f % 40 === 12) input.tap("dodge"); }
+        if (S === "hook" || S === "combo") { set("up", true); if (f % 16 === 3) input.tap("hook"); if (f % 50 === 0) input.tap("jump"); }
+        if (S === "ledge") { if (f % 30 === 0) input.tap("jump"); }
+        const px0 = player.x; update();
+        if (player.dead || Math.abs(player.x - px0) > 40 || scene !== "traverse") { warped = true; break; }   // fell / respawned: not a crossing
+        maxUp = Math.max(maxUp, d.y - player.y);
+        if ((player.x + player.w / 2 < mid) !== startLeft && player.y + player.h <= d.y + d.h + 2) crossed = true;   // past the gate at gate height (under a raised gate is not past it)
+      }
+      keys.forEach(k => set(k, false)); d.open = false;
+      return { crossed, warped, maxUp: Math.round(maxUp), top: d.top33, x: Math.round(player.x), scene };
+    },
+    invFit33() {   // v3.2.3: inventory Weapons-tab layout check with the game's own font metrics
+      const bad = [], TT = T23().inv, M = invMelee(), R = W23().ranged;
+      const tabs = [TT.tabs[0], T22().pause.charms, SKT().ui.tab, TT.tabs[2]]; let tx = 120; tabs.forEach(n => { tx += measure(n) + 16 + 4; });
+      if (tx - 4 + 2 + measure("{RB}") > W - 16) bad.push("tab bar + {RB} overflow: " + (tx + measure("{RB}")));
+      if (24 + measure(TT.main) + 4 > 120 - 22) bad.push("Main label hits {LB}");
+      if (42 + 9 * 15 > 186) bad.push("weapon list runs into the counter row");
+      M.concat(R).forEach((id, i) => {
+        const n = weaponName(id);
+        if (28 + measure(n) > 160) bad.push("list name too wide: " + n);
+        if (190 + measure(n) > 300) bad.push("detail name hits the icon: " + n);
+        const L = wrapLines(T23().weapon.desc[id] || "", 134).length, bottom = 66 + L * 15;
+        if (bottom > (i < M.length ? 98 : 138)) bad.push("description runs into the stats: " + id + " (" + L + " lines)");
+        if (measure(n) > 124) bad.push("preview label too wide: " + n);
+      });
+      return bad;
+    },
+    setPad33(on) { input.lastDevice = on ? "gamepad" : "keyboard"; return input.lastDevice; },
+    invIx33(n) { invTab = 0; const a = invMelee().concat(W23().ranged); invIx = typeof n === "string" ? Math.max(0, a.indexOf(n)) : n | 0; return invIx; }, stuck33() { return enemies.filter(e => e.stuck33 && e.stuck33.length).map(e => ({ type: e.type, hp: e.hp, n: e.stuck33.length, t: e.stuck33[0].t })); }, bossStun33() { return boss ? { stun: boss.stun33 | 0, last: boss.stunMax33 | 0, n: boss.dart33 ? boss.dart33.n : 0, hp: boss.hp } : null; }, rangedHit33(kind, i) { const e = i === 'boss' ? boss : enemies.filter(x => !x.dead)[i | 0]; if (!e) return null; const pr = { kind, x: e.x + 4, y: e.y + 6, w: 8, h: 4, vx: 1, dmg: 1 }; if (i === 'boss') { boss.inv = 0; damageBoss(arrowDmg(1)); } else { e.inv = 0; damageEnemy(e, arrowDmg(1), { kb: 0.1, stun: 5 }); } onRangedHit33(pr, e, i === 'boss'); return { hp: e.hp, stun: i === 'boss' ? e.stun33 | 0 : e.stun | 0 }; },
     dgWave33() { return dg && level.dungeon ? { waves: (level.dungeon.waves || []).map(w => w.length), st: dg.wave33 || null, rem: dg.rem } : null; }, dgBonus33(m) { return dgBonus33(m); }, dgLast33() { return dgResult ? { homeA: dgResult.homeA, homeN: dgResult.homeN, bonus: dgResult.bonus | 0, aurels: dgResult.aurels } : null; }, wFlush33() { return wFlushN33; },
     dgEnter32(o) { enterDungeon(o); }, dgFinish32(a) { dgFinish(a); }, openDgSetup32() { dgOpenSetup32(); },
     openEndgame32() { scene = "endgame32"; eg32Ix = 0; }, setDye32(id) { save.dye32 = id; save.dyes32 = save.dyes32 || {}; if (id) save.dyes32[id] = 1; }, bakeKey32() { return bakeKey32(); },
@@ -5982,7 +6124,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         targets: drawnTargets.map(t => ({ x: t.x, y: t.y, w: t.w, h: t.h })), dialogueTop: lastTouchDialogue, held: [...padHeld],
         canvas: (() => { const r = canvas.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })() };
     },
-    menu() { return { invTab, menuIx, travelIx, pauseIx, settingsIx, pausePage, introHold, endingIx, tutPrompt: tutPrompt ? tutLine(tutPrompt) : "", tutStep: tutPrompt, tutorial: save.tutorial, volume: Object.assign({}, synth.volume), hubSaid, titleCard }; },
+    menu() { return { invTab, invIx, menuIx, travelIx, pauseIx, settingsIx, pausePage, introHold, endingIx, tutPrompt: tutPrompt ? tutLine(tutPrompt) : "", tutStep: tutPrompt, tutorial: save.tutorial, volume: Object.assign({}, synth.volume), hubSaid, titleCard }; },
     player() { return player ? { x: player.x, y: player.y, vx: player.vx, vy: player.vy, hp: player.hp, maxHp: player.maxHp, onGround: !!player.onGround, anim: player.anim, wall: player.wall, dead: player.dead } : null; },
     setIntro(n) { introHold = n|0; },
     skipIntro() { introHold = 0; introPage = introPages.length - 1; if (level) { save.seenIntro[level.zone || levelId] = true; persist(); } },
@@ -6009,7 +6151,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     cheat() { return { difficulty, deaths: save.deaths, notches: save.notches, vessels: save.vessels }; },
     rest() { const c = w22 && w22.cps.find(c => c.lit) || (w22 && w22.cps[0]); if (c) restAt(c); },
     openCharms(eq) { charmFrom = "pause"; canEquip = !!eq; charmIx = 0; popup = null; scene = "charms"; },
-    openMap() { scene = "map"; },
+    openMap() { mapOpen33(); scene = "map"; }, map33() { return map33.log; }, revealAt33(x, y) { if (player) { player.x = x; player.y = y; revealMap(); } },
     revealAll() { if (w22) for (let x = 0; x < level.w / 80; x++) for (let y = 0; y < level.h / 60; y++) w22.S.map[x + "," + y] = 1; },
     camera(x, y) { cameraX = x; cameraY = y; },
     wstate() { return w22 ? { crumbles: w22.crumbles.map(c => c.state), movers: w22.movers.map(m => [m.x | 0, m.y | 0]), bell: Object.assign({}, w22.bellT), breaks: w22.breaks.length } : null; },
@@ -6176,15 +6318,61 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (!R) return;
     const cost = R.cost || 1;
     if (v.arrows < cost) { toast(cost > 1 ? T23().hud.noArrows + " (" + cost + ")" : T23().hud.noArrows); synth.sfx("locked"); shootCD = 14; return; }
-    v.arrows -= cost; shootCD = R.cd; p.shootT = 16; p.channel = 0; synth.sfx(rid === "bow" ? "bowShot" : rid === "mstaff" ? "magikCast" : "knifeThrow");
+    v.arrows -= cost; shootCD = R.cd; p.shootT = 16; p.channel = 0; synth.sfx(rid === "bow" ? "bowShot" : rid === "mstaff" ? "magikCast" : rid === "shuriken" ? "shurikenThrow" : rid === "darts" ? "dartBlow" : "knifeThrow");
     const up = input.pressed("shootUp") || input.keys.__padU || input.touch.up || shootAimTouch; p.aimUp = !!up;
     p.shootUpT = up ? 16 : 0;
     const cnt = R.count || 1;
     for (let k = 0; k < cnt; k++) {
       const sp = R.speed * (up ? 0.85 : 1);
-      projectiles.push({ x: p.x + p.w / 2 + p.facing * 8, y: p.y + 6 + (cnt > 1 ? (k - 0.5) * 5 : 0), w: 8, h: 4, vx: p.facing * sp, vy: up ? -R.up - k * 0.5 : (rid === "bow" ? -0.55 : 0), grav: R.grav, life: R.life, arrow: true, kind: rid, dmg: R.dmg, spin: k });
+      projectiles.push({ x: p.x + p.w / 2 + p.facing * 8, y: p.y + 6 + (cnt > 1 ? (k - 0.5) * 5 : 0), w: 8, h: 4, vx: p.facing * sp, vy: up ? -R.up - k * 0.5 : (rid === "bow" ? -0.55 : rid === "darts" ? -0.2 : 0), grav: R.grav, life: R.life, arrow: true, kind: rid, dmg: R.dmg, spin: k });
     }
     persist();
+  }
+  // ---------- v3.2.3: shurikens (stick, then pop) and blow darts (stun) ----------
+  let pops33 = [];
+  const meleeEnch33 = (t) => { const v = V(), m = v && v.melee.main; return (m && v.enchs && v.enchs[m] && v.enchs[m][t]) | 0; };
+  function onRangedHit33(pr, e, isBoss) {
+    if (!e || e.dead) return;
+    if (pr.kind === "shuriken") {
+      const K = W23().shuriken.stick; e.stuck33 = (e.stuck33 || []).filter(q => q.t > 0);
+      if (e.stuck33.length < K.max) e.stuck33.push({ t: K.delay, dx: Math.max(2, Math.min(e.w - 2, pr.x + pr.w / 2 - e.x)), dy: Math.max(2, Math.min(e.h - 4, pr.y + pr.h / 2 - e.y)), flip: pr.vx < 0, boss: isBoss });
+      synth.sfx("arrowHit");
+    } else if (pr.kind === "darts") {
+      const R = W23().darts, fm = meleeEnch33("frost") ? R.frostMul : 1;
+      if (isBoss) {
+        const d = e.dart33 && animT - e.dart33.t < R.bossWindow ? e.dart33 : (e.dart33 = { n: 0, t: animT });
+        const st = Math.round(R.bossStun * fm * Math.pow(R.bossDecay, d.n)); d.n++; d.t = animT;
+        if (st >= 6) { e.stun33 = Math.max(e.stun33 | 0, st); e.stunMax33 = st; }
+      } else { const st = Math.round(R.stun * fm); e.stun = Math.max(e.stun | 0, st); e.dartStun33 = st; e.vx *= 0.2; }
+      synth.sfx("stun");
+    }
+  }
+  function tickStuck33() {
+    const list = enemies.slice(); if (boss && !boss.dead) list.push(boss);
+    for (const e of list) {
+      if (e.dartStun33 > 0) e.dartStun33--;
+      if (!e.stuck33 || !e.stuck33.length) continue;
+      for (const q of e.stuck33) {
+        if (q.t > 0 && --q.t === 0) {
+          if (e.dead) continue;
+          const n = W23().shuriken.stick.dmg + (meleeEnch33("flame") ? 1 : 0), x = e.x + q.dx, y = e.y + q.dy;
+          if (q.boss) { boss.inv = 0; damageBoss(n); } else { e.inv = 0; damageEnemy(e, n, { kb: 0.05, stun: 4 }); }
+          pops33.push({ x, y, t: 0, flame: n > 1 }); synth.sfx("shurikenPop"); spark(x, y, P().order.light, 5);
+        }
+      }
+      e.stuck33 = e.stuck33.filter(q => q.t > 0);
+    }
+    for (const p of pops33) p.t++; pops33 = pops33.filter(p => p.t < 12);
+  }
+  function drawStuck33() {
+    const list = enemies.slice(); if (boss && !boss.dead && boss.visible !== false) list.push(boss);
+    for (const e of list) {
+      if (e.dead) continue;
+      if (e.stuck33) for (const q of e.stuck33) blitFrame("w33-stuck", "stuck" + ((q.t >> 2) & 1), wx(e.x + q.dx), wy(e.y + q.dy), q.flip);
+      const stunned = e === boss ? e.stun33 > 0 : (e.stun > 0 && e.dartStun33 > 0);
+      if (stunned) blitFrame("w33-stun", "stun" + ((animT >> 3) & 3), wx(e.x + e.w / 2), wy(e.y - 4), false);
+    }
+    for (const p of pops33) blitFrame("w33-pop", "pop" + Math.min(2, p.t >> 2), wx(p.x), wy(p.y), false);
   }
   function arrowDmg(base) { return Math.max(1, strikeDmg(base) - (stats.reson | 0) * 0 + (sk26("arrow") ? 1 : 0)); }
   // ----- knockback, stun, collision -----
@@ -6296,6 +6484,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const up = p.shootUpT > 0 || p.aimUp, drawn = p.shootT > 9;
     const hx = Math.round(sx + (flip ? -1 : 1) * (a[0] - S.ax)), hy = Math.round(sy + (a[1] - S.ay));
     if (V().ranged.main === "knives") return;
+    if (V().ranged.main === "shuriken" || V().ranged.main === "darts") { const k = V().ranged.main === "shuriken" ? "sh-" + (drawn ? "throw" : "hold") : "dt-" + (drawn ? "blow" : "hold"); blitFrame("w33-held", k + (up ? "-up" : ""), hx + (flip ? -2 : 2), hy, flip); return; }
     if (V().ranged.main === "mstaff") { blitFrame("w24-staff", (drawn ? "cast" : "hold") + (up ? "-up" : ""), hx + (flip ? -2 : 2), hy, flip); return; }
     blitFrame("w23-ranged", (drawn ? "draw" : "loose") + (up ? "-up" : ""), hx + (flip ? -2 : 2), hy, flip);
   }
@@ -6310,7 +6499,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   // v2.4: dodge grace, aurel loss, confirm modal, charged strike, new charms, bouncing fire, enemy projectiles
   // =====================================================================================
   const solidAny = (r) => { if (level && level.tiled && w22) return blockedBox(r); for (const q of plats()) if (q.solid !== false && aabb(r, q)) return true; return false; };
-  function blitWicon(id, x, y, flip) { blitFrame(id === "mstaff" ? "ui24-wicon" : (id === "whip" || id === "katana") ? "ui26-wicon" : "ui23-wicon", id, x, y, flip); }
+  function blitWicon(id, x, y, flip) { blitFrame(id === "shuriken" || id === "darts" ? "ui33-wicon" : id === "mstaff" ? "ui24-wicon" : (id === "whip" || id === "katana") ? "ui26-wicon" : "ui23-wicon", id, x, y, flip); }
   function blitCharm(id, x, y) { blitFrame(W24().newCharms.includes(id) ? "ui24-charm" : "ui22-charm", id, x, y, false); }
   function flaskCap() { return Math.min(7, V().flaskMax + (stats ? stats.flaskPlus | 0 : 0)); }
   function flaskChan() { return Math.max(14, Math.round(W23().flask.channel * (stats && stats.swift ? W24().charm.swiftdraw.mul : 1) * (sk26("flask") ? 0.8 : 1))); }
@@ -6615,6 +6804,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     for (const k of Object.keys(V().tablets)) { const [z, i] = k.split(":"); const tx = (T22().tablets[z] || [])[i | 0]; if (tx) out.push({ zone: z, text: tx }); }
     return out;
   }
+  let invScroll33 = 0;
   function openInventory(from) { invFrom = from; invTab = 0; invIx = 0; loreScroll = 0; scene = "inventory"; synth.sfx("menu"); }
   // leader (Ryan / Jeriah): counsel or enchant
   function updateLeader() {
@@ -6789,7 +6979,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (coinPing > 0) coinPing--;
     const rk = v.ranged.main, rcost = (W23()[rk] || {}).cost || 1, strB = v.arrows + "/" + v.arrowMax + (rcost > 1 ? " (-" + rcost + ")" : ""), wB = 30 + measure(strB);
     panel(rx - wB, 52, wB, 20, "plate");
-    if (rk === "mstaff") blitFrame("ui24-hud", "staff", rx - wB - 1, 53, false); else blitFrame("ui23-hud", rk === "knives" ? "knife" : (v.arrows > 0 ? "arrow" : "arrow-empty"), rx - wB - 1, 53, false);
+    if (rk === "mstaff") blitFrame("ui24-hud", "staff", rx - wB - 1, 53, false); else if (rk === "shuriken" || rk === "darts") blitFrame("ui33-hud", rk === "darts" ? "dart" : "shuriken", rx - wB - 1, 53, false); else blitFrame("ui23-hud", rk === "knives" ? "knife" : (v.arrows > 0 ? "arrow" : "arrow-empty"), rx - wB - 1, 53, false);
     drawText(strB, rx - wB + 20, 58, v.arrows < rcost ? P().cult.ember : (arrowPing > 0 ? P().order.light : P().order.bone));
     if (arrowPing > 0) arrowPing--;
     if (v.nip > 0) { const sN = "NIP " + v.nip; const wN = 24 + measure(sN); panel(rx - wN, 74, wN, 18, "plate"); blitFrame("ui23-hud", "nip", rx - wN - 1, 73, false); drawText(sN, rx - wN + 20, 79, P().order.illumination); }
@@ -6828,33 +7018,38 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const cs = [["coin", String(v.aurels)], ["nip", String(v.nip)], ["fl-full", v.flask + "/" + v.flaskMax], [v.ranged.main === "knives" ? "knife" : "arrow", v.arrows + "/" + v.arrowMax]];
     cs.forEach(([ic, tx2], i) => { const x = 24 + i * 70; blitFrame("ui23-hud", ic, x - 3, 192, false); drawText(tx2, x + 17, 198, P().order.bone); });
     if (invTab === 0) {
-      const M = invMelee(), R = W23().ranged, all = M.concat(R), all0 = all.length, pitch = all0 > 9 ? 14 : 17;
+      const M = invMelee(), R = W23().ranged, all = M.concat(R), all0 = all.length, VIS = 9, pitch = 15;   // v3.2.3: the list scrolls and stays above the counter row (y 186)
+      invScroll33 = Math.max(0, Math.min(all0 - VIS, Math.min(invIx, Math.max(invScroll33, invIx - VIS + 1))));
       drawText(TT.main, 24, 30, P().order.boneShade);
       all.forEach((id, i) => {
-        const own = (i < M.length ? v.melee.owned : v.ranged.owned).includes(id), y = (all0 > 9 ? 41 : 46) + i * pitch + (i >= M.length ? (all0 > 9 ? 4 : 6) : 0);
-        if (i === invIx) rect(22, y - 2, 150, pitch - 2, P().ground.stone2);
-        blitWicon(own ? id : "none", 24, y - 2, false);
+        if (i < invScroll33 || i >= invScroll33 + VIS) return;
+        const own = (i < M.length ? v.melee.owned : v.ranged.owned).includes(id), y = 42 + (i - invScroll33) * pitch;
+        if (i === M.length && i > invScroll33) rect(24, y - 3, 146, 1, P().order.templeDeep);
+        if (i === invIx) rect(22, y - 2, 150, pitch - 1, P().ground.stone2);
         const eq = (i < M.length ? v.melee.main : v.ranged.main) === id;
-        drawText(own ? weaponName(id) : "???", 52, y + 5, i === invIx ? P().order.illumination : (own ? P().order.bone : P().ground.smoke));
-        if (eq) rect(166, y + 5, 4, 4, P().order.nexus);
-        const key = "inv" + i; menuRow(22, y + 5, 150, pitch, key, true, () => { invIx = i; }, false);
+        drawText(own ? weaponName(id) : "???", 28, y + 2, i === invIx ? P().order.illumination : (own ? P().order.bone : P().ground.smoke));
+        if (eq) rect(166, y + 4, 4, 4, P().order.nexus);
+        const key = "inv" + i; menuRow(22, y + 2, 150, pitch, key, true, () => { invIx = i; }, false);
       });
+      if (invScroll33 > 0) drawText("^", 160, 30, P().order.boneShade);
+      if (invScroll33 + VIS < all0) drawText("v", 150, 42 + VIS * pitch - 1, P().order.boneShade);
       const id = all[invIx], own = (invIx < M.length ? v.melee.owned : v.ranged.owned).includes(id);
       panel(180, 44, 150, 140, "plate");
-      drawText(own ? weaponName(id) : "???", 190, 52, P().order.illumination);
+      blitWicon(own ? id : "none", 302, 47, false);
+      drawText(own ? weaponName(id) : "???", 190, 54, P().order.illumination);
       if (own) {
         drawWrapped(T23().weapon.desc[id], 190, 66, 134, P().order.bone);
         if (invIx < M.length) { const s = wStats(id); statBar(190, 100, TT.main === "x" ? "" : T23().weapon.stat.reach, s.reach, 32); statBar(190, 112, T23().weapon.stat.dmg, s.dmg, 8); statBar(190, 124, T23().weapon.stat.speed, s.speed, 3.2); statBar(190, 136, T23().weapon.stat.shove, s.shove, 2.4); drawEnchLine(190, 156, id); }
-        else { const R2 = W23()[id]; drawText(T23().weapon.stat.dmg + " " + R2.dmg, 190, 100, P().order.boneShade); drawText(TT.arrows + " " + v.arrows + "/" + v.arrowMax, 190, 114, P().order.boneShade); }
+        else { const R2 = W23()[id]; drawText(T23().weapon.stat.dmg + " " + R2.dmg, 190, 140, P().order.boneShade); drawText(TT.arrows + " " + v.arrows + "/" + v.arrowMax, 190, 152, P().order.boneShade); }
         const eq = (invIx < M.length ? v.melee.main : v.ranged.main) === id;
         drawText(eq ? TT.equipped : TT.equip, 190, 170, eq ? P().order.nexus : P().ground.smoke);
       } else drawText(T23().shop.locked.replace("{n}", "?") === "" ? "" : "-", 190, 70, P().ground.smoke);
       // live preview with the equipped weapon
-      panel(336, 34, 128, 150, "plate");
+      panel(336, 46, 128, 138, "plate");   // v3.2.3: below the tab bar so Lore / {RB} are never covered
       const pl = Object.assign({}, player || makePlayer(0, 0), { trail: null, anim: "idle", hurtT: 0, dodge: 0, vx: 0, onGround: true, atk: 0, shootT: 0, channel: 0 }); pl.hp = Math.max(pl.hp, 3);
-      drawPlayerVisual(400, 150, pl, animFrame(playerSheet(), "idle", uiT, 10), false, false);
-      drawText(weaponName(v.melee.main), 400, 164, P().order.bone, "center");
-      drawText(weaponName(v.ranged.main), 400, 174, P().order.boneShade, "center");
+      drawPlayerVisual(400, 140, pl, animFrame(playerSheet(), "idle", uiT, 10), false, false);
+      drawText(v.melee.main ? weaponName(v.melee.main) : "-", 400, 152, P().order.bone, "center");
+      drawText(v.ranged.main ? weaponName(v.ranged.main) : "-", 400, 166, P().order.boneShade, "center");
     } else if (invTab === 1) {
       const ids = charmList();
       ids.forEach((id, i) => { const cx = 24 + (i % 8) * 32, cy = 46 + ((i / 8) | 0) * 32, own = save.charms.owned.includes(id), eq = save.charms.equipped.includes(id); if (eq) { rect(cx - 1, cy - 1, 30, 30, P().order.nexus); rect(cx, cy, 28, 28, P().ground.void); } blitFrame("ui22-charm", own ? id : "empty", cx + 2, cy + 2, false); });
@@ -7167,7 +7362,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (pauseIx === 0) back();
       else if (pauseIx === 1) openInventory("pause");
       else if (pauseIx === 2) { charmFrom = "pause"; canEquip = level.kind === "hub"; charmIx = 0; popup = null; scene = "charms"; }
-      else if (pauseIx === 3) { scene = "map"; }
+      else if (pauseIx === 3) { mapOpen33(); scene = "map"; }
       else if (pauseIx === 4) { pausePage = "fragments"; fragScroll = 0; }
       else if (pauseIx === 5) toggleFullscreen();
       else if (pauseIx === 6) openSettings("pause");
@@ -7199,7 +7394,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     stageCleared(id) { return !!(save.stages[id] && save.stages[id].cleared); }, setCleared(frag, v) { save.claimed[frag] = !!v; persist(); },
     story(i) { return story26 ? { i: story26.i, n: story26.lines.length } : null; },
     v25() { const A = level && level.arena; return { scene, level: levelId, stages: JSON.parse(JSON.stringify(save.stages || {})), bonus: Object.assign({}, save.bonus || {}), wt: player ? player.wt | 0 : 0, water: level && level.waters ? level.waters.length : 0, tumbles: w22 && w22.tw ? w22.tw.length : 0, arena: w22 && w22.ar ? Object.assign({}, w22.ar) : null, arenaWaves: A ? A.waves.length : 0, enemies: enemies.map(e => ({ type: e.type, x: e.x | 0, y: e.y | 0, dead: !!e.dead, dv: e.dv | 0, stun: e.stun | 0, anim: e.anim, elite: e.elite })), seals: w22 ? sealCount() : 0, need: sealNeed(), clearLines: clearLines.slice(), aurels: V().aurels, nip: V().nip, notches: save.notches, rows: travelRows().map(r => r.k + ":" + (r.z ? r.z.id : r.s ? r.s.id : "")), unlocked: S25().filter(q => !(q.cultOnly && path !== "cult") && stageUnlocked(q)).map(q => q.id), readText: readText, travelIx, bonusIx, version: save.version }; },
-    openMapFull() { for (let i = 0; i <= Math.ceil(level.w / 80); i++) for (let j = 0; j <= Math.ceil(level.h / 60); j++) w22.S.map[i + "," + j] = 1; scene = "map"; },
+    openMapFull() { for (let i = 0; i <= Math.ceil(level.w / 80); i++) for (let j = 0; j <= Math.ceil(level.h / 60); j++) w22.S.map[i + "," + j] = 1; mapOpen33(); scene = "map"; },
     unlockBonus(k) { save.bonus[k] = true; persist(); },
     clearStage(id) { finishStage(id); },
     spawnEnemy25(type, x, y, o) { const e = makeEnemy(Object.assign({ type, x, y }, o || {})); enemies.push(e); return enemies.length - 1; },

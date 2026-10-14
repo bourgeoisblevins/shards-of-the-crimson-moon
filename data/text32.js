@@ -18,6 +18,8 @@ window.SHARDS.text32 = {
     { id: "hasty", name: "Hasty Foes", bonus: 15, desc: "Enemies move and act faster." },
     { id: "dry", name: "Dry Flask", bonus: 15, desc: "Your flask does not refill between floors." }
   ],
+  map33: { you: "You", shrine: "Shrine", seal: "Seal", gate: "Gate", boss: "Boss", exit: "Exit", secret: "Secret", npc: "NPC", floor: "Floor {n}", explored: "Explored {n}%", zoom: "Zoom x{n}",
+    hintKb: "Arrows: pan   Enter: zoom   Esc: back", hintPad: "{A} zoom  {LB}{RB} zoom  {B} back", hintTouch: "+/-: zoom   Tap the map to centre it" },
   setup33: {
     title: "Delve: prepare the descent",
     seedRow: "Seed: {v}", seedRandom: "Random", seedDaily: "Daily ({d})", seedCustom: "Custom {c}",
@@ -37,7 +39,7 @@ window.SHARDS.text32 = {
 
   rush: {
     name: "Boss Rush", hard: "Hard Rematches", hardShort: "Hard",
-    locked: "Defeat every apostle on your path first.",
+    locked: "Defeat the final boss to unlock.",
     rushDesc: "Every apostle on your path, back to back. One flask charge between fights.",
     hardDesc: "A tougher rematch. Win once for a cloak dye.",
     between: "Apostle {i} of {n} down. Next...", clearTitle: "Boss Rush cleared", failTitle: "The rush ends",

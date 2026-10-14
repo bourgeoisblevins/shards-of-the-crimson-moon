@@ -1,4 +1,4 @@
-# Shards of the Crimson Moon (v3.2.2)
+# Shards of the Crimson Moon (v3.2.3)
 
 A 480×270 pixel pilgrimage at integer scale (2× = 960×540, 4× = 1920×1080, never fractional),
 with 16-bit-style art. How to play, and what each version added, is in `PLAY.md`.
@@ -11,7 +11,7 @@ python3 -m http.server 8765
 ```
 
 You can also open `index.html` straight from disk (file://). Served over http(s) it is an installable PWA
-(`manifest.json` + `sw.js`). The service worker cache is named after the build (`shards-v3-2-2`). It precaches
+(`manifest.json` + `sw.js`). The service worker cache is named after the build (`shards-v3-2-3`). It precaches
 all code and art on the first visit, so the game then plays offline. Code is served stale-while-revalidate,
 art cache-first, and caches from older versions are deleted when a new version activates.
 Touch controls appear on touch devices, and Xbox-style pads are supported.

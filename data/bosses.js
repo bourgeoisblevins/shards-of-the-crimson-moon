@@ -48,5 +48,6 @@ window.SHARDS.enemyStats = {
   monk_brawler:    { hp: 6, speed: 0.6,  damage: 2, w: 14, h: 22, behavior: "brute",  score: 2, drop: { type: "pw", p: 0.25 } },
   sewer_skeleton:  { hp: 3, speed: 0.35, damage: 1, w: 12, h: 20, behavior: "thrower", ranged: true, score: 1, drop: { type: "heal", p: 0.2 } },
   plains_crow:     { hp: 2, speed: 0.7,  damage: 1, w: 14, h: 12, behavior: "dive",   score: 1 },
+  monastery_crow:  { hp: 2, speed: 0.7,  damage: 1, w: 14, h: 12, behavior: "dive",   score: 1 },   // v3.2.3: Plains crow in Monastery colours
   plains_wolf:     { hp: 3, speed: 0.9,  damage: 1, w: 22, h: 14, behavior: "jumper", score: 1 }
 };
