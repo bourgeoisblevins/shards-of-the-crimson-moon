@@ -376,7 +376,7 @@
       thorn: H("thorn"), ward: H("ward"), lantern: H("lantern") ? 1 : 0,
       reson: H("resonance") ? Math.floor(claimedCount() / 3) : 0, glass: H("glass"),
       invBonus: gathered("bone") ? 18 : 0, iceSafe: gathered("claw"),
-      kbMul: H("shove") ? 1.6 : 1, magnet: H("magnet") || !!(dg && (dg.egg || (save.dungeon30 && save.dungeon30.moth))),
+      kbMul: H("shove") ? 1.6 : 1, magnet: H("magnet") || !!(dg && dg.egg) || mothOn33(),   // v3.2.3: the Lantern Moth (and its aurel pull) goes everywhere once found
       dodgeSpd: H("fleet") ? W24().dodge.fleetMul : 1, flaskPlus: H("deepflask") ? 1 : 0, quick: H("quickfill"), swift: H("swiftdraw"), sparrow: H("sparrow"),
       star: H("starfall"), regen: H("hourglass"), snake: H("snakecharmer"), magik: H("magikexp"), hunger: H("crimsonhunger"), shadowC: H("shatteredshadow"),
       ashen: H("ashencovenant"), sGuard: H("serpentguard"), purify: H("purifyflame"), faith: H("unbrokenfaith")
@@ -4872,7 +4872,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (activeSlot != null && scene !== "pause" && scene !== "settings" && scene !== "path" && scene !== "title" && scene !== "files") { save.playF = (save.playF | 0) + 1; if (++autoT29 >= 3600) { autoT29 = 0; persist(); } }
     if (confirmBox) { updateConfirm(); input.clearJust(); return; }
     if (hitstop > 0) { hitstop--; input.clearJust(); return; }
-    updateFx();
+    updateFx(); if (scene === "hub" || scene === "traverse" || scene === "arena") tickMoth33();
     if (flash > 0) flash--;
     if (shake > 0) shake--;
     if (speech27) { speech27.t++; if (speech27.t > 18 && input.pressed("confirm")) { speech27 = null; synth.sfx("dialogue"); } input.clearJust(); return; }
@@ -5856,7 +5856,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     drawStuck33();
     drawArenaFront26();
     if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); }
-    drawHook27();
+    drawHook27(); drawMoth33();
     drawShadows26(); drawAlly26();
     drawProjectiles(); drawArenaLava26();
     if (tl && level.waters) drawWaters();
@@ -6064,7 +6064,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       M.concat(R).forEach((id, i) => {
         const n = weaponName(id);
         if (28 + measure(n) > 160) bad.push("list name too wide: " + n);
-        if (190 + measure(n) > 300) bad.push("detail name hits the icon: " + n);
+        if (190 + measure(n) > 324) bad.push("detail name too wide for the panel: " + n);
         const L = wrapLines(T23().weapon.desc[id] || "", 134).length, bottom = 66 + L * 15;
         if (bottom > (i < M.length ? 98 : 138)) bad.push("description runs into the stats: " + id + " (" + L + " lines)");
         if (measure(n) > 124) bad.push("preview label too wide: " + n);
@@ -6072,6 +6072,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       return bad;
     },
     setPad33(on) { input.lastDevice = on ? "gamepad" : "keyboard"; return input.lastDevice; },
+    moth33() { return { on: mothOn33(), vis: mothVis33(), m: moth33 ? { x: moth33.x, y: moth33.y } : null, p: player ? { x: player.x, y: player.y } : null, scene }; }, setMoth33(on) { normV30(); save.dungeon30.moth = on ? 1 : 0; persist(); return mothOn33(); },
     invIx33(n) { invTab = 0; const a = invMelee().concat(W23().ranged); invIx = typeof n === "string" ? Math.max(0, a.indexOf(n)) : n | 0; return invIx; }, stuck33() { return enemies.filter(e => e.stuck33 && e.stuck33.length).map(e => ({ type: e.type, hp: e.hp, n: e.stuck33.length, t: e.stuck33[0].t })); }, bossStun33() { return boss ? { stun: boss.stun33 | 0, last: boss.stunMax33 | 0, n: boss.dart33 ? boss.dart33.n : 0, hp: boss.hp } : null; }, rangedHit33(kind, i) { const e = i === 'boss' ? boss : enemies.filter(x => !x.dead)[i | 0]; if (!e) return null; const pr = { kind, x: e.x + 4, y: e.y + 6, w: 8, h: 4, vx: 1, dmg: 1 }; if (i === 'boss') { boss.inv = 0; damageBoss(arrowDmg(1)); } else { e.inv = 0; damageEnemy(e, arrowDmg(1), { kb: 0.1, stun: 5 }); } onRangedHit33(pr, e, i === 'boss'); return { hp: e.hp, stun: i === 'boss' ? e.stun33 | 0 : e.stun | 0 }; },
     dgWave33() { return dg && level.dungeon ? { waves: (level.dungeon.waves || []).map(w => w.length), st: dg.wave33 || null, rem: dg.rem } : null; }, dgBonus33(m) { return dgBonus33(m); }, dgLast33() { return dgResult ? { homeA: dgResult.homeA, homeN: dgResult.homeN, bonus: dgResult.bonus | 0, aurels: dgResult.aurels } : null; }, wFlush33() { return wFlushN33; },
     dgEnter32(o) { enterDungeon(o); }, dgFinish32(a) { dgFinish(a); }, openDgSetup32() { dgOpenSetup32(); },
@@ -6364,6 +6365,18 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     for (const p of pops33) p.t++; pops33 = pops33.filter(p => p.t < 12);
   }
+  // v3.2.3: the Lantern Moth companion, once found in the Delve (save.dungeon30.moth, per save slot), follows the player in the
+  // hub and every story stage too. It snaps to the player on a new level or respawn, and hides during boss intros/cutscenes.
+  let moth33 = null;
+  function mothOn33() { return !!(save && save.dungeon30 && save.dungeon30.moth); }
+  function mothVis33() { return mothOn33() && !dg && !!player && !!level && introHold === 0 && !player.dead; }
+  function tickMoth33() {
+    if (!mothVis33()) { if (!player || !level) moth33 = null; return; }
+    const tx = player.x - 8 * player.facing, ty = player.y - 14 + Math.sin(animT / 12) * 4;
+    if (!moth33 || moth33.lv !== level || Math.hypot(moth33.x - tx, moth33.y - ty) > 240) moth33 = { lv: level, x: tx, y: ty };
+    moth33.x += (tx - moth33.x) * 0.06; moth33.y += (ty - moth33.y) * 0.08;
+  }
+  function drawMoth33() { if (moth33 && mothVis33() && moth33.lv === level) blitFrame("dg31-moth", "moth" + ((animT >> 2) & 3), wx(moth33.x + 6), wy(moth33.y), player.facing < 0); }
   function drawStuck33() {
     const list = enemies.slice(); if (boss && !boss.dead && boss.visible !== false) list.push(boss);
     for (const e of list) {
@@ -7035,7 +7048,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (invScroll33 + VIS < all0) drawText("v", 150, 42 + VIS * pitch - 1, P().order.boneShade);
       const id = all[invIx], own = (invIx < M.length ? v.melee.owned : v.ranged.owned).includes(id);
       panel(180, 44, 150, 140, "plate");
-      blitWicon(own ? id : "none", 302, 47, false);
+      blitWicon(own ? id : "none", 302, own && measure(weaponName(id)) > 108 ? 146 : 47, false);   // v3.2.3: a long name (Moonreaver Katana) moves the icon to the panel foot
       drawText(own ? weaponName(id) : "???", 190, 54, P().order.illumination);
       if (own) {
         drawWrapped(T23().weapon.desc[id], 190, 66, 134, P().order.bone);
