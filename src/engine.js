@@ -9,8 +9,9 @@
   const T = () => window.SHARDS.text;
   // v2 save. v1 (now at /v1/) keeps "shards-crimson-moon-v2" (its own historic key name);
   // v2 reads it once to carry a pilgrimage over and never writes to it.
-  const SAVE_KEY = "shards-crimson-moon-2.0";
-  const V1_SAVE_KEY = "shards-crimson-moon-v2";
+  const NS34 = typeof window.SHARDS_NS === "string" && window.SHARDS_NS ? ":" + window.SHARDS_NS : "";   // v3.2.4: separate storage for the /unlocked/ build
+  const SAVE_KEY = "shards-crimson-moon-2.0" + NS34;
+  const V1_SAVE_KEY = "shards-crimson-moon-v2" + NS34;
   // v2.3 state (declared up top: normalizeSave runs at load)
   let shades24 = [], flames24 = [], fx24 = [], confirmBox = null, deathLoss = 0, lossMsg = 0, hungerN = 0, coins = [], efx = [], hitCtx = null, shootCD = 0, shootAimTouch = false, flaskPing = 0, healFx = 0, coinPing = 0, arrowPing = 0, coinDirty = false, holyN = 0;
   let invFrom = "play", invTab = 0, invIx = 0, loreScroll = 0, shopIx = 0, leaderStage = 0, leaderIx = 0, leaderMsg = "", enchW = 0, enchE = 0, shrineIx = 0, tpList = [], tpIx = 0, tele = null, teleArrive = 0;
@@ -151,7 +152,7 @@
     if (!Array.isArray(save.charms.equipped)) save.charms.equipped = [];
     if (!save.world || typeof save.world !== "object") save.world = {};
     if (!save.gifts || typeof save.gifts !== "object") save.gifts = {};
-    save.notches = Math.max(3, Math.min(7, save.notches | 0 || 3)); save.vessels = Math.max(0, Math.min(3, save.vessels | 0)); save.deaths = save.deaths | 0;
+    save.notches = Math.max(3, Math.min(9, save.notches | 0 || 3)); save.vessels = Math.max(0, Math.min(3, save.vessels | 0)); save.deaths = save.deaths | 0;
     save.charms.owned = save.charms.owned.filter(c => (window.SHARDS.world22 || { cost: {} }).cost[c] != null);
     save.charms.equipped = save.charms.equipped.filter(c => save.charms.owned.includes(c));
     if (!save.settings || typeof save.settings !== "object") save.settings = defaultSave().settings;
@@ -647,7 +648,7 @@
       const n = sealCount(), need = sealNeed();
       toast(T22().seals.got[path === "cult" ? "cult" : "order"].replace("{n}", n).replace("{need}", need));
     } else if (it.type === "charm") { addCharm(it.ref); recomputeStats(); }
-    else if (it.type === "notch") { save.notches = Math.min(6, save.notches + 1); synth.sfx("charmGet"); toast(T22().got.notch.replace("{n}", save.notches)); }
+    else if (it.type === "notch") { save.notches = Math.max(save.notches, Math.min(6, save.notches + 1));   /* v3.2.4 merge: a world notch never lowers bought (Moon) notches */ synth.sfx("charmGet"); toast(T22().got.notch.replace("{n}", save.notches)); }
     else if (it.type === "vessel") { save.vessels = Math.min(3, (save.vessels | 0) + 1); recomputeStats(); player.hp = player.maxHp; synth.sfx("charmGet"); toast(T22().got.vessel.replace("{n}", maxHpNow())); }
     else if (it.type === "heal") { player.hp = Math.min(player.maxHp, player.hp + 2 + diffRules().heal); synth.sfx("pickup"); spark(it.x, it.y, P().order.nexus, 8); }
     else if (it.type === "pw") { givePower(it.ref); }
@@ -983,7 +984,7 @@
       i: p.monastery.shade, I: p.monastery.shadeLight, t: p.monastery.snow, G: p.order.nexus, H: p.order.illumination };
   }
   const hexRGB32 = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-  function dyeRamp32(id) { const D = window.SHARDS.v32 && window.SHARDS.v32.dyes; const d = D && D.find(x => x.id === id); return d ? d.ramp : null; }
+  function dyeRamp32(id) { const d = dyeList32().find(x => x.id === id); return d ? d.ramp : null; }   // v3.2.4: the table is built from dyeList32 (the old window.SHARDS.v32.dyes was never defined)
   function bakeKey32() {
     if (dg && !dg.frags.length && !save.crown) { /* baseline run: plain sprite */ }
     const c = save.claimed || {}, cult = path === "cult";
@@ -1004,8 +1005,9 @@
       // dye: the cloak / robe ramp is remapped to the chosen boss ramp
       const dye = key.includes("d") ? dyeRamp32(save.dye32) : null;
       if (dye) {
-        const src = (path === "cult" ? ["#2C1530", "#45203F", "#62304F"] : ["#1C3A3C", "#2B5C59", "#448A7E", "#74B49C"]).map(hexRGB32), dst = dye.map(hexRGB32);
-        for (let i = 0; i < px.length; i += 4) { if (!px[i + 3]) continue; for (let k = 0; k < src.length; k++) if (px[i] === src[k][0] && px[i + 1] === src[k][1] && px[i + 2] === src[k][2]) { const d = dst[Math.min(dst.length - 1, Math.round(k * (dst.length - 1) / Math.max(1, src.length - 1)))]; px[i] = d[0]; px[i + 1] = d[1]; px[i + 2] = d[2]; break; } }
+        // v3.2.4: the dye recolours the whole outfit. Order: the teal trim and the pale robe, each mapped across the dye ramp; Cult: the robe
+        const G = (path === "cult" ? [["#2C1530", "#45203F", "#62304F"]] : [["#1C3A3C", "#2B5C59", "#448A7E", "#74B49C"], ["#75645A", "#8F7C67", "#AA9575", "#B8AA92", "#CFC2AB"]]).map(r => r.map(hexRGB32)), dst = dye.map(hexRGB32);
+        for (let i = 0; i < px.length; i += 4) { if (!px[i + 3]) continue; let hit = false; for (const src of G) { for (let k = 0; k < src.length && !hit; k++) if (px[i] === src[k][0] && px[i + 1] === src[k][1] && px[i + 2] === src[k][2]) { const d = dst[Math.min(dst.length - 1, Math.round(k * (dst.length - 1) / Math.max(1, src.length - 1)))]; px[i] = d[0]; px[i + 1] = d[1]; px[i + 2] = d[2]; hit = true; } if (hit) break; } }
       }
       const cols2 = S.cols || S.n;
       for (const fname of Object.keys(S.index)) {
@@ -1054,7 +1056,7 @@
     const d = wDefer33; wDefer33 = null;
     if (d && !hideW32) {
       if (!d.hurt) drawWeaponLayer(d.sx, d.sy, d.p, d.frame, d.flip, true);
-      drawGuard26(d.sx, d.sy, d.p, d.flip); drawSmear26(d.p); wFlushN33++;
+      drawGuard26(d.sx, d.sy, d.p, d.flip); wFlushN33++;   // v3.2.4: the dotted smear is gone; only the weapon's own slash art remains
     }
     if (player && !hideW32) drawBless26();
   }
@@ -1066,7 +1068,7 @@
     const ward = powers.ward > 0, guard = powers.guard > 0;
     const low = stats.stand && p.hp <= 2;
     // echoes (Shadow fragment / Veil Step)
-    if (live && p.trail) for (const tr of p.trail) if (tr.t < 14) blitFrame(sh + "-echo", tr.f, Math.round(tr.x * WS) - camPx, Math.round(tr.y * WS) - camPy, tr.flip);
+    if (live && p.trail) for (const tr of p.trail) if (tr.t < 14) { const tn = cosWorn34("tint"); if (tn) g.globalAlpha = 0.65; blitFrame(sh + "-echo", tr.f, Math.round(tr.x * WS) - camPx, Math.round(tr.y * WS) - camPy, tr.flip, tn ? COSCOL34.tint[tn] : undefined); g.globalAlpha = 1; }
     if (p.snake > 0 && live) { drawSnakeForm(sx, sy, p, flip, T); return; }
     // behind the body
     if (stats.sparrow && !stats.airJumps && an) { const [x, y] = pt("chest", flip ? 4 : -4, -2); blitFrame("w24-up-swing", p.onGround ? "fold" : "flap" + (((T / 6) | 0) % 3), x, y, !flip); }
@@ -1731,7 +1733,7 @@
     if (input.pressed("up")) skMove26(0, -1);
     if (input.pressed("down")) skMove26(0, 1);
     if (input.pressed("left") && !skMove26(-1, 0)) { invTab = 1; synth.sfx("menuMove"); }
-    if (input.pressed("right") && !skMove26(1, 0)) { invTab = 3; synth.sfx("menuMove"); }
+    if (input.pressed("right") && !skMove26(1, 0)) { invTab = 3; wdTab34 = 0; wdIx34 = 0; synth.sfx("menuMove"); }
     if (input.pressed("confirm")) skillClick26(SK().nodes[skIx].id);
     if (input.pressed("skill")) setActive26(SK().nodes[skIx].id);
   }
@@ -1752,7 +1754,13 @@
       const own = sk26(n.id), open = !n.req || sk26(n.req), sel = i === skIx;
       rect(n.x - 2, n.y - 2, 26, 26, sel ? gold : (own ? P().ground.stone3 : P().ground.stone2)); rect(n.x - 1, n.y - 1, 24, 24, P().ground.void);
       if (own) rect(n.x - 1, n.y - 1, 24, 1, gold);
-      blitFrame(sheet, open || own ? n.id : "lock", n.x + 3, n.y + 3, false);
+      if (n.id === "homing" && (open || own)) {   // v3.2.4: no sheet art yet, so the icon is drawn: a shot curving onto a target
+        const ic = own ? gold : P().order.bone, tg = path === "cult" ? P().cult.emberLight : P().order.light;
+        [[3, 16], [4, 15], [5, 14], [6, 12], [7, 10], [9, 8], [11, 7], [13, 6]].forEach(([dx, dy]) => rect(n.x + dx, n.y + dy - 4, 2, 2, ic));
+        rect(n.x + 3, n.y + 14, 3, 3, ic);
+        rect(n.x + 15, n.y + 3, 6, 6, tg); rect(n.x + 16, n.y + 4, 4, 4, P().ground.void); rect(n.x + 17, n.y + 5, 2, 2, tg);
+        rect(n.x + 13, n.y + 5, 2, 2, ic);
+      } else blitFrame(sheet, open || own ? n.id : "lock", n.x + 3, n.y + 3, false);
       if (n.blessed && v.special26 === n.id) drawText("*", n.x + 18, n.y + 2, gold, "right");
       if (!own && open) drawText(String(n.cost), n.x + 20, n.y + 14, v.nip >= n.cost ? P().order.illumination : P().cult.ember, "right");
       menuRow(n.x - 2, n.y + 6, 26, 26, "sk" + i, true, () => { skIx = i; }, false);
@@ -1812,7 +1820,26 @@
     const f = flip ? -1 : 1, x = sx + f * 9, ok = p.gp > 0;
     if (p.guard > 0) {
       const par = p.guard <= SK().guard.parryWindow && sk26("parry");
-      for (let i = -9; i <= 9; i++) { const o = Math.round(Math.sqrt(Math.max(0, 81 - i * i)) * 0.35); rect(x + f * o - 1, sy - 12 + i + 10, 2, 2, par ? lite : gold); }
+      // v3.2.4: a tall, slim shield, as if seen from the side: 8 px wide x 27 px tall in screen px (the player is 30 px tall: WS 1.5 x 20 units),
+      // centred on the chest (sy - 17) and held just ahead of the body. Gold rim, quartered field, cross and a boss.
+      const cult = path === "cult", Pc = P(), O = Pc.order, Cc = Pc.cult;
+      const fa = par ? (cult ? Cc.crimson : O.temple) : (cult ? Cc.blood : O.templeDeep), fb = par ? (cult ? Cc.ember : O.nexus) : (cult ? Cc.crimson : O.temple);
+      const band = par ? (cult ? Cc.emberLight : O.light) : (cult ? Cc.ember : O.nexus), boss = par ? O.light : (cult ? Cc.emberLight : O.illumination), edge = Pc.ground.void;
+      const rim = par ? (cult ? Cc.emberLight : O.light) : (cult ? Cc.ember : O.illumination);
+      const IW = [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 2, 2], cx = Math.round(sx + f * 13), top = sy - 30;
+      const row = (r, ix, w, c) => rect(cx - (IW[r] + 2) / 2 + ix, top + 1 + r, w, 1, c);   // ix counts from the outline's left edge
+      rect(cx - 4, top, 8, 1, edge);                                                        // top outline
+      IW.forEach((iw, r) => {
+        const w = iw + 2, fw = iw - 2, hh = fw / 2;
+        row(r, 0, 1, edge); row(r, w - 1, 1, edge);                                         // side outline
+        row(r, 1, 1, rim); row(r, w - 2, 1, rim);                                           // gold rim down both sides
+        if (r === 0 || fw <= 0) { row(r, 1, iw, rim); return; }                             // top rim and the tip
+        row(r, 2, hh, fa); row(r, 2 + hh, hh, fb);                                          // quartered field
+        if (r === 6 || r === 7) row(r, 2, fw, band);                                        // horizontal bar
+        if (r >= 10 && r <= 13) { const bw = (r === 10 || r === 13) ? 2 : 4; row(r, 2 + hh - bw / 2, bw, boss); }   // boss
+      });
+      rect(cx - 1, top + IW.length + 1, 2, 1, edge);                                        // tip
+      rect(cx - 2, top + 3, 1, 4, par ? O.light : Pc.ground.smoke);                         // highlight on the upper left edge
       for (let i = 0; i < guardMax26(); i++) rect(sx - 8 + i * 4, sy - 30, 3, 3, i < p.gp ? gold : P().ground.stone2);
     }
     if (p.bashT > 0) { p.bashT--; for (let i = 0; i < 3; i++) rect(x + f * (6 + i * 5), sy - 10 + i * 2, 4, 2, lite); }
@@ -2306,7 +2333,7 @@
   function dyeList32() {
     const B = P().bosses, L = (id) => { const r = (B[id] && B[id].ramp || []).slice().sort((a, b) => { const l = (h) => { const c = hexRGB32(h); return c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11; }; return l(a) - l(b); }); return [r[1] || r[0], r[2] || r[1], r[3] || r[2]].filter(Boolean); };
     const names = { jeriah: "Crimson General", azmardus: "Grand Wizard Violet", nezradeem: "Bone Tyrant", orchalsius: "Behemoth Flame", silent: "Shadowsteel", gladius: "Frost Walker" };
-    return [{ id: "gold", name: "Pilgrim's Gold", ramp: [P().order.templeDeep, P().order.temple, P().order.nexus, P().order.illumination], from: "rush" }].concat(Object.keys(names).map(id => ({ id, name: names[id], ramp: L(id), from: id })));
+    return [{ id: "gold", name: "Pilgrim's Gold", ramp: [P().order.templeDeep, P().order.temple, P().order.nexus, P().order.illumination], from: "rush" }].concat(Object.keys(names).map(id => ({ id, name: names[id], ramp: L(id), from: id }))).concat(window.SHARDS.world34.dyes.map(d => ({ id: d.id, name: d.name, ramp: d.ramp, from: "shop" })));
   }
   function dyeOwned32() { const o = save.dyes32 && typeof save.dyes32 === "object" ? save.dyes32 : {}; return dyeList32().filter(d => o[d.id]); }
   function startRush32() {
@@ -2394,7 +2421,7 @@
     const rows = [{ k: "rush" }];
     for (const z of pathZones()) rows.push({ k: "hard", z });
     if (save.endSeen32) rows.push({ k: "ngp" });
-    rows.push({ k: "dye" }, { k: "back" }); return rows;
+    rows.push({ k: "back" }); return rows;   // v3.2.4: cloak dyes live in the inventory Cosmetics tab now
   }
   function updateEndgame32() {
     const rows = eg32Rows(), n = rows.length, un = endgame32();
@@ -2448,7 +2475,7 @@
   function ngpReady33() { return endgame32(); }
   function beginNGP32() {
     if (!ngpReady33()) { synth.sfx("locked"); toast(ngpLockMsg33()); return; }
-    const o = save, keep = { path: o.path, charms: o.charms, notches: o.notches, vessels: o.vessels, v23: o.v23, dungeon30: o.dungeon30, dyes32: o.dyes32, dye32: o.dye32, rush32: o.rush32, settings: o.settings, playF: o.playF, deaths: o.deaths, migratedFrom: o.migratedFrom, endSeen32: true, ngp: (o.ngp | 0) + 1, hooks27: o.hooks27, tut27: o.tut27, tutorial: o.tutorial, intro32: o.intro32 };
+    const o = save, keep = { path: o.path, ngNotch34: o.ngNotch34, cos34: o.cos34, charms: o.charms, notches: o.notches, vessels: o.vessels, v23: o.v23, dungeon30: o.dungeon30, dyes32: o.dyes32, dye32: o.dye32, rush32: o.rush32, settings: o.settings, playF: o.playF, deaths: o.deaths, migratedFrom: o.migratedFrom, endSeen32: true, ngp: (o.ngp | 0) + 1, hooks27: o.hooks27, tut27: o.tut27, tutorial: o.tutorial, intro32: o.intro32 };
     save = Object.assign(defaultSave(), JSON.parse(JSON.stringify(keep)));
     if (save.v23) { save.v23.bossNip = {}; save.v23.shop = save.v23.shop || {}; }
     save.endCycle33 = -1; normalizeSave(); persist(); toast(dgFmt(T32().ngp.tag, { n: save.ngp })); goScene(() => enterHub());
@@ -2804,7 +2831,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
 
     if (p.dodge > 0) {
       p.dodge--;
-      p.vx = p.facing * 2.8 * stats.dodgeSpd;
+      p.vx = p.blink34 ? 0 : p.facing * 2.8 * stats.dodgeSpd;
+      if (p.dodge === 0) p.blink34 = false;
       p.inv = Math.max(p.inv, 2);
       if (p.dodge === 0) p.inv = Math.max(p.inv, stats.dodgeGrace);   // v2.4: +50% total i-frames (trailing grace)
       p.anim = "dodge";
@@ -2891,7 +2919,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (p.atk > 0) p.atk--; else if (p.charged) p.charged = false;
 
     if (input.pressed("dodge") && p.dodgeCD === 0 && p.dodge === 0 && p.skill === 0) {
-      p.dodge = stats.dodgeI; p.dodgeCD = 40; synth.sfx("dodge"); rumble("dodge");
+      if (hasCharm("blink")) blink34(p); else p.dodge = stats.dodgeI;
+      p.dodgeCD = 40; synth.sfx("dodge"); rumble("dodge");
     }
     if (input.pressed("skill") && p.skillCD === 0 && p.skill === 0 && p.dodge === 0 && !snk && !(p.guard > 0)) {
       if (sk26("sk_aegis")) p.inv = Math.max(p.inv, 30);
@@ -2965,10 +2994,25 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (aabb(p, h) && p.inv === 0 && p.dodge === 0) hurtPlayer(1, -p.facing);
     }
   }
+  let temperOff34 = false, provNip34 = 0;
+  // v3.2.4: black-and-grey smoke (Blink, shade gusts)
+  function smoke34(x, y, n, sp) { const C = [P().ground.void, P().ground.obsidian, P().ground.ash, P().ground.smoke, P().ground.stone3]; for (let i = 0; i < n; i++) particles.push({ x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 10, vx: (Math.random() - 0.5) * sp, vy: -Math.random() * sp, life: 12 + ((Math.random() * 12) | 0), color: C[(Math.random() * C.length) | 0] }); }
+  // v3.2.4: Blink charm. The dodge is a near-instant teleport up to 64 units along the facing direction, stopping short of walls and gates.
+  function blink34(p) {
+    const f = p.facing, x0 = p.x; let best = p.x;
+    for (let d = 4; d <= 64; d += 4) { const nx = x0 + f * d; if (nx < 0 || (level && nx + p.w > level.w)) break; if (blockedBox({ x: nx, y: p.y, w: p.w, h: p.h })) break; best = nx; }
+    p.trail = p.trail || [];
+    for (let i = 0; i < 4; i++) p.trail.push({ x: x0 + p.w / 2 + (best - x0) * (i / 4), y: p.y + p.h, f: playerFrame(p), flip: f < 0, t: i * 2 });   // afterimages stay behind
+    if (p.trail.length > 6) p.trail.splice(0, p.trail.length - 6);
+    smoke34(x0 + p.w / 2, p.y + p.h * 0.6, 12, 1.6);
+    p.x = best; p.vx = 0; p.dodge = 6; p.blink34 = true; p.inv = Math.max(p.inv, 16);
+    smoke34(p.x + p.w / 2, p.y + p.h * 0.6, 12, 1.6);
+  }
   function strikeDmg(base) {
     const Cc = W24().charm;
     let b = (stats.stand && player.hp <= 2 ? 1 : 0) + stats.reson + (stats.ashen && ashenOn() ? Cc.ashen.dmg : 0) + (player.faithT > 0 ? Cc.faith.dmg : 0);
     let d = base + Math.min(3, b);   // v2.4 cap: situational/charm bonuses never add more than +3 before Glass Heart
+    if (!temperOff34 && !dg && V() && V().temper34) { const L = V().temper34[wpnId()] | 0; if (L && Math.random() < window.SHARDS.world34.temper.chance * L) d += 1; }   // v3.2.4: Temper
     if (dg) d += dg.might;
     if (dg && dg.mods.includes("glass")) d *= 2;
     return stats.glass ? d * 2 : d;
@@ -3347,7 +3391,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function drawSmear26(p) {
     const h = p.hit26; if (!(p.atk > 0) || !h || p.plunge > 0) return;
     const t = (10 - p.atk) / 10; if (t < 0.15 || t > 0.85) return;
-    const cult = path === "cult", c1 = cult ? P().cult.emberLight : P().order.light, c2 = cult ? P().cult.ember : P().order.illumination;
+    const cult = path === "cult", tcol = cosWorn34("trail") ? COSCOL34.trail[cosWorn34("trail")] : null, c1 = tcol ? tcol[0] : cult ? P().cult.emberLight : P().order.light, c2 = tcol ? tcol[1] : cult ? P().cult.ember : P().order.illumination;   // follows the trail colour so the smear matches the recoloured art
     const f = p.facing, cx = p.x + p.w / 2, cy = p.y + 10 + (h.yo || 0), r = h.r, e = (t - 0.15) / 0.7;
     const dot = (x, y, c, s) => rect(wx(x), wy(y), s || 2, s || 2, c);
     const arc = (a0, a1, rad, w, spin) => { const N = 9; for (let i = 0; i <= N * e; i++) { const a = a0 + (a1 - a0) * (i / N); dot(cx + f * Math.cos(a) * rad, cy + Math.sin(a) * rad * (spin ? 0.5 : 0.8), i > N * e - 3 ? c1 : c2, w); } };
@@ -3641,7 +3685,30 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       } else if (beh === "bound") {
         // Monastery shade: drifts toward the living, but only as far as the
         // ground it is bound to (leash from where it fell, never off its terrace).
-        if (e.attackT > 0) {
+        e.tpCD34 = (e.tpCD34 == null ? 50 : e.tpCD34) - 1; e.liftCD34 = (e.liftCD34 == null ? 80 : e.liftCD34) - 1;
+        if (e.tp34) {   // v3.2.4: slow teleport. It dissolves (1 s), then reappears (1 s) closer to the player on its own terrace
+          const T = e.tp34; T.t++; e.vx = 0; e.anim = "idle"; e.attackT = 0;
+          if (T.t % 4 === 0) smoke34(e.x + e.w / 2, e.y + e.h * 0.6, 2, 0.7);
+          if (T.t === 60) {
+            const g0 = e.ground, lo = g0 ? g0.x + 2 : e.homeX - e.leash, hi = g0 ? g0.x + g0.w - e.w - 2 : e.homeX + e.leash;
+            e.x = Math.max(lo, Math.min(hi, player.x + (Math.random() < 0.5 ? -1 : 1) * 44)); e.homeX = e.x; smoke34(e.x + e.w / 2, e.y + e.h * 0.6, 10, 1.2);
+          }
+          e.fade34 = T.t < 60 ? 1 - T.t / 60 : (T.t - 60) / 60;
+          if (T.t >= 120) { e.tp34 = null; e.fade34 = 1; e.tpCD34 = 110; e.cd = 30; }
+        } else if (e.lift34 > 0) {   // v3.2.4: knock-up. No damage. The gust rises under the PLAYER (tracks them, then locks 12 frames before it fires), so a dodge or jump avoids it
+          e.lift34--; e.vx = 0; e.anim = "attack";
+          if (e.lift34 > 12 && !player.dead) e.liftX34 = player.x + player.w / 2;
+          const gy = player.y + player.h;
+          if (e.lift34 % 3 === 0) smoke34(e.liftX34, gy - 1, 2, 0.9 + (34 - e.lift34) * 0.02);
+          if (e.lift34 === 0) {
+            synth.sfx("thud"); smoke34(e.liftX34, gy - 1, 18, 2.2); e.liftCD34 = 200;
+            if (Math.abs(player.x + player.w / 2 - e.liftX34) < 14 && player.onGround && !player.dead && player.dodge === 0) { player.vy = -5.45; player.onGround = false; player.liftT34 = 20; }
+          }
+        } else if (e.tpCD34 <= 0 && Math.abs(dx) > 50 && Math.abs(dx) < 320 && e.ground) {
+          e.tp34 = { t: 0 }; synth.sfx("telegraph");
+        } else if (e.liftCD34 <= 0 && Math.abs(dx) < 90 && Math.abs(player.y - e.y) < 30 && player.onGround) {
+          e.lift34 = 34; e.liftX34 = player.x + player.w / 2; synth.sfx("telegraph");
+        } else if (e.attackT > 0) {
           e.attackT--; e.vx = 0; e.anim = "attack";
         } else {
           const near = Math.abs(dx) < 110 && Math.abs(player.y - e.y) < 40;
@@ -3751,11 +3818,24 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       pr.x += pr.vx; pr.y += pr.vy; pr.life--; if (pr.g26) pr.vy += pr.g26; if (pr.tick32) pr.tick32(pr);
       if (pr.ground && pr.vy < 0 && pr.life < 25) pr.vy = 0;
       if (pr.arrow) {
+        const life34 = pr.life;
         pr.vy += pr.grav;
+        if (pr.homing34 && !pr.harm) {   // v3.2.4: steer toward the nearest foe in front (within a 50 degree cone of travel)
+          const spd = Math.hypot(pr.vx, pr.vy) || 1, ang = Math.atan2(pr.vy, pr.vx); let best = null, bd = 1e9;
+          const cand = enemies.filter(e => !e.dead && !e.hide31).concat(boss && !boss.dead && boss.visible ? [boss] : []);
+          for (const e of cand) { const ex = e.x + e.w / 2 - pr.x, ey = e.y + e.h / 2 - pr.y, d = Math.hypot(ex, ey); if (d > 200 || d < 4) continue; let da = Math.atan2(ey, ex) - ang; while (da > Math.PI) da -= 6.283; while (da < -Math.PI) da += 6.283; if (Math.abs(da) < 0.87 && d < bd) { bd = d; best = { da }; } }
+          if (best) {
+            if (pr.spd34 == null) pr.spd34 = spd;
+            const turn = Math.max(-0.09, Math.min(0.09, best.da)), na = ang + turn;
+            const sp2 = Math.max(pr.spd34 * 0.7, spd * (1 - 0.06 * Math.abs(turn) / 0.09));   // v3.2.4: a turn bleeds a little speed (never below 70%)
+            pr.vx = Math.cos(na) * sp2; pr.vy = Math.sin(na) * sp2; if (pr.grav) pr.vy -= pr.grav * 0.9;
+          }
+        }
         for (const e of enemies) if (!e.dead && aabb(pr, e)) { damageEnemy(e, arrowDmg(pr.dmg), { kb: pr.kind === "darts" ? 0.15 : 0.55, stun: 5 }); onRangedHit33(pr, e, false); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; }
         if (pr.life > 0 && targetHit26(pr, 1)) pr.life = 0;
         if (pr.life > 0 && boss && !boss.dead && boss.visible && aabb(pr, bossCore(boss))) { damageBoss(arrowDmg(pr.dmg)); onRangedHit33(pr, boss, true); pr.life = 0; efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); }
         if (pr.life > 0 && level.tiled && w22) { for (const p of w22.cur) if (p.solid && aabb(pr, p)) { pr.life = 0; synth.sfx("arrowHit"); efx.push({ x: pr.x, y: pr.y, t: 0, type: "hit", n: 3 }); break; } worldStrike({ x: pr.x, y: pr.y, w: pr.w, h: pr.h }); }
+        if (pr.kind === "mstaff" && life34 > 0 && pr.life <= 0) mstaffBurst34(pr);
         continue;
       }
       if (pr.fire && pr.bouncy) { updateFireball(pr); continue; }
@@ -3772,6 +3852,14 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     updateFlames();
     projectiles = projectiles.filter(pr => pr.life > 0 && pr.y < (level ? level.h + 20 : 200));
+  }
+  // v3.2.4: Magik Staff bolts burst on contact and hurt foes standing near the impact (1 damage, 30 px radius)
+  function mstaffBurst34(pr) {
+    const cx = pr.x + pr.w / 2, cy = pr.y + pr.h / 2, R = 30; synth.sfx("magikCast");
+    for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283; particles.push({ x: cx, y: cy, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6 - 0.3, life: 14 + (i & 3) * 3, c: i & 1 ? P().order.light : P().order.illumination, color: i & 1 ? P().order.light : P().order.illumination }); }
+    efx.push({ x: cx, y: cy, t: 0, type: "hit", n: 6 });
+    for (const e of enemies) if (!e.dead && !(e.inv > 0) && Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy) < R) damageEnemy(e, 1, { kb: 0.3, stun: 3 });
+    if (boss && !boss.dead && boss.visible && !(boss.inv > 0) && Math.hypot(boss.x + boss.w / 2 - cx, boss.y + boss.h / 2 - cy) < R + 6) damageBoss(1);
   }
   function updateParticles() {
     for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life--; }
@@ -3981,7 +4069,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   const dayStr = (t) => { const d = t ? new Date(t) : new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   function dailyCode(ds) { let h = 2166136261; for (const ch of "shards-daily-" + (ds || dayStr())) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } let c = ""; for (let i = 0; i < 6; i++) { c += SEEDAB[h & 31]; h = (h >>> 5) | ((h & 31) << 27); } return c; }
   let dgSetupS = null;
-  const BOARD_KEY = "shards-delve-board-v32";
+  const BOARD_KEY = "shards-delve-board-v32" + NS34;
   function deviceBoard() { try { const b = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]"); return Array.isArray(b) ? b.filter(e => e && typeof e.depth === "number") : []; } catch (_) { return []; } }
   function boardAdd(list, e, cap) { list.push(e); list.sort((a, b) => b.depth - a.depth || a.time - b.time || a.at - b.at); list.length = Math.min(list.length, cap); return list.indexOf(e); }
   function dgRecord32(r) {
@@ -3991,11 +4079,14 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (r.mode === "daily") { s.daily = s.daily && s.daily.day === e.day ? s.daily : { day: e.day, best: 0 }; s.daily.best = Math.max(s.daily.best, e.depth); }
     return { slotRank: iS + 1, deviceRank: iD + 1 };
   }
-  function dgOpenSetup32() { const last = save.dungeon30.setup || {}; dgSetupS = { ix: 6, mode: last.mode || "random", code: last.code || randCode(), mods: Array.isArray(last.mods) ? last.mods.slice() : [], edit: -1, board: 0, t: 0 }; scene = "dgsetup"; }
-  function dgSetupRows() { return ["seed"].concat(T32().modifiers.map(m => "mod:" + m.id), ["records", "begin", "back"]); }
+  function dgOpenSetup32() { const last = save.dungeon30.setup || {}; dgSetupS = { ix: dgSetupRows().indexOf("begin"), mode: last.mode || "random", code: last.code || randCode(), mods: Array.isArray(last.mods) ? last.mods.slice() : [], prov: 0, edit: -1, board: 0, t: 0 }; scene = "dgsetup"; }
+  function dgSetupRows() { return ["seed"].concat(T32().modifiers.map(m => "mod:" + m.id), ["prov", "records", "begin", "back"]); }
   function dgSetupBegin() {
     const s = dgSetupS, code = s.mode === "daily" ? dailyCode() : s.mode === "custom" ? s.code : randCode();
     save.dungeon30.setup = { mode: s.mode, code: s.mode === "custom" ? s.code : (save.dungeon30.setup || {}).code || s.code, mods: s.mods.slice() };
+    const PV = window.SHARDS.world34.prov[s.prov | 0] || window.SHARDS.world34.prov[0];
+    if (PV.cost > V().aurels) { toast(window.SHARDS.text34.provCant); synth.sfx("locked"); return; }
+    V().aurels -= PV.cost; provNip34 = PV.nip; if (PV.cost) persist();   // v3.2.4: provisions are paid before the descent and never refunded
     dgSetupS = null; scene = "hub"; enterDungeon({ code, mode: s.mode, mods: s.mods.slice() });
   }
   function updateDgSetup() {
@@ -4015,6 +4106,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const r = rows[s.ix], lr = input.pressed("left") ? -1 : input.pressed("right") ? 1 : 0, ok = input.pressed("confirm") && s.t > 6;
     if (r === "seed" && (lr || ok)) { const M = ["random", "daily", "custom"]; if (ok && s.mode === "custom") { s.edit = 0; input.typed32 = ""; synth.sfx("menu"); return; } s.mode = M[(M.indexOf(s.mode) + (lr || 1) + 3) % 3]; synth.sfx("menuMove"); }
     else if (r.startsWith("mod:") && (lr || ok)) { const id = r.slice(4), i = s.mods.indexOf(id); if (i >= 0) s.mods.splice(i, 1); else s.mods.push(id); synth.sfx("menuMove"); }
+    else if (r === "prov" && (lr || ok)) { const n = window.SHARDS.world34.prov.length; s.prov = ((s.prov | 0) + (lr || 1) + n) % n; synth.sfx("menuMove"); }
     else if (r === "records" && ok) { s.boardView = true; synth.sfx("menu"); }
     else if (r === "begin" && ok) { synth.sfx("menu"); dgSetupBegin(); }
     else if (r === "back" && ok) { dgSetupS = null; scene = "hub"; synth.sfx("menuMove"); }
@@ -4046,6 +4138,10 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         const m = T32().modifiers.find(q => q.id === r.slice(4)), on = s.mods.includes(m.id);
         label = (on ? U.on : U.off) + " " + m.name; right = dgFmt(U.bonus, { n: m.bonus });
         if (sel) desc = m.desc + " " + dgFmt(U.rewardLine, { n: m.bonus });
+      } else if (r === "prov") {
+        const PV = window.SHARDS.world34.prov[s.prov | 0], X = window.SHARDS.text34;
+        label = X.prov + ": " + (PV.nip ? dgFmt(X.provNip, { n: PV.nip }) : X.provNone); right = PV.cost ? PV.cost + " aurels" : "";
+        if (sel) desc = X.provDesc;
       } else { label = U[r]; if (sel) desc = r === "records" ? U.descRecords : r === "begin" ? U.descBegin + " " + (dgBonus33(s.mods) ? dgFmt(U.total, { n: dgBonus33(s.mods) }) : U.totalNone) + "." : U.descBack; }
       if (sel) blitFrame("ui-cursor", (uiT >> 4) & 1 ? 1 : 0, px + 12, y + 4, false);
       drawText(label, px + 22, y + 1, col);
@@ -4059,9 +4155,11 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     y += 4; rect(px + 14, y, pw - 28, 1, P().ground.stone3); y += 6;
     wrapLines(desc, pw - 28).slice(0, 3).forEach((ln) => { drawText(ln, px + 14, y, P().ground.smoke); y += LH - 2; });
     const s30 = save.dungeon30 || {}, dl = s30.daily && s30.daily.day === dayStr() ? dgFmt(U.dailyBest, { n: s30.daily.best }) : U.dailyNone;
-    const ry = Math.max(y + 3, py + ph - 44); window.__dgSetupY33 = { descEnd: y, rec: ry, hint: py + ph - 14 };
-    drawText(dgFmt(U.deepest, { n: s30.best | 0 }), px + 14, ry, P().order.bone);
-    drawText(dl, px + 14, ry + 12, P().order.bone);
+    // v3.2.4 merge: with Ryan's Provisions row there is room for the records on one line only when the description runs long
+    const hintY = py + ph - 14, two = Math.max(y + 3, py + ph - 44) + 24 <= hintY, ry = two ? Math.max(y + 3, py + ph - 44) : Math.max(y + 2, hintY - 13);
+    window.__dgSetupY33 = { descEnd: y, rec: ry, hint: hintY, lines: two ? 2 : 1, recEnd: ry + (two ? 24 : 11) };
+    if (two) { drawText(dgFmt(U.deepest, { n: s30.best | 0 }), px + 14, ry, P().order.bone); drawText(dl, px + 14, ry + 12, P().order.bone); }
+    else { const one = dgFmt(U.deepestShort, { n: s30.best | 0 }) + "   " + (s30.daily && s30.daily.day === dayStr() ? dgFmt(U.dailyShort, { n: s30.daily.best }) : U.dailyNone); drawText(one, px + 14, ry, P().order.bone); }
     drawText(s.edit >= 0 ? (touchUI() ? TT.editHintTouch : padUI() ? TT.editHintPad : TT.editHint) : (touchUI() ? U.hintTouch : padUI() ? U.hintPad : U.hint), W / 2, py + ph - 14, P().ground.ash, "center");
     if (s.edit >= 0 && touchUI()) { panel(px + pw - 40, py + ph - 30, 32, 16); drawText("OK", px + pw - 24, py + ph - 26, P().order.illumination, "center"); tapTarget(px + pw - 44, py + ph - 34, 40, 24, () => input.tap("confirm")); }
   }
@@ -4079,7 +4177,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const snap = dgSnap();
     // v3.1: every run starts from the same baseline: no fragments or crown, no charms, base health, starting weapon, no enchants or skills; flask and quiver at base
     save.claimed = {}; save.crown = false; save.charms = { owned: [], equipped: [] }; save.notches = 3; save.vessels = 0; save.v23 = {}; normV23(); ensureWeapons(); recomputeStats();
-    dg = { code, mode: o.mode || "random", mods: (o.mods || []).slice(), seed, depth: 1, fails: 0, snap, aur0: V().aurels, nip: 0, frags: [], eggPending: false, egg: false, nipEarned: 0, t: 0, noProg: 0, S: null, rem: 0, kills: 0, cleared: 0, dealt: 0, taken: 0, picks: [], rescued: 0, dissolved: 0, bosses: 0, might: 0, beacon: false, opened: false, live: true, prevBest: save.dungeon30.best | 0 };
+    dg = { code, mode: o.mode || "random", mods: (o.mods || []).slice(), seed, depth: 1, fails: 0, snap, aur0: V().aurels, nip: provNip34 | 0, prov34: (() => { const n = provNip34 | 0; provNip34 = 0; return n; })(), frags: [], eggPending: false, egg: false, nipEarned: 0, t: 0, noProg: 0, S: null, rem: 0, kills: 0, cleared: 0, dealt: 0, taken: 0, picks: [], rescued: 0, dissolved: 0, bosses: 0, might: 0, beacon: false, opened: false, live: true, prevBest: save.dungeon30.best | 0 };
     save.dungeon30.runs++; persist();
     goScene(() => dgStartFloor());
   }
@@ -4378,7 +4476,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       picks: d.picks.slice(), rescued: d.rescued + d.dissolved, bosses: d.bosses, fails: d.fails
     };
     r.code = d.code; r.mode = d.mode; r.mods = d.mods.slice(); if (!abort) Object.assign(r, dgRecord32(r));
-    r.homeA = Math.floor(r.aurels / 2); r.homeN = Math.floor(d.nip / 2); r.bonus = dgBonus33(d.mods); if (r.bonus) { r.homeA = Math.floor(r.homeA * (1 + r.bonus / 100)); r.homeN = Math.floor(r.homeN * (1 + r.bonus / 100)); } /* v3.2.2: modifier rewards */ r.moth = !!(save.dungeon30 && save.dungeon30.moth); r.frags = d.frags.length;
+    r.homeA = Math.floor(r.aurels / 2); r.homeN = Math.floor(Math.max(0, d.nip - (d.prov34 | 0)) / 2);   /* v3.2.4 merge: unspent Provisions NIP is not taken home (else 2,000 aurels -> 3 NIP beats Alms) */ r.bonus = dgBonus33(d.mods); if (r.bonus) { r.homeA = Math.floor(r.homeA * (1 + r.bonus / 100)); r.homeN = Math.floor(r.homeN * (1 + r.bonus / 100)); } /* v3.2.2: modifier rewards */ r.moth = !!(save.dungeon30 && save.dungeon30.moth); r.frags = d.frags.length;
     save.charms = d.snap.charms; save.notches = d.snap.notches; save.vessels = d.snap.vessels; save.v23 = d.snap.v23; save.claimed = d.snap.claimed; save.crown = d.snap.crown; // run-only upgrades and fragments end here
     if (!abort) { const v = V(); v.aurels += r.homeA; v.nip += r.homeN; v.nipTotal += r.homeN; } else { r.homeA = r.homeN = 0; }
     const s = save.dungeon30; r.best = Math.max(s.best | 0, d.depth); r.newBest = d.depth > d.prevBest; s.best = r.best; s.kills += d.kills;
@@ -4864,7 +4962,27 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
 
   let lastScene = "";
+  // v3.2.4: "everything unlocked" build (window.SHARDS.UNLOCK_ALL). Applied once to each file that has chosen a path.
+  function unlockAll34() {
+    if (window.SHARDS.UNLOCK_ALL && save.path) { save.dyes32 = save.dyes32 || {}; for (const d of dyeList32()) if (!save.dyes32[d.id]) save.dyes32[d.id] = 1; }   // every cloak dye (boss and shop) is open in the rematch menu, even on files that were unlocked earlier
+    if (!window.SHARDS.UNLOCK_ALL || !save.path || save.unlock34 || !save.v23) return;
+    const v = save.v23, W = window.SHARDS.world23;
+    for (const f of window.SHARDS.fragmentOrder) save.claimed[f] = true;
+    save.crown = true; save.endSeen32 = true; save.endCycle33 = save.ngp | 0;
+    for (const c of W22().charmOrder) if (!save.charms.owned.includes(c)) save.charms.owned.push(c);
+    save.notches = 7; save.vessels = 3;
+    v.melee.owned = W.melee.slice(); if (!v.melee.main) v.melee.main = W.start[save.path] || W.melee[0];
+    v.ranged.owned = W.ranged.slice();
+    v.hpBuy = 2; v.flaskMax = 6; v.flask = 6; v.arrowMax = 9; v.arrows = 9; v.aurels = 99999; v.nip = 99; v.nipTotal = Math.max(v.nipTotal, 99);
+    for (const n of SK().nodes) v.skills = Object.assign(v.skills || {}, { [n.id]: 1 });
+    for (const b of Object.keys(window.SHARDS.bosses)) v.bossNip[b] = 1;
+    for (const id of ["sk_dmg"]) { /* tree nodes are set above */ }
+    if (!v.special26) v.special26 = "winds";
+    { const c = cos34(), D = window.SHARDS.world34; D.groups.forEach(gp => gp.opts.forEach(o => { c.own[o.id + "@" + gp.id] = 1; })); D.dyes.forEach(d => { save.dyes32 = save.dyes32 || {}; save.dyes32[d.id] = 1; }); save.ngNotch34 = 2; save.notches = 9; }
+    save.unlock34 = true; recomputeStats(); persist();
+  }
   function update() {
+    unlockAll34();
     if (scene !== lastScene) { armedKey = ""; lastScene = scene; }
     input.pollGamepad();
     if (dg && (scene === "traverse" || scene === "arena")) dg.t++;
@@ -4999,7 +5117,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
 
   // ----- text & panels -----
   function rect(x, y, w, h, c) { g.fillStyle = c; g.fillRect(x | 0, y | 0, w | 0, h | 0); }
-  function panel(x, y, w, h, style) {
+  function panel(x, y, w, h, style) { panel0(x, y, w, h, style); if (w > 24 && h > 16) frame34(x | 0, y | 0, w | 0, h | 0); }   // v3.2.4: optional frame style on every menu panel
+  function panel0(x, y, w, h, style) {
     const ui = ART().ui[style || "panel"] || ART().ui.panel;
     const img = atlas.images.get(ui.path);
     x = x | 0; y = y | 0; w = w | 0; h = h | 0;
@@ -5129,7 +5248,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (p.dead) return animFrame(sh, "death", p.animT, 8, false);
     if (p.skill > 0 && p.starMode) return animFrame(sh, p.starMode === 1 ? "jump" : "fall", p.animT, 8, true);
     if (p.skill > 0) { const tot = path === "order" ? 22 : 16; return animFrame(sh, "skill", tot - p.skill, path === "order" ? 6 : 4, false); }
-    if (p.dodge > 0) return animFrame(sh, "roll", 12 - p.dodge, 3, false);
+    if (p.dodge > 0 && !p.blink34) return animFrame(sh, "roll", 12 - p.dodge, 3, false);
     if (p.atk > 0) {
       const k = Math.max(1, Math.min(3, (p.anim || "attack1").replace("attack", "") | 0));
       const ph = p.atk >= 9 ? 0 : p.atk >= 6 ? 1 : 2; // wind-up, smear (active 8/7), follow-through
@@ -5252,7 +5371,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (e.hide31) continue;
       if (e.elite && !e.dead) { const ex = e.x + e.w / 2, ey = e.y + e.h, fr = enemyFrame(e); for (const [ox, oy] of [[-0.7, 0], [0.7, 0], [0, -0.7]]) drawActor("enemy-" + e.type, fr, ex + ox, ey + oy, e.facing < 0, "tint"); }
       if (e.inv > 0 && (e.inv % 4 < 2) && !e.dead && !(e.flashT > 0)) continue;
+      if (e.fade34 != null && e.fade34 < 1) g.globalAlpha = Math.max(0.05, e.fade34);
       drawActor("enemy-" + e.type, enemyFrame(e), e.x + e.w / 2 + (e.stun > 0 && !e.dead ? ((animT >> 1) & 1 ? 0.8 : -0.8) : 0), e.y + e.h, e.facing < 0, e.flashT > 0 && !e.dead ? "flash" : null);
+      g.globalAlpha = 1;
       if (!e.dead && onScrAny(e.x, e.y)) {
         drawStatus26(e);
         if (e.burn) rect(wx(e.x + Math.random() * e.w), wy(e.y + Math.random() * 6), 2, 2, enchColor("flame"));
@@ -5326,7 +5447,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
 
   // ----- HUD -----
-  function drawHUD() {
+  function drawHUD() { drawHUD0(); frame34(2, 3, 184, 24); frame34(2, 29, 96, 22); }
+  function drawHUD0() {
     // health: serpent-scale pips on a small plate
     panel(4, 4, 12 + player.maxHp * 14, 22, "plate");
     for (let i = 0; i < player.maxHp; i++) blitFrame("ui-hud", i < player.hp ? "hp" : "hp-empty", 10 + i * 14, 8, false);
@@ -5687,6 +5809,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     input.isTouch = true; input.lastDevice = "touch";
     synth.resume();
     if (portrait) return;
+    dragScroll34(e, true);
     for (const t of e.changedTouches) {
       const p = toGame(t);
       if (padAt(p.x, p.y)) continue;
@@ -5697,7 +5820,20 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     syncPads(e.touches);
   }
-  function onTouchMove(e) { if (e.cancelable) e.preventDefault(); if (!portrait) syncPads(e.touches); }
+  // v3.2.4: drag a finger up or down over a menu list to scroll it (weapons, enchanter, lore)
+  const drag34 = {};
+  function dragScroll34(e, start) {
+    if (portrait || (scene !== "inventory" && scene !== "leader")) return;
+    for (const t of e.changedTouches) {
+      const p = toGame(t);
+      if (start) { if (!padAt(p.x, p.y)) drag34[t.identifier] = p.y; continue; }
+      let a = drag34[t.identifier]; if (a == null) continue;
+      while (p.y - a >= 14) { input.tap("up"); a += 14; }
+      while (a - p.y >= 14) { input.tap("down"); a -= 14; }
+      drag34[t.identifier] = a;
+    }
+  }
+  function onTouchMove(e) { if (e.cancelable) e.preventDefault(); dragScroll34(e, false); if (!portrait) syncPads(e.touches); }
   function onTouchEnd(e) {
     if (e.cancelable) e.preventDefault();
     synth.resume();
@@ -5841,11 +5977,278 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     } else drawText(padUI() ? T().pad.fragBack : T().pause.back + " (Esc/Enter)", W / 2, H - 30, P().ground.smoke, "center");
   }
 
+
+  // ================= v3.2.4 cosmetics =================
+  const COSCOL34 = {
+    aura: { ember: ["#FF8A3C", "#FFD27A", "#E0502A"], frost: ["#9FD8FF", "#E6F6FF", "#6AA8E8"], gilt: ["#E8C547", "#FFE680", "#B8861B"], void: ["#7A3CC8", "#D9B8FF", "#3B1670"], rose: ["#F2A0B8", "#FFD0DC", "#C85A7A"] },
+    glow: { ember: "#FF8A3C", frost: "#9FD8FF", gilt: "#FFE680", void: "#A66CFF" },
+    trail: { crimson: ["#FF6A5A", "#E02A2A"], gold: ["#FFE680", "#E8B830"], frost: ["#E6F6FF", "#6AA8E8"], void: ["#D9B8FF", "#7A3CC8"] },
+    tint: { crimson: "#E02A2A", gold: "#E8B830", frost: "#6AA8E8", void: "#7A3CC8" },
+    hud: { bone: ["#E8DCC0", "#B8A888"], ember: ["#FF8A3C", "#A83A1C"], moon: ["#DDE6FF", "#7F93C8"] }
+  };
+  const decorOn34 = (id) => { const c = cos34(); return !!c.own[id + "@decor"] && !c.hide[id]; };
+  const bgOn34 = (id) => { const c = cos34(); return !!c.own[id + "@" + (id === "night" ? "bgn" : "bgd")] && !c.hide[id]; };
+  const alpha34 = (a, fn) => { const k = g.globalAlpha; g.globalAlpha = a; fn(); g.globalAlpha = k; };
+  function glow34(x, y, r, col, a) { for (let i = 3; i >= 1; i--) alpha34(a * (4 - i) / 6, () => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r * i / 3, 0, 6.283); g.fill(); }); }
+  function frame34(x, y, w, h, over) {   // HUD / menu frame style: a thin inset line and corner studs in the chosen colours
+    const sty = over || cosWorn34("hud"); if (!sty) return; const c = COSCOL34.hud[sty];
+    rect(x + 2, y + 2, w - 4, 1, c[0]); rect(x + 2, y + h - 3, w - 4, 1, c[0]); rect(x + 2, y + 2, 1, h - 4, c[0]); rect(x + w - 3, y + 2, 1, h - 4, c[0]);
+    for (const [cx, cy] of [[x + 1, y + 1], [x + w - 4, y + 1], [x + 1, y + h - 4], [x + w - 4, y + h - 4]]) rect(cx, cy, 3, 3, c[1]);
+  }
+
+  function auraAt34(sx, sy, au, T, sc) {   // motes drifting in a wide ring (about 70 x 54 px at sc 1) around the body
+    const C = COSCOL34.aura[au], N = 18;
+    for (let i = 0; i < N; i++) {
+      const ph = i * 6.283 / N, a = ph + T * (au === "rose" ? 0.012 : 0.02) * (i % 2 ? 1 : -1);
+      let mx = sx + Math.cos(a) * (24 + (i % 4) * 5) * sc, my = sy + Math.sin(a) * (18 + (i % 3) * 5) * sc - 2;
+      if (au === "rose") my = sy - 30 * sc + ((T * 0.35 + i * 17) % 60) * sc; else my += Math.sin(T / 20 + i) * 3;
+      const tw = (T + i * 7) % 24 < 16;
+      rect(Math.round(mx), Math.round(my), au === "rose" ? 3 : (i % 3 ? 2 : 3), au === "rose" ? 2 : (i % 3 ? 2 : 3), C[i % 3]);
+      if (tw && au !== "rose") rect(Math.round(mx) - 1, Math.round(my), 1, 1, C[1]);
+    }
+  }
+  function glowAt34(x, y, gl, T, extra) { const col = COSCOL34.glow[gl], pulse = 0.28 + 0.1 * Math.sin(T / 6); glow34(x, y, 15 + extra, col, pulse); rect(Math.round(x) - 1, Math.round(y) - 10, 1, 22, col); }
+  function compAt34(cx, cy, cp, d, T, moving) {
+    if (cp === "snake") { for (let i = 0; i < 7; i++) rect(cx - d * i * 2, cy + Math.round(Math.sin(T / 5 - i) * (moving ? 2 : 1)), 3, 3, i % 3 === 0 ? "#E8C547" : i % 2 ? "#448A7E" : "#2B5C59"); rect(cx + d * 2, cy - 1, 4, 4, "#74B49C"); rect(cx + d * 4, cy, 1, 1, "#FF4A3A"); }
+    else if (cp === "crow") { const fl = Math.sin(T / 3) > 0; rect(cx - 3, cy, 7, 5, "#15151C"); rect(cx + d * 3, cy - 2, 4, 4, "#15151C"); rect(cx + d * 6, cy - 1, 3, 1, "#E8C547"); rect(cx + d * 4, cy - 1, 1, 1, "#E8DCC0"); rect(cx - 5, cy + (fl ? -3 : 2), 4, 2, "#2A2A36"); rect(cx + 2, cy + (fl ? -3 : 2), 4, 2, "#2A2A36"); rect(cx - d * 5, cy + 2, 3, 2, "#15151C"); }
+    else {   // stone golem: tall, mossy, glowing eyes and a rune on the chest (22 px tall in screen px, feet at cy + 22)
+      const st = (T >> 3) & 1, bob = moving ? st : 0, sw = moving ? (st ? 1 : -1) : 0, ln = "#2A2A30", lt = "#A4A4AC", md = "#80808A", dk = "#585862", mo = "#5E8A4E", gl = "#7CE0FF", pul = 0.5 + 0.5 * Math.sin(T / 10);
+      // legs, alternate lifts while walking
+      rect(cx - 6, cy + 17 - (moving && st ? 1 : 0), 5, 5, dk); rect(cx + 2, cy + 17 - (moving && !st ? 1 : 0), 5, 5, dk);
+      rect(cx - 6, cy + 21 - (moving && st ? 1 : 0), 5, 1, ln); rect(cx + 2, cy + 21 - (moving && !st ? 1 : 0), 5, 1, ln); rect(cx - 6, cy + 17 - (moving && st ? 1 : 0), 5, 1, md); rect(cx + 2, cy + 17 - (moving && !st ? 1 : 0), 5, 1, md);
+      // arms with fists
+      rect(cx - 11, cy + 9 - bob + sw, 4, 9, dk); rect(cx + 8, cy + 9 - bob - sw, 4, 9, dk);
+      rect(cx - 11, cy + 16 - bob + sw, 4, 4, md); rect(cx + 8, cy + 16 - bob - sw, 4, 4, md); rect(cx - 11, cy + 19 - bob + sw, 4, 1, ln); rect(cx + 8, cy + 19 - bob - sw, 4, 1, ln);
+      // torso: outline, light top, shaded right side, cracks, moss
+      rect(cx - 8, cy + 8 - bob, 17, 11, ln); rect(cx - 7, cy + 9 - bob, 15, 9, md); rect(cx - 7, cy + 9 - bob, 15, 1, lt); rect(cx + 3, cy + 10 - bob, 5, 8, dk);
+      rect(cx - 9, cy + 6 - bob, 6, 5, lt); rect(cx + 4, cy + 6 - bob, 6, 5, lt); rect(cx - 9, cy + 6 - bob, 6, 1, mo); rect(cx - 8, cy + 7 - bob, 3, 1, mo); rect(cx - 9, cy + 10 - bob, 6, 1, md); rect(cx + 4, cy + 10 - bob, 6, 1, md);
+      rect(cx - 4, cy + 14 - bob, 1, 3, ln); rect(cx - 3, cy + 16 - bob, 2, 1, ln); rect(cx + 1, cy + 15 - bob, 2, 1, ln);
+      // chest rune
+      alpha34(0.55 + 0.4 * pul, () => { rect(cx - 2, cy + 12 - bob, 5, 1, gl); rect(cx, cy + 10 - bob, 1, 5, gl); });
+      // head
+      rect(cx - 5, cy - bob, 11, 8, ln); rect(cx - 4, cy + 1 - bob, 9, 6, md); rect(cx - 4, cy + 1 - bob, 9, 1, lt); rect(cx - 4, cy - bob, 4, 1, mo); rect(cx + 2, cy + 3 - bob, 3, 4, dk);
+      const ex = d > 0 ? 1 : -1; rect(cx - 3 + ex, cy + 3 - bob, 2, 2, gl); rect(cx + 1 + ex, cy + 3 - bob, 2, 2, gl); rect(cx - 3 + ex, cy + 3 - bob, 1, 1, "#FFFFFF");
+      rect(cx - 3, cy + 6 - bob, 7, 1, dk);
+    }
+  }
+  function floorAt34(x, y0) {   // the first floor at or below y0 under world x (null if there is none): solid tiles, platforms and floating ledges
+    if (!level) return null;
+    let best = null;
+    for (const q of level.platforms || []) { if (x < q.x || x > q.x + q.w || q.y < y0 - 1) continue; if (best == null || q.y < best) best = q.y; }
+    for (const q of level.ledges || []) { if (x < q.x || x > q.x + q.w || q.y < y0 - 1) continue; if (best == null || q.y < best) best = q.y; }
+    if (level.tiled && w22 && w22.cur) for (const q of w22.cur) { if (!(q.solid || q.oneWay) || x < q.x || x > q.x + q.w || q.y < y0 - 1) continue; if (best == null || q.y < best) best = q.y; }   // floating and moving ledges
+    if (level.tiled) { const lim = best == null ? level.h : best; for (let y = Math.max(0, Math.floor(y0)); y < lim; y += 2) if (blockedBox({ x: x - 2, y, w: 4, h: 2 })) { best = y; break; } }
+    return best;
+  }
+  const TRAILRAMP34 = { crimson: ["#5A0F14", "#A3141F", "#E02A2A", "#FF6A5A"], gold: ["#7A5A10", "#B8861B", "#E8B830", "#FFE680"], frost: ["#2A4A7A", "#4A80C0", "#8AC0F0", "#E6F6FF"], void: ["#3B1670", "#6A2FB0", "#A066F0", "#D9B8FF"] };
+  function trailSheet34(sh) {   // the pre-existing slash art (gold arcs for the Order, ember reds for the Cult) in the weapon sheet, recoloured
+    const tr = cosWorn34("trail"); if (!tr) return sh;
+    const name = sh + "~t" + tr; if (BAKE32[name]) return BAKE32[name] === 1 ? sh : name;
+    const S = sheetOf(sh), img = S && atlas.images.get(S.path); if (!S || !img || !img.width) return sh;
+    try {
+      const cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height; const cg = cv.getContext("2d"); cg.drawImage(img, 0, 0);
+      const D = cg.getImageData(0, 0, cv.width, cv.height), px = D.data;
+      const src = (sh.endsWith("cult") ? ["#2A0C12", "#5A1420", "#8B1E2D", "#B42334"] : ["#5C4A14", "#8A6E1F", "#C9A227", "#E8C547"]).map(hexRGB32), dst = TRAILRAMP34[tr].map(hexRGB32);
+      for (let i = 0; i < px.length; i += 4) { if (!px[i + 3]) continue; for (let k = 0; k < 4; k++) if (px[i] === src[k][0] && px[i + 1] === src[k][1] && px[i + 2] === src[k][2]) { px[i] = dst[k][0]; px[i + 1] = dst[k][1]; px[i + 2] = dst[k][2]; break; } }
+      cg.putImageData(D, 0, 0); const path2 = S.path + "~t" + tr; atlas.images.set(path2, cv);
+      window.SHARDS.art.sheets[name] = Object.assign({}, S, { path: path2 }); BAKE32[name] = 2; return name;
+    } catch (e) { BAKE32[name] = 1; return sh; }
+  }
+  let comp34 = null, wasGround34 = true;
+  function drawCos34() {
+    const p = player; if (!p || p.dead || !(scene === "hub" || scene === "traverse" || scene === "arena" || scene === "travel")) return;
+    const T = animT, sx = wx(p.x + p.w / 2), sy = wy(p.y + p.h / 2), f = p.facing, c = cos34();
+    if (c.wear.aura) auraAt34(sx, sy, c.wear.aura, T, 1);
+    const gl = c.wear.glow;
+    if (gl && !(p.guard > 0)) glowAt34(sx + f * 13, sy - 4, gl, T, p.atk > 0 ? 6 : 0);
+    // footsteps
+    const ft = c.wear.foot, ground = p.onGround;
+    if (ft) {
+      const fx = p.x + p.w / 2, fy = p.y + p.h, pc = { dust: ["#8A7A66", "#B8A888", "#6B5C4A"], petals: ["#F2A0B8", "#FFD0DC", "#C85A7A"], embers: ["#FF8A3C", "#FFD27A", "#E0502A"], ripples: ["#9FD8FF", "#E6F6FF", "#6AA8E8"] }[ft];
+      const spawn = (n, burst) => { for (let i = 0; i < n; i++) particles.push({ x: fx + (Math.random() - 0.5) * 8, y: fy - 1, vx: (Math.random() - 0.5) * (burst ? 1.6 : 0.8) - p.vx * 0.15, vy: ft === "ripples" ? 0 : -Math.random() * (ft === "embers" ? 1.1 : 0.7), life: ft === "ripples" ? 16 : 14 + ((Math.random() * 10) | 0), color: pc[(Math.random() * 3) | 0] }); };
+      if (ground && Math.abs(p.vx) > 0.8 && T % 7 === 0) spawn(2, false);
+      if (ground && !wasGround34) spawn(7, true);
+    }
+    wasGround34 = ground;
+    // companion
+    const cp = c.wear.comp;
+    if (cp) {
+      const foot = cp === "snake" ? 2 : cp === "golem" ? 22 / WS : 0, grounded = foot > 0;   // foot offsets are world units (drawn height / WS)
+      if (!comp34 || comp34.t !== cp) comp34 = { t: cp, x: p.x - 16, y: p.y, f: 1, vy: 0 };
+      const tx = p.x - f * 20, warp = () => { comp34.x = p.x - f * 16; const fl = p.onGround ? p.y + p.h : floorAt34(p.x + p.w / 2, p.y + p.h - 4); comp34.y = (fl == null ? p.y + p.h : fl) - foot; comp34.vy = 0; };
+      comp34.f = Math.abs(tx - comp34.x) > 2 ? Math.sign(tx - comp34.x) : comp34.f;
+      let moving;
+      if (!grounded) { const ty = p.y - 10 + Math.sin(T / 12) * 3; comp34.x += (tx - comp34.x) * 0.09; comp34.y += (ty - comp34.y) * 0.1; moving = Math.abs(tx - comp34.x) > 3; }
+      else {
+        // snake and golem walk on the floor with gravity. Past a ledge they drop and stay below until the player is far enough away, then they catch up
+        const dxT = tx - comp34.x; moving = Math.abs(dxT) > 3; comp34.x += Math.max(-1.6, Math.min(1.6, dxT * 0.12));
+        const fl = floorAt34(comp34.x + 2, comp34.y + foot - 6);
+        if (fl != null && comp34.y + foot >= fl - 0.5 && comp34.vy >= 0) { comp34.y = fl - foot; comp34.vy = 0; }
+        else { comp34.vy = Math.min(5, comp34.vy + 0.3); comp34.y += comp34.vy; if (fl != null && comp34.y + foot > fl) { comp34.y = fl - foot; comp34.vy = 0; } }
+        if (Math.abs(p.x - comp34.x) > 150 || comp34.y > (level ? level.h : 9999) + 10 || Math.abs(p.y + p.h - (comp34.y + foot)) > 140) warp();
+      }
+      compAt34(wx(comp34.x), wy(comp34.y), cp, comp34.f, T, moving);
+    } else comp34 = null;
+  }
+  function drawHubBG34() {   // after the normal backdrop. Night Sky (Order) dims it and adds stars and a moon; Deep Temple (Cult) is drawn instead of it.
+    if (path === "order" && bgOn34("night")) {
+      alpha34(0.62, () => rect(0, 0, W, H, "#070C26"));
+      for (let i = 0; i < 46; i++) { const x = (i * 97 + 13) % W, y = (i * 53 + 7) % 110, tw = (animT + i * 11) % 60 < 44; if (tw) rect(x, y, i % 7 === 0 ? 2 : 1, i % 7 === 0 ? 2 : 1, i % 3 ? "#DDE6FF" : "#FFE680"); }
+      glow34(W - 70, 36, 24, "#DDE6FF", 0.5); rect(W - 78, 28, 16, 16, "#F4F0DC"); rect(W - 74, 28, 12, 14, "#070C26"); rect(W - 76, 30, 14, 12, "#F4F0DC");
+    }
+  }
+  function drawDeepBG34() {   // the Deep's cavern replaces only the backdrop layers; the hub's own temple steps, altar and braziers stay
+    const la = ART().levels.deep, ha = levelArt();
+    rect(0, 0, W, H, P().ground.void);
+    if (la) for (const l of la.layers) drawLayer(l.path, l.f, l.y);
+    if (ha) { drawAnims(ha, "back"); if (ha.play) drawLayer(ha.play, 1, 0); drawAnims(ha, "play"); }
+  }
+  function statueSheet34() {   // the player's own sheet, drained to cool stone grey
+    const sh = playerSheet(), name = sh + "~stone"; if (BAKE32[name]) return BAKE32[name] === 1 ? sh : name;
+    const S = sheetOf(sh), img = S && atlas.images.get(S.path); if (!S || !img || !img.width) return sh;
+    try {
+      const cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height; const cg = cv.getContext("2d"); cg.drawImage(img, 0, 0);
+      const D = cg.getImageData(0, 0, cv.width, cv.height), px = D.data;
+      for (let i = 0; i < px.length; i += 4) { if (!px[i + 3]) continue; const lum = 0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2], v = Math.min(235, lum * 0.8 + 52); px[i] = v * 0.94; px[i + 1] = v * 0.97; px[i + 2] = Math.min(255, v * 1.06); }
+      cg.putImageData(D, 0, 0); const path2 = S.path + "~stone"; atlas.images.set(path2, cv);
+      window.SHARDS.art.sheets[name] = Object.assign({}, S, { path: path2 }); BAKE32[name] = 2; return name;
+    } catch (e) { BAKE32[name] = 1; return sh; }
+  }
+  function drawStatue34(x, y) {   // a stone likeness of the player on a plinth, facing back toward the hub
+    rect(x - 11, y - 4, 22, 4, "#4A4A52"); rect(x - 9, y - 8, 18, 4, "#6B6B74"); rect(x - 9, y - 8, 18, 1, "#8A8A94"); rect(x - 11, y - 1, 22, 1, "#2A2A30");
+    blitFrame(statueSheet34(), animFrame(playerSheet(), "idle", 0, 10), x, y - 8, true);
+    rect(x - 7, y - 6, 14, 1, "#9A9AA4");
+  }
+  function drawHubDecor34() {
+    if (!level || level.kind !== "hub") return;
+    const T = animT, gy = 164, cult = path === "cult", deep = cult && bgOn34("deep");
+    const lanternAt = (wxp, wyp, k) => { const sway = Math.sin(T / 40 + k) * 4, x = wx(wxp) + Math.round(sway), y = wy(wyp); rect(x, wy(wyp) - 30, 1, 30, "#4A3A2A"); glow34(x + 4, y + 8, 22, "#FFB45A", 0.5); rect(x - 1, y, 10, 2, "#2A1E14"); rect(x, y + 2, 8, 12, "#E8703A"); rect(x + 1, y + 3, 6, 10, "#FFC46A"); rect(x + 3, y + 5, 2, 6, "#FFF2B0"); rect(x - 1, y + 14, 10, 2, "#2A1E14"); };
+    if (decorOn34("lilies")) for (const x0 of [18, 120, 215, 360, 452]) for (let k = 0; k < 3; k++) { const x = wx(x0 + k * 5), y = wy(gy), sw = Math.round(Math.sin(T / 50 + k + x0) * 1); rect(x + sw, y - 12 - k % 2 * 2, 1, 12 + k % 2 * 2, "#2B5C59"); rect(x - 2 + sw, y - 16 - k % 2 * 2, 5, 4, "#C2182B"); rect(x - 1 + sw, y - 18 - k % 2 * 2, 3, 2, "#FF4A5A"); rect(x + sw, y - 15 - k % 2 * 2, 1, 1, "#FFE680"); }
+    if (decorOn34("banners")) for (const [x0, k] of [[96, 0], [340, 1]]) { const x = wx(x0), y = wy(70), sw = Math.round(Math.sin(T / 45 + k) * 1.5); rect(x - 2, y - 2, 14, 2, "#3A2A1A"); rect(x + sw, y, 10, 30, "#1F2E66"); rect(x + sw + 1, y, 8, 28, "#2B4090"); rect(x + sw + 2, y + 8, 6, 6, "#E8DCC0"); rect(x + sw + 4, y + 8, 4, 6, "#2B4090"); rect(x + sw, y + 30, 3, 3, "#1F2E66"); rect(x + sw + 7, y + 30, 3, 3, "#1F2E66"); }
+    if (decorOn34("braziers")) for (const x0 of [26, 444]) { const x = wx(x0), y = wy(gy); rect(x - 5, y - 4, 11, 4, "#3A3A40"); rect(x - 1, y - 14, 3, 10, "#55555C"); rect(x - 6, y - 18, 13, 4, "#2A2A30"); glow34(x, y - 24, 30, "#FF8A3C", 0.55); const fl = (T >> 2) & 3; rect(x - 3, y - 24 - fl % 2, 7, 6, "#E0502A"); rect(x - 2, y - 27 - fl % 3, 5, 5, "#FF8A3C"); rect(x - 1, y - 29 - fl % 2, 3, 4, "#FFD27A"); }
+    if (decorOn34("lanterns") || deep) for (const [x0, y0, k] of [[88, 74, 0], [150, 60, 1], [292, 62, 2], [352, 74, 3], [214, 56, 4]]) lanternAt(x0, y0, k);
+    if (decorOn34("statue")) drawStatue34(wx(cult ? 88 : 94), wy(148));   // on the first step, between the Delve portal (left) and the guide
+    if (false) { const x = wx(430), y = wy(gy); rect(x - 8, y - 4, 16, 4, "#5A5A62"); rect(x - 6, y - 8, 12, 4, "#6B6B72"); rect(x - 4, y - 24, 8, 16, "#8A8A92"); rect(x - 3, y - 32, 6, 8, "#A0A0A8"); rect(x - 5, y - 22, 2, 10, "#6B6B72"); rect(x + 3, y - 22, 2, 10, "#6B6B72"); rect(x + 5, y - 30, 2, 20, "#55555C"); rect(x + 4, y - 32, 4, 3, "#A0A0A8"); rect(x - 3, y - 26, 6, 1, "#C0C0C8"); }
+    if (decorOn34("moth") && level.altar) { const ax = wx(level.altar.x + 8), ay = wy(level.altar.y - 6), a = T / 22, mx = ax + Math.round(Math.cos(a) * 20), my = ay + Math.round(Math.sin(a * 1.3) * 9), fl = (T >> 2) & 1; glow34(mx, my, 9, "#FFE9A8", 0.3); rect(mx - 3, my - (fl ? 3 : 1), 3, 3, "#E8DCC0"); rect(mx + 1, my - (fl ? 3 : 1), 3, 3, "#E8DCC0"); rect(mx - 1, my, 3, 4, "#8A6E4A"); }
+    if (deep) {   // Deep Temple: glowing mushrooms (some tall) and drifting spores
+      for (const [x0, h, k] of [[22, 20, 0], [46, 9, 1], [74, 14, 2], [104, 24, 3], [140, 11, 4], [176, 18, 5], [236, 10, 6], [262, 22, 7], [300, 12, 8], [332, 16, 9], [372, 9, 10], [404, 20, 11], [430, 12, 12], [458, 24, 13]]) {
+        const x = wx(x0), y = wy(gy), col = k % 3 === 0 ? "#B07CFF" : k % 3 === 1 ? "#5AE0C8" : "#7CC8FF", cw = 9 + (h >> 1), pulse = 0.28 + 0.1 * Math.sin(T / 18 + k);
+        glow34(x, y - h - 2, 12 + h, col, pulse);
+        rect(x - 1, y - h, h > 15 ? 4 : 3, h, "#CFC2A8"); rect(x + 1, y - h, 1, h, "#A89878");
+        rect(x - (cw >> 1), y - h - 3, cw, 4, col); rect(x - (cw >> 1) + 2, y - h - 6, cw - 4, 4, col); rect(x - (cw >> 1) + 4, y - h - 8, Math.max(2, cw - 8), 3, "#E8FFF8");
+        rect(x - (cw >> 1) + 2, y - h - 2, 2, 2, "#FFFFFF"); rect(x + (cw >> 1) - 4, y - h - 4, 2, 2, "#FFFFFF");
+        rect(x - (cw >> 1), y - h + 1, cw, 1, "#2A2A44");
+      }
+      for (let i = 0; i < 46; i++) { const sx2 = (i * 83 + T * 0.15 * (1 + i % 3)) % (W + 20), sy2 = H - 20 - ((i * 47 + T * 0.35 * (0.5 + (i % 4) * 0.25)) % (H - 50)); alpha34(0.55 + 0.4 * Math.sin(T / 15 + i), () => { const z = i % 3 === 0 ? 3 : 2; rect(Math.round(sx2), Math.round(sy2), z, z, i % 2 ? "#9FF0E0" : "#D8B8FF"); }); }
+    }
+  }
+
+  // ================= v3.2.4 Wardrobe: one list of cosmetics for the merchant (buy) and the inventory tab (wear) =================
+  const WD_TABS34 = [{ id: "dyes", name: "Dyes" }, { id: "auras", name: "Auras" }, { id: "decor", name: "Hub decor" }, { id: "fx", name: "Effects" }, { id: "style", name: "Extras" }];
+  const WD_GROUPS34 = { auras: ["aura"], decor: ["decor", "bgn", "bgd"], fx: ["glow", "trail", "tint", "foot"], style: ["comp", "hud"] };
+  let wdTab34 = 0, wdIx34 = 0, wdScroll34 = 0, shopPage34 = 0;
+  const wdTabs34 = (mode) => WD_TABS34.filter(t => mode === "shop" || t.id !== "decor");
+  function wdItems34(tabId, mode) {
+    const c = cos34(), D = window.SHARDS.world34, out = [];
+    save.dyes32 = save.dyes32 || {};
+    if (tabId === "dyes") {
+      out.push({ key: "dye:none", name: "Natural", desc: "Your outfit as it came.", own: true, worn: !save.dye32, price: 0, buyable: false, prev: { dye: null }, kind: "dye", id: null });
+      for (const d of dyeList32()) {
+        if (mode === "shop" && d.from !== "shop") continue;   // boss and Rush dyes are unlocks, listed only in the inventory
+        const shop = d.from === "shop", price = shop ? (D.dyes.find(q => q.id === d.id) || {}).price | 0 : 0;
+        out.push({ key: "dye:" + d.id, name: d.name, desc: shop ? "Recolours your outfit. Skin, outlines and fragment details keep their colours." : (d.from === "rush" ? "Unlock: clear the Boss Rush. Recolours your outfit." : "Unlock: win this boss's hard rematch. Recolours your outfit."),
+          own: !!save.dyes32[d.id], worn: save.dye32 === d.id, price, buyable: shop, prev: { dye: d.id }, kind: "dye", id: d.id });
+      }
+      return out;
+    }
+    for (const gid of WD_GROUPS34[tabId]) {
+      const G = D.groups.find(q => q.id === gid); if (!G || (G.only && G.only !== path)) continue;
+      for (const o of G.opts) {
+        const own = !!c.own[o.id + "@" + G.id], on = G.decor ? !c.hide[o.id] : c.wear[G.slot] === o.id;
+        out.push({ key: G.id + ":" + o.id, name: (tabId === "fx" || tabId === "style" ? G.name + ": " : "") + o.name, desc: o.desc, own, worn: own && on, price: o.price, buyable: true, decor: !!G.decor, kind: "opt", G, o, prev: G.decor ? {} : { [G.slot]: o.id } });
+      }
+    }
+    return out;
+  }
+  function wdActivate34(it, mode) {
+    const v = V(), c = cos34();
+    if (!it.own) {
+      if (mode !== "shop" || !it.buyable) { synth.sfx("locked"); toast(mode === "shop" ? "Not for sale." : it.kind === "dye" && !it.buyable ? T32().dyes.note : "Locked. Buy it from the merchant."); return; }   // v3.2.4 merge: boss / Rush dyes are not sold
+      if (v.aurels < it.price) { toast(T23().shop.cant); synth.sfx("locked"); return; }
+      v.aurels -= it.price;
+      if (it.kind === "dye") { save.dyes32[it.id] = 1; save.dye32 = it.id; }
+      else { c.own[it.o.id + "@" + it.G.id] = 1; if (it.decor) delete c.hide[it.o.id]; else c.wear[it.G.slot] = it.o.id; }
+      synth.sfx("buy"); toast(T23().shop.bought.replace("{name}", it.name)); persist(); return;
+    }
+    if (it.kind === "dye") save.dye32 = it.worn ? null : it.id;
+    else if (it.decor) { if (c.hide[it.o.id]) delete c.hide[it.o.id]; else c.hide[it.o.id] = 1; }
+    else c.wear[it.G.slot] = it.worn ? null : it.o.id;
+    synth.sfx("menu"); persist();
+  }
+  function wdPreview34(it, x, y, w, h, mode) {
+    const c = cos34(), eff = Object.assign({}, c.wear, it.kind === "opt" ? it.prev : {}), dye = it.kind === "dye" ? it.prev.dye : (save.dye32 || null), T = uiT;
+    panel(x, y, w, h, "plate"); frame34(x, y, w, h, eff.hud);
+    const cx = x + 37, fy = y + h - (h < 130 ? 6 : 12), tx = x + 74, tw = w - 82;
+    // left column: the player at 2x, with the previewed dye and effects, clipped to the column
+    g.save(); g.beginPath(); g.rect(x + 4, y + 4, 66, h - 8); g.clip();
+    if (eff.tint) { g.globalAlpha = 0.55; g.save(); g.translate(cx - 14, fy); g.scale(2, 2); blitFrame(playerSheet() + "-echo", animFrame(playerSheet(), "idle", T, 10), 0, 0, false, COSCOL34.tint[eff.tint]); g.restore(); g.globalAlpha = 1; }
+    const keep = save.dye32; save.dye32 = dye;
+    const pl = Object.assign({}, player || makePlayer(0, 0), { trail: null, anim: "idle", hurtT: 0, dodge: 0, vx: 0, onGround: true, atk: 0, shootT: 0, channel: 0, guard: 0 }); pl.hp = Math.max(pl.hp, 3);
+    g.save(); g.translate(cx, fy); g.scale(2, 2); drawPlayerVisual(0, 0, pl, animFrame(playerSheet(), "idle", T, 10), false, false); g.restore();
+    save.dye32 = keep;
+    if (eff.aura) auraAt34(cx, fy - 44, eff.aura, T, 1.1);
+    if (eff.glow) glowAt34(cx + 20, fy - 40, eff.glow, T, 8);
+    if (eff.comp) compAt34(cx + 26, fy - ({ golem: 22, snake: 3 }[eff.comp] || 40), eff.comp, -1, T, false);
+    if (eff.foot) { const pc = { dust: ["#8A7A66", "#B8A888"], petals: ["#F2A0B8", "#FFD0DC"], embers: ["#FF8A3C", "#FFD27A"], ripples: ["#9FD8FF", "#E6F6FF"] }[eff.foot]; for (let k = 0; k < 8; k++) { const t2 = (T + k * 6) % 36; rect(cx - 14 - Math.round(t2 * 0.5) + k % 3 * 3, fy - 1 - (eff.foot === "ripples" ? 0 : Math.round(t2 * 0.25)), eff.foot === "ripples" ? 3 + (t2 >> 3) : 2, eff.foot === "ripples" ? 1 : 2, pc[k % 2]); } }
+    if (eff.trail) { const tc = COSCOL34.trail[eff.trail]; for (let k = 0; k <= 9; k++) { const a = -1.2 + k * 0.24; rect(Math.round(cx + 4 + Math.cos(a) * 28), Math.round(fy - 40 + Math.sin(a) * 26), 3, 3, k > 6 ? tc[0] : tc[1]); } }
+    g.restore();
+    // right column: name, description, action
+    drawText(it.name, tx, y + 8, P().order.illumination);
+    wrapLines(it.desc || "", tw).slice(0, 7).forEach((ln, k) => drawText(ln, tx, y + 22 + k * 11, P().order.bone));
+    if (it.decor) drawText(it.worn ? "On in your hub" : "Off in your hub", tx, y + h - 36, it.worn ? P().order.nexus : P().ground.smoke);
+  }
+  function wdUpdate34(mode) {   // up/down + confirm; left/right are handled by the caller
+    const tabs = wdTabs34(mode), items = wdItems34(tabs[Math.min(wdTab34, tabs.length - 1)].id, mode), n = items.length;
+    if (!n) return;
+    if (input.pressed("up")) { wdIx34 = (wdIx34 + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { wdIx34 = (wdIx34 + 1) % n; synth.sfx("menuMove"); }
+    wdIx34 = Math.min(wdIx34, n - 1);
+    if (input.pressed("confirm")) wdActivate34(items[wdIx34], mode);
+  }
+  function wdDraw34(mode, subY) {
+    const tabs = wdTabs34(mode), t = touchUI(); wdTab34 = Math.min(wdTab34, tabs.length - 1);
+    let tx = 24;
+    tabs.forEach((tb, i) => { const w = measure(tb.name) + 14; if (i === wdTab34) { rect(tx, subY, w, 13, P().ground.stone2); rect(tx, subY + 12, w, 1, P().order.illumination); } drawText(tb.name, tx + 7, subY + 3, i === wdTab34 ? P().order.illumination : P().order.boneShade); const ix = i; tapTarget(tx, subY - 2, w, 18, () => { wdTab34 = ix; wdIx34 = 0; synth.sfx("menuMove"); }); tx += w + 4; });
+    const items = wdItems34(tabs[wdTab34].id, mode), VIS = 8, pitch = t ? 16 : 14, top = subY + 18;
+    wdIx34 = Math.min(wdIx34, Math.max(0, items.length - 1));
+    wdScroll34 = Math.max(0, Math.min(items.length - VIS, Math.min(wdIx34, Math.max(wdScroll34, wdIx34 - VIS + 1))));
+    items.forEach((it, i) => {
+      if (i < wdScroll34 || i >= wdScroll34 + VIS) return;
+      const y = top + (i - wdScroll34) * pitch, sel = i === wdIx34, afford = V().aurels >= it.price;
+      if (sel) rect(22, y - 2, 232, pitch - 1, P().ground.stone2);
+      const col = sel ? P().order.illumination : it.own ? P().order.bone : P().ground.ash;
+      drawText(it.name, 30, y + 1, col);
+      let lbl = "", lc = P().ground.smoke;
+      if (it.own) { lbl = it.decor ? (it.worn ? "On" : "Off") : it.worn ? "Worn" : "Owned"; lc = it.worn ? P().order.nexus : P().ground.smoke; }
+      else if (mode === "shop" && it.buyable) { lbl = String(it.price); lc = afford ? P().order.bone : P().cult.ember; }
+      else { drawLock33(238, y - 1); }
+      if (lbl) drawText(lbl, 248 - measure(lbl), y + 1, lc);
+      if (!it.own && mode === "shop" && it.buyable === false) drawLock33(238, y - 1);
+      menuRow(22, y, 232, pitch, "wd" + i, true, () => { if (wdIx34 === i) input.tap("confirm"); else wdIx34 = i; }, false);
+    });
+    if (wdScroll34 > 0) drawText("^", 246, top - 8, P().order.boneShade);
+    if (wdScroll34 + VIS < items.length) drawText("v", 246, top + VIS * pitch - 4, P().order.boneShade);
+    const it = items[wdIx34]; if (!it) return;
+    wdPreview34(it, 262, subY + 17, 192, mode === "shop" ? 134 : 124, mode);
+    const act = it.own ? (it.decor ? (it.worn ? "Enter: hide it" : "Enter: show it") : it.worn ? "Enter: take off" : "Enter: wear it") : (mode === "shop" && it.buyable ? "Enter: buy for " + it.price : "Locked");
+    const ph = mode === "shop" ? 134 : 124; wrapLines(act, 110).forEach((ln, k) => drawText(ln, 336, subY + 17 + ph - 14 - (wrapLines(act, 110).length - 1 - k) * 11, it.own || (mode === "shop" && it.buyable) ? P().order.illumination : P().ground.smoke));
+  }
   function drawWorld() {
     animT++;
     camPx = Math.round(cameraX * WS); camPy = Math.round(cameraY * WS);
     const tl = !!(level.tiled && w22);
-    if (tl) { drawTiledBG(); drawBirds28(); drawInteriors28(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); drawPlains28(); if (dg && level.dungeon) { dgSwapFilter(); drawDgExit(); } } else drawBG();
+    if (tl) { drawTiledBG(); drawBirds28(); drawInteriors28(); drawDecor("back"); drawWorldTiles(); drawWorldProps(); drawWorld25(); drawPlains28(); if (dg && level.dungeon) { dgSwapFilter(); drawDgExit(); } } else { if (level.kind === "hub" && path === "cult" && bgOn34("deep")) drawDeepBG34(); else drawBG(); if (level.kind === "hub") drawHubBG34(); }
+    if (level.kind === "hub") drawHubDecor34();
     drawInteractables();
     if (tl) drawWorldItems();
     drawPickups();
@@ -5855,7 +6258,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
     drawStuck33();
     drawArenaFront26();
-    if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); }
+    if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); drawCos34(); }
     drawHook27(); drawMoth33();
     drawShadows26(); drawAlly26();
     drawProjectiles(); drawArenaLava26();
@@ -6057,7 +6460,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     },
     invFit33() {   // v3.2.3: inventory Weapons-tab layout check with the game's own font metrics
       const bad = [], TT = T23().inv, M = invMelee(), R = W23().ranged;
-      const tabs = [TT.tabs[0], T22().pause.charms, SKT().ui.tab, TT.tabs[2]]; let tx = 120; tabs.forEach(n => { tx += measure(n) + 16 + 4; });
+      const tabs = [TT.tabs[0], T22().pause.charms, SKT().ui.tab, "Cosmetics", TT.tabs[2]]; let tx = 120; tabs.forEach(n => { tx += measure(n) + 16 + 4; });
       if (tx - 4 + 2 + measure("{RB}") > W - 16) bad.push("tab bar + {RB} overflow: " + (tx + measure("{RB}")));
       if (24 + measure(TT.main) + 4 > 120 - 22) bad.push("Main label hits {LB}");
       if (42 + 9 * 15 > 186) bad.push("weapon list runs into the counter row");
@@ -6076,7 +6479,15 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     invIx33(n) { invTab = 0; const a = invMelee().concat(W23().ranged); invIx = typeof n === "string" ? Math.max(0, a.indexOf(n)) : n | 0; return invIx; }, stuck33() { return enemies.filter(e => e.stuck33 && e.stuck33.length).map(e => ({ type: e.type, hp: e.hp, n: e.stuck33.length, t: e.stuck33[0].t })); }, bossStun33() { return boss ? { stun: boss.stun33 | 0, last: boss.stunMax33 | 0, n: boss.dart33 ? boss.dart33.n : 0, hp: boss.hp } : null; }, rangedHit33(kind, i) { const e = i === 'boss' ? boss : enemies.filter(x => !x.dead)[i | 0]; if (!e) return null; const pr = { kind, x: e.x + 4, y: e.y + 6, w: 8, h: 4, vx: 1, dmg: 1 }; if (i === 'boss') { boss.inv = 0; damageBoss(arrowDmg(1)); } else { e.inv = 0; damageEnemy(e, arrowDmg(1), { kb: 0.1, stun: 5 }); } onRangedHit33(pr, e, i === 'boss'); return { hp: e.hp, stun: i === 'boss' ? e.stun33 | 0 : e.stun | 0 }; },
     dgWave33() { return dg && level.dungeon ? { waves: (level.dungeon.waves || []).map(w => w.length), st: dg.wave33 || null, rem: dg.rem } : null; }, dgBonus33(m) { return dgBonus33(m); }, dgLast33() { return dgResult ? { homeA: dgResult.homeA, homeN: dgResult.homeN, bonus: dgResult.bonus | 0, aurels: dgResult.aurels } : null; }, wFlush33() { return wFlushN33; },
     dgEnter32(o) { enterDungeon(o); }, dgFinish32(a) { dgFinish(a); }, openDgSetup32() { dgOpenSetup32(); },
-    openEndgame32() { scene = "endgame32"; eg32Ix = 0; }, setDye32(id) { save.dye32 = id; save.dyes32 = save.dyes32 || {}; if (id) save.dyes32[id] = 1; }, bakeKey32() { return bakeKey32(); },
+    shop34() { const tabs = wdTabs34("shop"); return { scene, page: shopPage34, wdTab: wdTab34, tab: shopPage34 >= 2 ? tabs[Math.min(wdTab34, tabs.length - 1)].id : null, ix: shopIx, list: shopList().map(q => q.id), items: shopPage34 >= 2 ? wdItems34(tabs[Math.min(wdTab34, tabs.length - 1)].id, "shop").map(q => q.key + (q.own ? "*" : "")) : [] }; },
+    inv34() { const tabs = wdTabs34("inv"); return { invTab, wdTab: wdTab34, tab: tabs[Math.min(wdTab34, tabs.length - 1)].id, tabs: tabs.map(q => q.id), items: invTab === 3 ? wdItems34(tabs[Math.min(wdTab34, tabs.length - 1)].id, "inv").map(q => ({ key: q.key, own: q.own, worn: q.worn })) : [] }; },
+    ench34() { const v = V(); return { scene, stage: leaderStage, w: enchW, scroll: enchScroll34, owned: v.melee.owned.concat(v.ranged.owned), melee: v.melee.owned.length }; },
+    own34(m, r) { const v = V(); for (const id of m || []) if (!v.melee.owned.includes(id)) v.melee.owned.push(id); for (const id of r || []) if (!v.ranged.owned.includes(id)) v.ranged.owned.push(id); ensureWeapons(); recomputeStats(); return { melee: v.melee.owned.slice(), ranged: v.ranged.owned.slice() }; },
+    comp34() { return comp34 ? { t: comp34.t, x: comp34.x, y: comp34.y } : null; },
+    setProv34(n) { provNip34 = n | 0; }, takeNotch34() { if (!w22) return null; takeItem({ type: "notch" }); return save.notches; }, notches34() { return { n: save.notches, moon: save.ngNotch34 | 0, ngp: save.ngp | 0 }; }, setNotches34(n, ngp) { save.notches = n; if (ngp != null) save.ngp = ngp; },
+    cosWear34() { return Object.assign({}, cos34().wear, { dye: save.dye32 || null, bake: bakeKey32() }); },
+    setCos34(w) { const c = cos34(); Object.assign(c.wear, w || {}); c.hide = {}; }, cosShop34(i) { cosIx34 = i || {}; },
+        openEndgame32() { scene = "endgame32"; eg32Ix = 0; }, setDye32(id) { save.dye32 = id; save.dyes32 = save.dyes32 || {}; if (id) save.dyes32[id] = 1; }, bakeKey32() { return bakeKey32(); },
     dgSetup32() { return dgSetupS ? { ix: dgSetupS.ix, mode: dgSetupS.mode, code: dgSetupS.code, mods: dgSetupS.mods.slice(), edit: dgSetupS.edit, board: !!dgSetupS.boardView } : null; }, dgDaily32(ds) { return dailyCode(ds); }, dgCodeSeed32(c) { return codeToSeed(c); }, deviceBoard32() { return deviceBoard(); },
     throwErrors31(n) { dbgThrow31 = n; }, errors31() { return { n: window.SHARDS.errors | 0, rec: window.SHARDS.recovered | 0 }; },
     enemyPixels31(type, swap) {
@@ -6325,7 +6736,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const cnt = R.count || 1;
     for (let k = 0; k < cnt; k++) {
       const sp = R.speed * (up ? 0.85 : 1);
-      projectiles.push({ x: p.x + p.w / 2 + p.facing * 8, y: p.y + 6 + (cnt > 1 ? (k - 0.5) * 5 : 0), w: 8, h: 4, vx: p.facing * sp, vy: up ? -R.up - k * 0.5 : (rid === "bow" ? -0.55 : rid === "darts" ? -0.2 : 0), grav: R.grav, life: R.life, arrow: true, kind: rid, dmg: R.dmg, spin: k });
+      projectiles.push({ x: p.x + p.w / 2 + p.facing * 8, y: p.y + 6 + (cnt > 1 ? (k - 0.5) * 5 : 0), w: 8, h: 4, vx: p.facing * sp, vy: up ? -R.up - k * 0.5 : (rid === "bow" ? -0.55 : rid === "darts" ? -0.2 : 0), grav: R.grav, life: R.life, arrow: true, kind: rid, dmg: R.dmg, spin: k, homing34: sk26("homing") });
     }
     persist();
   }
@@ -6372,7 +6783,8 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function mothVis33() { return mothOn33() && !dg && !!player && !!level && introHold === 0 && !player.dead; }
   function tickMoth33() {
     if (!mothVis33()) { if (!player || !level) moth33 = null; return; }
-    const tx = player.x - 8 * player.facing, ty = player.y - 14 + Math.sin(animT / 12) * 4;
+    // v3.2.4 merge: with one of Ryan's companions out (snake / crow / golem trail behind at -20), the moth hovers above the shoulder, in front, so they never stack
+    const comp = !!(cos34().wear && cos34().wear.comp), tx = player.x + (comp ? 10 : -8) * player.facing, ty = player.y - (comp ? 24 : 14) + Math.sin(animT / 12) * 4;
     if (!moth33 || moth33.lv !== level || Math.hypot(moth33.x - tx, moth33.y - ty) > 240) moth33 = { lv: level, x: tx, y: ty };
     moth33.x += (tx - moth33.x) * 0.06; moth33.y += (ty - moth33.y) * 0.08;
   }
@@ -6387,7 +6799,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     for (const p of pops33) blitFrame("w33-pop", "pop" + Math.min(2, p.t >> 2), wx(p.x), wy(p.y), false);
   }
-  function arrowDmg(base) { return Math.max(1, strikeDmg(base) - (stats.reson | 0) * 0 + (sk26("arrow") ? 1 : 0)); }
+  function arrowDmg(base) { temperOff34 = true; const r = Math.max(1, strikeDmg(base) - (stats.reson | 0) * 0 + (sk26("arrow") ? 1 : 0)); temperOff34 = false; return r; }
   // ----- knockback, stun, collision -----
   const PHASING = { dust_wraith: 1, monastery_shade: 1 };
   function enemyWeight(e) { return Math.max(0.6, Math.min(1.9, e.w * e.h / 216)); }
@@ -6434,7 +6846,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
   function contactHurt(e) {
     if (!e.dead && (e.stun | 0) <= 0 && player.dodge > 0 && aabb(player, PHASING[e.type] ? e : { x: e.x - 2, y: e.y, w: e.w + 4, h: e.h })) nearMiss();
-    if (e.dead || (e.stun | 0) > 0 || player.inv > 0 || player.dodge > 0) return false;
+    if (e.dead || (e.stun | 0) > 0 || player.inv > 0 || player.dodge > 0 || e.tp34 || e.lift34 > 0) return false;   // v3.2.4: a shade mid-teleport or mid-lift deals no contact damage
     const box = PHASING[e.type] ? e : { x: e.x - 2, y: e.y, w: e.w + 4, h: e.h };
     return aabb(player, box);
   }
@@ -6481,7 +6893,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       const col = enchOutline26();
       if ((T % 40) < 30 || p.atk > 0) for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) blitFrame(sh, frame, sx + ox, sy + oy, flip, col);
     }
-    blitFrame(sh, frame, sx, sy, flip, mx ? "pal:" + enchColor(mx) : undefined);
+    blitFrame(p.atk > 0 ? trailSheet34(sh) : sh, frame, sx, sy, flip, mx ? "pal:" + enchColor(mx) : undefined);   // v3.2.4: the slash trail cosmetic recolours this art
     if (list.length && live && p.atk > 0) {
       const tip = window.SHARDS.wp23 && window.SHARDS.wp23[PK()] && window.SHARDS.wp23[PK()][wpnId()] && window.SHARDS.wp23[PK()][wpnId()][frame];
       const S = sheetOf(sh);
@@ -6513,7 +6925,15 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   // =====================================================================================
   const solidAny = (r) => { if (level && level.tiled && w22) return blockedBox(r); for (const q of plats()) if (q.solid !== false && aabb(r, q)) return true; return false; };
   function blitWicon(id, x, y, flip) { blitFrame(id === "shuriken" || id === "darts" ? "ui33-wicon" : id === "mstaff" ? "ui24-wicon" : (id === "whip" || id === "katana") ? "ui26-wicon" : "ui23-wicon", id, x, y, flip); }
-  function blitCharm(id, x, y) { blitFrame(W24().newCharms.includes(id) ? "ui24-charm" : "ui22-charm", id, x, y, false); }
+  function blitCharm(id, x, y) {
+    if (id === "blink") {   // v3.2.4: drawn icon, a figure leaving a puff and reappearing ahead
+      const c = path === "cult" ? P().cult.emberLight : P().order.illumination, k = P().ground.smoke, d = P().ground.void;
+      rect(x + 1, y + 5, 6, 8, k); rect(x + 2, y + 6, 4, 6, P().ground.ash); rect(x, y + 11, 3, 3, P().ground.stone3); rect(x + 7, y + 8, 2, 2, k);
+      rect(x + 9, y + 4, 5, 9, d); rect(x + 10, y + 3, 3, 3, c); rect(x + 9, y + 6, 5, 6, c); rect(x + 10, y + 12, 1, 3, c); rect(x + 12, y + 12, 1, 3, c);
+      return;
+    }
+    blitFrame(W24().newCharms.includes(id) ? "ui24-charm" : "ui22-charm", id, x, y, false);
+  }
   function flaskCap() { return Math.min(7, V().flaskMax + (stats ? stats.flaskPlus | 0 : 0)); }
   function flaskChan() { return Math.max(14, Math.round(W23().flask.channel * (stats && stats.swift ? W24().charm.swiftdraw.mul : 1) * (sk26("flask") ? 0.8 : 1))); }
   function flaskPer() { const F = W23().flask, M = W24().charm.quickfill, b = F.killsPer[difficulty] || 5; return stats && stats.quick ? Math.max(M.min, b - M.kills) : b; }
@@ -6733,7 +7153,30 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     persist(); return msg.join("   ");
   }
   // ----- shop -----
-  function shopList() { return W23().shop.filter(s => !s.only || s.only === PK()); }
+  function shopList() { return W23().shop.filter(s => (!s.only || s.only === PK()) && !(s.ng && (save.ngp | 0) < s.ng) && s.kind !== "dye" && s.kind !== "cosgroup" && (shopPage34 === 1 ? s.kind === "charm" : s.kind !== "charm")); }   // v3.2.4: pages 0 Upgrades, 1 Charms; 2 to 6 are the Wardrobe tabs
+  // v3.2.4: aurel sinks. Temper (per weapon), Alms of the Moon (aurels to NIP), shop dyes, Blink charm, two New Game+ notches
+  const temperLv34 = (id) => ((V().temper34 || {})[id] | 0);
+  const temperCost34 = (lv) => Math.round(window.SHARDS.world34.temper.base * Math.pow(window.SHARDS.world34.temper.mul, lv));
+  const almsCost34 = (n) => window.SHARDS.world34.alms.base + window.SHARDS.world34.alms.step * n;
+  function dynShop34(it) {   // -> { sold, cost, name, desc } for the rows whose price or text changes
+    const v = V(), D = window.SHARDS.world34;
+    if (it.kind === "temper") { const w = wpnId(), lv = temperLv34(w); return { sold: lv >= D.temper.max, cost: temperCost34(lv), name: "Temper: " + weaponName(w) + " (" + lv + "/" + D.temper.max + ")", desc: "Hone the weapon you hold. Each level gives strikes a +2% chance to deal +1 damage (" + Math.round(lv * 2) + "% now" + (lv < D.temper.max ? ", " + Math.round((lv + 1) * 2) + "% next" : ", the limit") + ")." }; }
+    if (it.kind === "alms") { const n = v.alms34 | 0; return { sold: n >= D.alms.max, cost: almsCost34(n), name: "Alms of the Moon (" + n + "/" + D.alms.max + ")", desc: "Turn aurels into 1 NIP, the scarce coin of skills and enchants. The price rises by " + D.alms.step + " each time." }; }
+    if (it.kind === "ngnotch") { const i = it.id === "ngn2" ? 1 : 0, have = save.ngNotch34 | 0; return { sold: have > i, cost: it.price, locked: have < i, name: itemText0_34(it).name, desc: itemText0_34(it).desc }; }
+    if (it.kind === "dye") { const id = it.id.slice(4), own = id === "none" || !!(save.dyes32 && save.dyes32[id]), worn = (save.dye32 || "none") === id; return { sold: false, own, worn, tag: own ? (worn ? "worn" : "wear") : null, act: worn ? "Worn" : "Wear", cost: own ? 0 : it.price, name: itemText0_34(it).name, desc: itemText0_34(it).desc }; }
+    if (it.kind === "cosgroup") {
+      const G = window.SHARDS.world34.groups.find(q => "cg_" + q.id === it.id), c = cos34(), o = G.opts[(cosIx34[G.id] | 0) % G.opts.length], own = !!c.own[o.id + "@" + G.id];
+      const on = G.decor ? !c.hide[o.id] : c.wear[G.slot] === o.id;
+      return { sold: false, own, worn: own && on, tag: own ? (G.decor ? (on ? "shown" : "hidden") : (on ? "worn" : "wear")) : null, act: G.decor ? (on ? "Hide" : "Show") : (on ? "Remove" : "Wear"), cost: own ? 0 : o.price, group: G, opt: o,
+        name: G.name + ": " + (G.opts.length > 1 ? "< " + o.name + " >" : o.name), desc: o.desc };
+    }
+    return null;
+  }
+  let cosIx34 = {};
+  const cos34 = () => { const c = save.cos34 = save.cos34 && typeof save.cos34 === "object" ? save.cos34 : {}; c.own = c.own || {}; c.wear = c.wear || {}; c.hide = c.hide || {}; return c; };
+  const cosWorn34 = (slot) => cos34().wear[slot] || null;
+  let bakeHudFrame34 = null;
+  const itemText0_34 = (it) => { const S = T23().shop; return S.items[it.id] ? { name: S.items[it.id][0], desc: S.items[it.id][1] } : { name: it.id, desc: "" }; };
   function shopState(it) {
     const v = V(), n = claimedCount();
     const tier = (k) => v.shop[k] | 0;
@@ -6742,18 +7185,19 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       case "flask1": case "flask2": case "flask3": { const t = +it.id.slice(-1); sold = tier("flask") >= t; locked = !sold && tier("flask") < t - 1; if (locked) why = "prev"; break; }
       case "hp1": case "hp2": { const t = +it.id.slice(-1); sold = tier("hp") >= t; locked = !sold && tier("hp") < t - 1; break; }
       case "quiver1": case "quiver2": { const t = +it.id.slice(-1); sold = tier("quiver") >= t; locked = !sold && tier("quiver") < t - 1; break; }
-      case "notch": sold = save.notches >= 7 || tier("notch") >= 1; break;
+      case "notch": sold = save.notches >= 7 || tier("notch") >= 1; break;   // v3.2.4: the Moon notches (New Game+) go up to 9
       case "ammo": sold = false; break;
       default:
         if (it.kind === "charm") sold = save.charms.owned.includes(it.id);
         else if (it.kind === "weapon") sold = v.melee.owned.includes(it.id);
         else if (it.kind === "ranged") sold = v.ranged.owned.includes(it.id);
     }
-    const gated = n < it.at;
+    const gated = n < it.at, dy = dynShop34(it);
+    if (dy) return { sold: dy.sold, locked: !!dy.locked, gated, need: it.at, cost: dy.cost, dyn: dy };
     return { sold, locked: locked || false, gated, need: it.at, cost: it.price };
   }
   function itemText(it) {
-    const S = T23().shop;
+    const S = T23().shop, dy = dynShop34(it); if (dy) return { name: dy.name, desc: dy.desc };
     if (S.items[it.id]) return { name: S.items[it.id][0], desc: S.items[it.id][1] };
     if (it.kind === "charm") return { name: charmName(it.id), desc: T22().charms.desc[it.id] };
     return { name: weaponName(it.id), desc: T23().weapon.desc[it.id] };
@@ -6762,15 +7206,29 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const v = V(), st = shopState(it);
     if (st.sold || st.locked || st.gated) { synth.sfx("locked"); return false; }
     if (it.id === "ammo" && v.arrows >= v.arrowMax) { toast(T23().hud.bowFull); synth.sfx("locked"); return false; }
-    if (v.aurels < it.price) { toast(T23().shop.cant); synth.sfx("locked"); return false; }
-    v.aurels -= it.price;
+    const price = st.cost;
+    if (st.dyn && st.dyn.group && st.dyn.own) {   // owned cosmetic: toggle it
+      const G = st.dyn.group, o = st.dyn.opt, c = cos34();
+      if (G.decor) { c.hide[o.id] = !c.hide[o.id] ? 1 : 0; if (!c.hide[o.id]) delete c.hide[o.id]; } else c.wear[G.slot] = c.wear[G.slot] === o.id ? null : o.id;
+      if (G.slot === "hud") bakeHudFrame34 = null; synth.sfx("menu"); persist(); return true;
+    }
+    if (st.dyn && st.dyn.own) {   // an owned dye: wearing it costs nothing
+      const id = it.id.slice(4); save.dye32 = id === "none" ? null : id; synth.sfx("menu"); toast(id === "none" ? "Natural cloak." : (itemText(it).name.replace(" dye", "") + " worn.")); persist(); return true;
+    }
+    if (v.aurels < price) { toast(T23().shop.cant); synth.sfx("locked"); return false; }
+    v.aurels -= price;
     switch (it.id) {
       case "flask1": case "flask2": case "flask3": v.shop.flask = +it.id.slice(-1); v.flaskMax = 3 + v.shop.flask; v.flask = Math.min(v.flaskMax, v.flask + 1); break;
       case "hp1": case "hp2": v.shop.hp = +it.id.slice(-1); v.hpBuy = v.shop.hp; recomputeStats(); if (player) player.hp = player.maxHp; break;
       case "quiver1": case "quiver2": v.shop.quiver = +it.id.slice(-1); v.arrowMax = it.id === "quiver1" ? 7 : 9; v.arrows = Math.min(v.arrowMax, v.arrows + 2); break;
       case "notch": v.shop.notch = 1; save.notches = Math.min(7, save.notches + 1); break;
       case "ammo": v.arrows = Math.min(v.arrowMax, v.arrows + 3); break;
+      case "temper": { const w = wpnId(); v.temper34 = v.temper34 || {}; v.temper34[w] = (v.temper34[w] | 0) + 1; break; }
+      case "alms": v.alms34 = (v.alms34 | 0) + 1; v.nip = Math.min(999, v.nip + 1); v.nipTotal = Math.min(999, v.nipTotal + 1); break;
+      case "ngn1": case "ngn2": save.ngNotch34 = (save.ngNotch34 | 0) + 1; save.notches = Math.min(window.SHARDS.world34.notchCap, save.notches + 1); break;
       default:
+        if (it.kind === "cosgroup") { const G = st.dyn.group, o = st.dyn.opt, c = cos34(); c.own[o.id + "@" + G.id] = 1; if (G.decor) delete c.hide[o.id]; else c.wear[G.slot] = o.id; break; }
+        if (it.kind === "dye") { const id = it.id.slice(4); save.dyes32 = save.dyes32 || {}; save.dyes32[id] = 1; save.dye32 = id; break; }
         if (it.kind === "charm") { addCharm(it.id, true); recomputeStats(); }
         else giveWeapon(it.id, true);
     }
@@ -6778,9 +7236,16 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
   // ----- update: shop / inventory / leader / shrine / teleport -----
   function leaveTo(sc) { scene = sc; }
+  function shopGo34(pg) { shopPage34 = Math.max(0, Math.min(6, pg)); if (shopPage34 >= 2) wdTab34 = shopPage34 - 2; shopIx = 0; wdIx34 = 0; synth.sfx("menuMove"); }
   function updateShop() {
-    const list = shopList(), n = list.length;
+    if (shopPage34 >= 2) shopPage34 = 2 + Math.min(wdTab34, 4);
     if (menuBack()) { scene = "hub"; return; }
+    if (input.pressed("left") || input.pressed("tabL")) { if (shopPage34 > 0) shopGo34(shopPage34 - 1); }
+    if (input.pressed("right") || input.pressed("tabR")) { if (shopPage34 < 6) shopGo34(shopPage34 + 1); }
+    if (shopPage34 >= 2) { wdUpdate34("shop"); return; }
+    const list = shopList(), n = list.length;
+    if (!n) return;
+    shopIx = Math.min(shopIx, n - 1);
     if (input.pressed("up")) { shopIx = (shopIx + n - 1) % n; synth.sfx("menuMove"); }
     if (input.pressed("down")) { shopIx = (shopIx + 1) % n; synth.sfx("menuMove"); }
     if (input.pressed("confirm")) buy(list[shopIx]);
@@ -6790,10 +7255,17 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (menuBack()) { scene = invFrom === "pause" ? "pause" : (level.kind === "hub" ? "hub" : level.kind === "traverse" ? "traverse" : "arena"); return; }
     if (input.pressed("inv") && invFrom !== "pause") { scene = level.kind === "hub" ? "hub" : level.kind === "traverse" ? "traverse" : "arena"; return; }
     // v3.2.2: LB / RB cycle the tabs on a pad (works from every tab, Skills included)
-    if (input.pressed("tabL") || input.pressed("tabR")) { invTab = (invTab + (input.pressed("tabL") ? 3 : 1)) % 4; invIx = 0; if (invTab === 2) skIx = 0; synth.sfx("menuMove"); return; }
-    if (invTab === 2) { updateSkills26(); return; }   // tab order: Weapons, Charms, Skills, Lore
-    if (input.pressed("left")) { invTab = (invTab + 3) % 4; invIx = 0; synth.sfx("menuMove"); }
-    if (input.pressed("right")) { invTab = (invTab + 1) % 4; invIx = 0; synth.sfx("menuMove"); if (invTab === 2) skIx = 0; }
+    if (input.pressed("tabL") || input.pressed("tabR")) { invTab = (invTab + (input.pressed("tabL") ? 4 : 1)) % 5; invIx = 0; if (invTab === 2) skIx = 0; if (invTab === 3) { wdTab34 = 0; wdIx34 = 0; } synth.sfx("menuMove"); return; }
+    if (invTab === 2) { updateSkills26(); return; }   // tab order: Weapons, Charms, Skills, Cosmetics, Lore
+    if (invTab === 3) {   // v3.2.4: Left/Right walk the cosmetic sub-tabs, then spill into Skills or Lore
+      const nT = wdTabs34("inv").length;
+      if (input.pressed("left")) { if (wdTab34 > 0) { wdTab34--; wdIx34 = 0; synth.sfx("menuMove"); } else { invTab = 2; skIx = 0; synth.sfx("menuMove"); } }
+      else if (input.pressed("right")) { if (wdTab34 < nT - 1) { wdTab34++; wdIx34 = 0; synth.sfx("menuMove"); } else { invTab = 4; invIx = 0; synth.sfx("menuMove"); } }
+      else wdUpdate34("inv");
+      return;
+    }
+    if (input.pressed("left")) { invTab = (invTab + 4) % 5; invIx = 0; synth.sfx("menuMove"); if (invTab === 3) { wdTab34 = wdTabs34("inv").length - 1; wdIx34 = 0; } }
+    if (input.pressed("right")) { invTab = (invTab + 1) % 5; invIx = 0; synth.sfx("menuMove"); if (invTab === 2) skIx = 0; if (invTab === 3) { wdTab34 = 0; wdIx34 = 0; } }
     if (invTab === 0) {
       const n = invMelee().length + W23().ranged.length;
       if (input.pressed("up")) { invIx = (invIx + n - 1) % n; synth.sfx("menuMove"); }
@@ -6817,7 +7289,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     for (const k of Object.keys(V().tablets)) { const [z, i] = k.split(":"); const tx = (T22().tablets[z] || [])[i | 0]; if (tx) out.push({ zone: z, text: tx }); }
     return out;
   }
-  let invScroll33 = 0;
+  let invScroll33 = 0, enchScroll34 = 0;
   function openInventory(from) { invFrom = from; invTab = 0; invIx = 0; loreScroll = 0; scene = "inventory"; synth.sfx("menu"); }
   // leader (Ryan / Jeriah): counsel or enchant
   function updateLeader() {
@@ -6834,7 +7306,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       }
       return;
     }
-    const owned = V().melee.owned;
+    const owned = V().melee.owned.concat(V().ranged.owned);   // v3.2.4: ranged weapons can be enchanted too
     if (menuBack()) { if (leaderStage === 2) leaderStage = 1; else { leaderStage = 0; leaderMsg = ""; } return; }
     if (leaderStage === 1) {
       const n = owned.length;
@@ -7022,7 +7494,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function drawInventory() {
     const TT = T23().inv, v = V(), t = touchUI();
     screenFrame(TT.heading);
-    const tabs = [TT.tabs[0], T22().pause.charms, SKT().ui.tab, TT.tabs[2]];
+    const tabs = [TT.tabs[0], T22().pause.charms, SKT().ui.tab, "Cosmetics", TT.tabs[2]];
     let tx = 120;
     if (padUI()) { drawText("{LB}", tx - 22, 31, P().order.boneShade); }
     tabs.forEach((n, i) => { const w = measure(n) + 16; if (i === invTab) { rect(tx, 28, w, 14, P().ground.stone2); rect(tx, 41, w, 1, P().order.illumination); } drawText(n, tx + 8, 31, i === invTab ? P().order.illumination : P().order.boneShade); const ix = i; tapTarget(tx, 26, w, 18, () => { invTab = ix; invIx = 0; synth.sfx("menuMove"); }); tx += w + 4; });
@@ -7076,36 +7548,55 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       window.__inv33 = { gridR: 24 + Math.min(8, ids.length) * 32 - 2, gridB: 46 + Math.ceil(ids.length / 8) * 32 - 2, RX, RR: RX + RW, notchR: RX + 8 + save.notches * 14, nipY: 212, nipLines: wrapLines(T23().nip.tip, W - 48).length, W, H };
       drawWrapped(T23().nip.tip, 24, 212, W - 48, P().ground.smoke);
     } else if (invTab === 2) { drawSkills26(); }
+    else if (invTab === 3) { wdDraw34("inv", 48); }
     else {
       const L = loreList(); drawText(TT.tabletsRead + ": " + L.length, 24, 50, P().order.boneShade);
       if (!L.length) drawText(TT.noLore, 24, 70, P().ground.smoke);
       L.slice(loreScroll, loreScroll + 4).forEach((e, i) => { panel(24, 64 + i * 30, W - 48, 28, "plate"); drawWrapped(e.text, 32, 70 + i * 30, W - 66, P().order.bone); });
     }
-    hintLine(invTab === 2 ? (padUI() ? SKT().ui.hint : (t ? SKT().ui.hintTouch : SKT().ui.hintKb)) : padUI() ? TT.hint : (t ? TT.hintTouch : TT.hintKb));
+    hintLine(invTab === 3 ? (t ? "Tap a cosmetic to wear it; locked ones are sold by the merchant" : "Left/Right: tab   Enter: wear or take off   Esc: back") : invTab === 2 ? (padUI() ? SKT().ui.hint : (t ? SKT().ui.hintTouch : SKT().ui.hintKb)) : padUI() ? TT.hint : (t ? TT.hintTouch : TT.hintKb));
+  }
+  function drawShopTabs34() {
+    const t = touchUI(), tabs = ["Upgrades", "Charms", "Cosmetics"], cur = Math.min(2, shopPage34);
+    let tx = 24;
+    tabs.forEach((n, i) => { const w = measure(n) + 16; if (i === cur) { rect(tx, 25, w, 14, P().ground.stone2); rect(tx, 38, w, 1, P().order.illumination); } drawText(n, tx + 8, 28, i === cur ? P().order.illumination : P().order.boneShade); const ix = i; tapTarget(tx, 23, w, 18, () => { shopGo34(ix === 2 ? 2 + Math.min(wdTab34, 4) : ix); }); tx += w + 4; });
   }
   function drawShop() {
+    if (shopPage34 >= 2) {
+      const S = T23().shop, v = V(), t = touchUI();
+      screenFrame("Wardrobe and Hearth");
+      blitFrame("ui23-hud", "coin", W - 110, 14, false); drawText(String(v.aurels), W - 90, 20, P().order.illumination);
+      drawShopTabs34(); wdDraw34("shop", 44);
+      if (popup && popup.t > 0) { popup.t--; const tw = Math.min(W - 40, measure(popup.text) + 24); panel(((W - tw) / 2) | 0, 212, tw, 22); drawText(popup.text, W / 2, 219, P().order.illumination, "center"); }
+      hintLine(t ? "Tap a tab or an item; tap again to buy or use" : "Left/Right: tab   Enter: buy or use   Esc: back");
+      return;
+    }
+    drawShopList34(); drawShopTabs34();
+  }
+  function drawShopList34() {
     const S = T23().shop, v = V(), list = shopList(), t = touchUI();
     screenFrame(S.heading[PK()]);
     const sa = String(v.aurels); blitFrame("ui23-hud", "coin", W - 110, 14, false); drawText(sa, W - 90, 20, P().order.illumination);
-    drawText(S.hello[PK()], 24, 30, P().order.boneShade);
     const pitch = t ? 18 : 15, rows = 11, top = 46, first = Math.max(0, Math.min(list.length - rows, shopIx - 5));
     list.slice(first, first + rows).forEach((it, k) => {
       const i = first + k, y = top + k * pitch, st = shopState(it), tx = itemText(it), sel = i === shopIx;
       if (sel) rect(22, y - 3, 232, pitch - 1, P().ground.stone2);
-      const c = st.sold ? P().ground.smoke : (st.gated || st.locked) ? P().ground.ash : (v.aurels >= it.price ? P().order.bone : P().cult.ember);
+      const c = st.sold ? P().ground.smoke : (st.gated || st.locked) ? P().ground.ash : (v.aurels >= st.cost || (st.dyn && st.dyn.own) ? P().order.bone : P().cult.ember);
       drawText(tx.name, 28, y, sel ? P().order.illumination : c);
-      drawText(st.sold ? S.sold : String(it.price), 248 - measure(st.sold ? S.sold : String(it.price)), y, st.sold ? P().ground.smoke : c);
+      const lbl = st.dyn && st.dyn.tag ? st.dyn.tag : st.sold ? S.sold : String(st.cost); drawText(lbl, 248 - measure(lbl), y, st.sold ? P().ground.smoke : c);
       menuRow(22, y, 232, pitch, "shop" + i, true, () => { shopIx = i; }, false);
+      if (it.kind === "cosgroup" && sel) { const G = st.dyn.group; tapTarget(22, y - 3, 40, pitch, () => { cosIx34[G.id] = (((cosIx34[G.id] | 0) - 1) % G.opts.length + G.opts.length) % G.opts.length; }); tapTarget(140, y - 3, 60, pitch, () => { cosIx34[G.id] = ((cosIx34[G.id] | 0) + 1) % G.opts.length; }); }
     });
-    const it = list[shopIx], st = shopState(it), tx = itemText(it);
+    if (!list.length) return;
+    const it = list[Math.min(shopIx, list.length - 1)], st = shopState(it), tx = itemText(it);
     panel(262, 44, 192, 140, "plate");
     drawText(tx.name, 272, 52, P().order.illumination);
     drawWrapped(tx.desc || "", 272, 68, 174, P().order.bone);
     if (it.kind === "weapon" || it.kind === "ranged") { const wid = it.id; if (it.kind === "weapon") { const s = wStats(wid); statBar(272, 100, T23().weapon.stat.reach, s.reach, 32); statBar(272, 112, T23().weapon.stat.dmg, s.dmg, 8); statBar(272, 124, T23().weapon.stat.speed, s.speed, 3.2); statBar(272, 136, T23().weapon.stat.shove, s.shove, 2.4); } blitWicon(wid, 424, 150, false); }
     if (it.kind === "charm") blitCharm(it.id, 424, 150);
-    drawText(st.sold ? S.owned : st.gated ? S.locked.replace("{n}", st.need) : st.locked ? "-" : S.buy + " " + it.price, 272, 168, st.sold ? P().order.nexus : P().order.illumination);
+    drawText(st.sold ? S.owned : st.gated ? S.locked.replace("{n}", st.need) : st.locked ? "-" : (st.dyn && st.dyn.own ? st.dyn.act : S.buy + " " + st.cost), 272, 168, st.sold ? P().order.nexus : P().order.illumination);
     if (popup && popup.t > 0) { popup.t--; const tw = Math.min(W - 40, measure(popup.text) + 24); panel(((W - tw) / 2) | 0, 212, tw, 22); drawText(popup.text, W / 2, 219, P().order.illumination, "center"); }
-    hintLine(padUI() ? S.hint : (t ? S.hintTouch : S.hintKb));
+    hintLine(t ? "Tap a tab or an item; tap again to buy" : "Left/Right: tab   Enter: buy   Esc: leave");
   }
   function drawLeader() {
     const L = T23().leader, LL = L[PK()], v = V();
@@ -7119,14 +7610,19 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     screenFrame(L.heading);
     drawText(L.have + " " + v.nip, W - 90, 16, P().order.illumination); blitFrame("ui23-hud", "nip", W - 112, 11, false);
-    const owned = v.melee.owned, t = touchUI(), pitch = t ? 26 : 22;
+    const owned = v.melee.owned.concat(v.ranged.owned), t = touchUI(), pitch = t ? 22 : 18, VIS = t ? 6 : 8;
+    enchScroll34 = Math.max(0, Math.min(owned.length - VIS, Math.min(enchW, Math.max(enchScroll34, enchW - VIS + 1))));   // v3.2.4: the list scrolls
     drawText(L.pick, 24, 32, leaderStage === 1 ? P().order.illumination : P().order.boneShade);
     owned.forEach((id, i) => {
-      const y = 48 + i * pitch; if (i === enchW) rect(22, y - 3, 150, pitch - 2, leaderStage === 1 ? P().ground.stone2 : P().ground.stone3);
+      if (i < enchScroll34 || i >= enchScroll34 + VIS) return;
+      const y = 48 + (i - enchScroll34) * pitch; if (i === v.melee.owned.length && i > enchScroll34) rect(22, y - 4, 150, 1, P().order.templeDeep);
+      if (i === enchW) rect(22, y - 3, 150, pitch - 2, leaderStage === 1 ? P().ground.stone2 : P().ground.stone3);
       blitWicon(id, 24, y - 3, false); drawText(weaponName(id), 52, y + 4, i === enchW ? P().order.illumination : P().order.bone);
       enchList(id).slice(0, 3).forEach((q, k) => blitFrame("ui23-hud", "en-" + q.t, 118 + k * 18 - (k ? 0 : 0), y - 1, false));
       menuRow(22, y + 4, 150, pitch, "ew" + i, true, () => { enchW = i; if (leaderStage === 2) leaderStage = 1; }, false);
     });
+    if (enchScroll34 > 0) drawText("^", 160, 40, P().order.boneShade);
+    if (enchScroll34 + VIS < owned.length) drawText("v", 160, 48 + VIS * pitch - 6, P().order.boneShade);   // v3.2.4: more weapons below (blow darts last)
     const E = W23().enchFaction[PK()], wid = owned[enchW];
     panel(180, 28, 280, 170, "plate");
     drawText(L.pickEnch, 190, 34, leaderStage === 2 ? P().order.illumination : P().order.boneShade);
@@ -7442,7 +7938,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     shadesList() { return shades24.map(f => ({ x: f.x, t: f.t })); },
     tryFlaskNow() { tryFlask(player); },
     killEnemyCharged(i) { hitCtx = { ix: 2, charged: true }; damageEnemy(enemies[i], 99); hitCtx = null; },
-    hubNpcList() { return shopList().map(x => x.id); },
+    hubNpcList() { const k = shopPage34; shopPage34 = 0; const a = shopList(); shopPage34 = 1; const b = shopList(); shopPage34 = k; return a.concat(b).map(x => x.id); },   // v3.2.4: the shop is tabbed
     setScene(sc) { scene = sc; }
   });
   Object.assign(window.SHARDS.debug, {

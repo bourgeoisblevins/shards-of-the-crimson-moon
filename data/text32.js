@@ -32,7 +32,7 @@ window.SHARDS.text32 = {
     descBegin: "Every run starts from scratch. 3 failures end it. Half the aurels and NIP you earn come home.",
     descBack: "Return to the hub.",
     records: "Records", begin: "Begin the descent", back: "Back",
-    deepest: "Deepest floor reached: {n}", dailyNone: "No daily runs yet.", dailyBest: "Today's daily best: floor {n}",
+    deepest: "Deepest floor reached: {n}", deepestShort: "Deepest floor: {n}", dailyShort: "Daily best today: {n}", dailyNone: "No daily runs yet.", dailyBest: "Today's daily best: floor {n}",
     hint: "Up/Down: choose   Enter: change   Esc: back", hintPad: "{A} change  {B} back", hintTouch: "Tap a row to choose it, tap again to change it",
     endBonus: "Modifier bonus +{n}%"
   },

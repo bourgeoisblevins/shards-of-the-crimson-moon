@@ -35,7 +35,7 @@
         const img = new Image();
         img.onload = () => { this.images.set(path, img); resolve(); };
         img.onerror = () => { this.errors.push(path + ": FAILED TO LOAD"); resolve(); };
-        img.src = root() + path;
+        img.src = (window.__ASSETS && window.__ASSETS[path]) || (root() + path);   // v3.2.4: the single-page build inlines every image
       });
     }
     require(path) {

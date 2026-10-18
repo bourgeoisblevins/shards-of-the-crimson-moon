@@ -3,7 +3,8 @@
 // Read = main if its checksum matches, else the backup (state "recovered"), else "corrupt" (raw text is kept until deleted).
 window.SHARDS = window.SHARDS || {};
 (function () {
-  var P = "shards29:", N = 3, FORMAT = "shards-of-the-crimson-moon-save", MAXBYTES = 2000000;
+  var NS = typeof window.SHARDS_NS === "string" && window.SHARDS_NS ? window.SHARDS_NS + ":" : "";   // v3.2.4: the /unlocked/ build keeps its own saves
+  var P = "shards29:" + NS, N = 3, FORMAT = "shards-of-the-crimson-moon-save", MAXBYTES = 2000000;
   var ls = function () { try { return window.localStorage; } catch (_) { return null; } };
   function sum(str) { var h = 2166136261 >>> 0; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); }
   function get(k) { var s = ls(); try { return s ? s.getItem(P + k) : null; } catch (_) { return null; } }

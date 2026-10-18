@@ -3,7 +3,7 @@
 // (see CANON_SUMMARY.md); the forms and look come from the archive (blevins, shattering-of-the-blevins, crimson-moon and the six fragment entries).
 (function () {
   var S = window.SHARDS;
-  S.VERSION = "v3.2.3";   // single source for the title screen (the build bumps this constant)
+  S.VERSION = "v3.2.4";   // single source for the title screen (the build bumps this constant)
   S.w26 = {
     hpMul: { jeriah: 1.25, azmardus: 1.2, nezradeem: 1.25, orchalsius: 1.2, silent: 1.2, gladius: 1.15 },
     blevins: { hp: 78, forms: [1, 0.74, 0.5, 0.26], size: { 1: [22, 52], 2: [62, 40], 3: [34, 50], 4: [46, 62] }, speed: { 1: 0.6, 2: 0.55, 3: 0.85, 4: 0.5 } },
@@ -233,6 +233,10 @@
     { id: "vine", x: 430, y: 50, cost: 3, req: null, blessed: true }, { id: "lightning", x: 430, y: 92, cost: 4, req: null, blessed: true });
   S.skills26.branches.push({ id: "blessed", x: 417 });
   S.skills26.nodes.forEach(function (n) { if (n.id === "arrow" || n.id === "will") n.x = 372; n.y += 5; });
+  // v3.2.4: Projectile Homing (6 NIP). Shots keep their direction but curve toward the nearest foe ahead of them.
+  S.skills26.nodes.push({ id: "homing", x: 416, y: 139, cost: 6, req: "arrow" });
+  S.skills26.text.names.homing = ["Seeking Grace", "Seeking Hunger"];
+  S.skills26.text.desc.homing = "Arrows, knives, darts, shurikens and bolts still fly the way you aim, but home in on the nearest foe in that direction.";
   var SX = S.skills26.text;
   SX.ui.heading.blessed = "Blessed";
   SX.ui.activate = "Skill key: make active";  SX.ui.active = "ACTIVE";  SX.ui.activeToast = "Active skill: {name}"; SX.ui.baseToast = "Active skill: the old one";

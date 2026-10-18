@@ -167,7 +167,7 @@ window.SHARDS.levels = {
     "hazards": [],
     "npcs": [
       {
-        "x": 200,
+        "x": 178,
         "y": 108,
         "sheet": "guide-ryan.png",
         "facing": -1,
@@ -175,7 +175,7 @@ window.SHARDS.levels = {
         "tint": "gold"
       },
       {
-        "x": 260,
+        "x": 236,
         "y": 108,
         "sheet": "guide-ryan.png",
         "facing": 1,
@@ -183,7 +183,7 @@ window.SHARDS.levels = {
         "tint": "gold"
       },
       {
-        "x": 70,
+        "x": 146,
         "y": 124,
         "sheet": "guide-ryan.png",
         "facing": 1,
@@ -337,7 +337,7 @@ window.SHARDS.levels = {
     "hazards": [],
     "npcs": [
       {
-        "x": 180,
+        "x": 150,
         "y": 124,
         "sheet": "guide-cult-mentor.png",
         "facing": 1,
@@ -345,7 +345,7 @@ window.SHARDS.levels = {
         "tint": "ember"
       },
       {
-        "x": 300,
+        "x": 206,
         "y": 124,
         "sheet": "guide-cult-mentor.png",
         "facing": -1,
@@ -353,7 +353,7 @@ window.SHARDS.levels = {
         "tint": "ember"
       },
       {
-        "x": 90,
+        "x": 244,
         "y": 140,
         "sheet": "guide-cult-mentor.png",
         "facing": 1,
