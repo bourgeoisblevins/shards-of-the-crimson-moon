@@ -1,4 +1,4 @@
-# Shards of the Crimson Moon (v3.2.4)
+# Shards of the Crimson Moon (v3.2.5)
 
 A 480×270 pixel pilgrimage at integer scale (2× = 960×540, 4× = 1920×1080, never fractional),
 with 16-bit-style art. How to play, and what each version added, is in `PLAY.md`.

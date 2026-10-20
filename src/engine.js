@@ -163,7 +163,7 @@
     normV23();
     if ((save.version | 0) === 23 && !save.migratedFrom) save.migratedFrom = "v2.3";
     if ((save.version | 0) === 24 && !save.migratedFrom) save.migratedFrom = "v2.4";
-    normV25(); normV26(); normV27(); normV28(); normV29(); normV30();
+    normV25(); normV26(); normV27(); normV28(); normV29(); normV30(); normV35();
     if ((save.version | 0) === 26 && !save.migratedFrom) save.migratedFrom = "v2.6";
     if ((save.version | 0) === 27 && !save.migratedFrom) save.migratedFrom = "v2.7";
     if ((save.version | 0) === 28 && !save.migratedFrom) save.migratedFrom = "v2.8";
@@ -1382,7 +1382,7 @@
   function openSettings(from) { scene = "settings"; settingsIx = 0; settingsFrom = from || "title"; }
 
   function enterHub() {
-    rush32 = null; hard32 = null;
+    rush32 = null; hard32 = null; pit35 = null; speech27 = null;
     if (dg) { dgFinish(); return; }
     if (!path) { enterPath(); return; }
     levelId = path === "order" ? "orderHub" : "cultHub"; save.lastZone = "hub";
@@ -1464,6 +1464,7 @@
 
   // ----- damage rules per fight -----
   function bossHit26(b, n) {
+    if (b.pit35) return pitBossHit35(b, n);
     if (b.id === "blevins") {
       if (b.trans > 0) return 0;
       return b.stunT > 0 ? n * 1.5 : n;
@@ -1809,7 +1810,7 @@
     return true;
   }
   function deflect26(pr) {
-    const p = player; if (!(p.guard > 0) || !sk26("deflect") || !pr.harm) return false;
+    const p = player; if (!(p.guard > 0) || !sk26("deflect") || !pr.harm || pr.nodefl35) return false;
     if (Math.abs(pr.vx) > 0.05 && Math.sign(pr.vx) === p.facing) return false;
     pr.harm = false; pr.arrow = true; pr.dmg = SK().guard.deflectDmg; pr.vx = -pr.vx * 1.3 || -p.facing * 3; pr.vy = -(pr.vy || 0) * 0.5; pr.life = Math.max(pr.life, 90); pr.refl26 = true; pr.delay = 0;
     synth.sfx("guard"); spark(pr.x, pr.y, P().order.light, 8); toast(SKT().ui.deflect || "Deflected!"); return true;
@@ -2199,7 +2200,7 @@
       if (b.trans === 0) { b.anim = "idle"; b.cd = 40; b.inv = 6; }
       return true;
     }
-    if (b.stunT > 0) { b.stunT--; b.anim = "hurt"; b.vx *= 0.85; b.vy = Math.min(4.5, b.vy + 0.18); resolve(b, level.platforms); if (b.visible && !b.dead && aabb(player, bossCore(b)) && player.inv === 0 && player.dodge === 0 && b.id !== "blevins") hurtPlayer(1, Math.sign(player.x - b.x) || -player.facing, b); if (b.inv > 0) b.inv--; if (b.stunT === 0) { b.anim = "idle"; b.cd = 20; } return true; }
+    if (b.stunT > 0) { b.stunT--; b.anim = "hurt"; b.vx *= 0.85; b.vy = Math.min(4.5, b.vy + 0.18); resolve(b, bossPlats35(b)); if (b.visible && !b.dead && aabb(player, bossCore(b)) && player.inv === 0 && player.dodge === 0 && b.id !== "blevins") hurtPlayer(1, Math.sign(player.x - b.x) || -player.facing, b); if (b.inv > 0) b.inv--; if (b.stunT === 0) { b.anim = "idle"; b.cd = 20; } return true; }
     intro26(b);
     // soldiers die with the phase; Jeriah's guard is only up during the move
     if (b.id === "jeriah" && b.guardOn && !b.move) b.guardOn = false;
@@ -2624,7 +2625,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function travelRows() {
     const rows = pathZones().map(z => ({ k: "zone", z }));
     for (const q of S25().filter(q => q.kind === "side" && !(q.cultOnly && path !== "cult"))) rows.push({ k: "stage", s: q });
-    rows.push({ k: "bonusmenu" }); if (path) rows.push({ k: "endgame" }); rows.push({ k: "back" });
+    rows.push({ k: "bonusmenu" }); if (path) rows.push({ k: "endgame" }); if (path) rows.push({ k: "pit35" }); rows.push({ k: "back" });
     return rows;
   }
   function updateBonus() {
@@ -2746,7 +2747,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     { const zz = window.SHARDS.zones.find(z => z.fragment === frag); claimExtra = awardBoss(zz ? zz.bossId : frag); }
     synth.sfx("claim"); rumble("claim");
   }
-  function enterDefeat() { if (dg) { dgDeath(); return; } if (rush32) { rushEnd32(false); return; } scene = "defeat"; menuIx = 0; synth.sfx("death"); }
+  function enterDefeat() { if (pit35) { pitDeath35(); return; } if (dg) { dgDeath(); return; } if (rush32) { rushEnd32(false); return; } scene = "defeat"; menuIx = 0; synth.sfx("death"); }
   function enterEnding() {
     save.endSeen32 = true; save.endCycle33 = save.ngp | 0; hard32 = null; rush32 = null;
     endHead26 = ""; endSecret26 = "";
@@ -3053,6 +3054,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
 
   function damageEnemy(e, n, o) {
     if (e.inv > 0 || e.dead) return;
+    if (pit35 && pitBlock35(e)) return;
     if (e.behavior === "staff" && ((e.guardT > 0 && (e.sm | 0) === 0) || e.sm === 1) && Math.sign(player.x - e.x) === e.facing) {   // v2.8: the staff monk blocks from the front
       e.inv = 8; synth.sfx("staffBlock"); spark(e.x + e.w / 2 + e.facing * 8, e.y + 8, "#F2E4B0", 4); doHitstop(1);
       player.vx = -e.facing * 1.4; e.blocks = (e.blocks | 0) + 1;
@@ -3614,7 +3616,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (!b || b.dead) return;
     b.t++; b.animT = (b.animT || 0) + 1;
     if (A26 && bossPre26(b)) return;
-    if (introHold > 0) { b.vx = 0; resolve(b, level.platforms); return; }
+    if (introHold > 0) { b.vx = 0; resolve(b, bossPlats35(b)); return; }
     if (b.stun33 > 0) { b.stun33--; b.vx *= 0.8; return; }   // v3.2.3: blow-dart stun (short on bosses)
     const dx = player.x - b.x;
     if (!b.move) b.facing = dx < 0 ? -1 : 1;
@@ -3629,7 +3631,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         startMove(b, pool[(Math.random() * pool.length) | 0]);
       }
     }
-    if (b.visible) resolve(b, level.platforms);
+    if (b.visible) resolve(b, bossPlats35(b));
     if (b.inv > 0) b.inv--;
     if (b.visible && !b.dead && player.dodge > 0 && aabb(player, bossCore(b))) nearMiss();
     if (b.visible && !b.dead && aabb(player, bossCore(b)) && player.inv === 0 && player.dodge === 0) hurtPlayer(1, Math.sign(player.x - b.x) || -player.facing, b);
@@ -3795,6 +3797,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
           if (e.cd <= 0 && Math.abs(dx) < 190 && Math.abs(player.y - e.y) < 110) { e.sm = 1; e.dt = 22; e.vx = 0; }
         } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { throwBone28(e, dx); e.sm = 2; e.dt = 16; } }
         else { e.dt--; e.vx = 0; e.anim = "attack"; if (e.dt <= 0) { e.sm = 0; e.cd = 110; } }
+      } else if (beh.startsWith("pit")) { pitEnemy35(e, dx);
       } else if (beh === "jumper") {
         e.vx = e.facing * e.speed; e.anim = "walk";
         if (e.onGround && e.cd <= 0 && Math.abs(dx) < 100) {
@@ -4011,6 +4014,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (r.k === "back") { scene = "hub"; return; }
       if (r.k === "bonusmenu") { scene = "bonus"; bonusIx = 0; return; }
       if (r.k === "endgame") { scene = "endgame32"; eg32Ix = 0; return; }
+      if (r.k === "pit35") { startPit35(); return; }
       if (r.k === "stage") { if (!stageUnlocked(r.s)) { synth.sfx("locked"); return; } goScene(() => enterTraverse(r.s.id)); return; }
       const z = r.z;
       if (!zoneUnlocked(z)) return;
@@ -4046,14 +4050,418 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       shake = Math.max(shake, 4);
     }
     if (b.deathT === 20) { flash = 4; shake = 16; fxAdd("boom", b.x + b.w / 2, b.y + b.h / 2, { big: true }); }
-    if (b.deathT === 0) { b.visible = false; if (b.id === "blevins") blevinsWin26(); else if (b.id === "noah") noahWin26(); else if (b.id === "guardian") guardianWin26(); else if (save.claimed[b.fragment]) enterRematch26(b.fragment); else enterClaim(b.fragment); }
+    if (b.deathT === 0) { b.visible = false; if (b.pit35) { pitBossDown35(b); return; } if (b.id === "blevins") blevinsWin26(); else if (b.id === "noah") noahWin26(); else if (b.id === "guardian") guardianWin26(); else if (save.claimed[b.fragment]) enterRematch26(b.fragment); else enterClaim(b.fragment); }
   }
   function updateArena() {
-    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); if (enemies.length) updateEnemies(nezMinion29); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); updateEfx();
+    if (pit35 && pitTick35()) { updateParticles(); updateCamera(); return; }
+    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); if (enemies.length) updateEnemies(pit35 ? null : nezMinion29); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); updateEfx();
     if (boss && !boss.dead) tickStatus(boss, true);
     for (const m of teleMarks) m.life--;
     teleMarks = teleMarks.filter(m => m.life > 0);
   }
+  // ================= v3.2.5: the Arena (pit35) =================
+  // Waves in the pit with an 8 s countdown; HP carries over. A beast after every 10 waves, then the Warden's choice:
+  // be healed in a cell (dresser = charms, prisoners, guard, door back to the pit) or ask for freedom (back to the hub).
+  // Death: the Warden buys you back once per run for half the aurels earned in it. Every reward is credited at once and kept.
+  const T35 = () => window.SHARDS.text35, W35 = () => window.SHARDS.pit35;
+  let pit35 = null, pitRes35 = null;
+  function normV35() { const d = save.pit35 && typeof save.pit35 === "object" ? save.pit35 : {}; save.pit35 = { best: Math.max(0, d.best | 0), runs: Math.max(0, d.runs | 0), bosses: Math.max(0, d.bosses | 0), half: Math.max(0, d.half | 0) % 2, seen: d.seen ? 1 : 0 }; }
+  const pitCell35 = () => !!(pit35 && levelId === "pit35cell");
+  const bossPlats35 = (b) => b.pit35 ? level.platforms.filter(q => !q.oneWay) : level.platforms;   // the pit beasts keep to the sand (the ledges are the player's refuge)
+  const dm35 = (b, n) => n + Math.min(W35().boss.dmgCap, b.tier35 | 0);
+  function teach35(key) { if (!A26 || A26.taught["p35" + key]) return; A26.taught["p35" + key] = 1; toast(T35().teach[key]); }
+  function startPit35() {
+    normV35(); save.pit35.runs++; persist(); hard32 = null; rush32 = null;
+    pit35 = { wave: 1, cleared: 0, bosses: 0, phase: "count", t: 0, gained: 0, nip: 0, respawn: false, queue: [], cap: 3, spawnT: 0, sel: 0, bossNext: false, say: [], lineIx: {}, bub: null, bubT: 240, startBest: save.pit35.best, talkTo: null };
+    goScene(() => pitEnterArena35(true));
+  }
+  function pitReset35() {
+    player = makePlayer(level.spawn.x, level.spawn.y); recomputeStats(); player.hp = player.maxHp;
+    powers = {}; w22 = null; cameraX = 0; cameraY = 0; coins = []; efx = []; ensureWeapons();
+    boss = null; A26 = null; enemies = []; pickups = []; projectiles = []; particles = []; shades24 = []; flames24 = []; fx24 = []; teleMarks = [];
+    scene = "arena"; seedAmbient(); fxList = []; titleCard = 0; titleCardText = ""; fade = 16; fadeDir = -1;
+    introPages = [""]; introPage = 0; introHold = 0; bossIntroCard = 0; speech27 = null;
+  }
+  function pitEnterArena35(first) {
+    levelId = "pit35"; level = Object.assign({}, window.SHARDS.levels.pit35); level.platforms = level.platforms.map(p => Object.assign({}, p));
+    pitReset35();
+    if (first) { flaskRefill(true); pit35.say = (save.pit35.seen ? T35().introAgain : T35().intro).slice(); save.pit35.seen = 1; persist(); }
+    pit35.phase = "count"; pit35.t = W35().countdown; pit35.talkTo = null;
+    setMusic("pit35");
+  }
+  function pitEnterCell35() {
+    levelId = "pit35cell"; level = Object.assign({}, window.SHARDS.levels.pit35cell); level.platforms = level.platforms.map(p => Object.assign({}, p));
+    pitReset35(); flaskRefill(true);
+    pit35.phase = "cell"; pit35.bub = null; pit35.bubT = 150; pit35.talkTo = null;
+    titleCard = 90; titleCardText = T35().cell.title;
+    setMusic("pit35cell");
+  }
+  function pitGain35(a) { a = Math.max(0, Math.round(a)); V().aurels += a; pit35.gained += a; }
+  function pitStartWave35() {
+    const P5 = pit35, W = W35(), n = P5.wave;
+    P5.phase = "wave"; P5.cap = W.cap(n); P5.spawnT = 0; P5.queue = [];
+    const deb = W.pool.find(p => p[1] === n), cnt = W.count(n);
+    let pool = W.pool.filter(p => n >= p[1]).map(p => p[0]);
+    if (n > W.block && pool.length > W.mix(n)) {   // deep waves: a fresh mix of the unlocked kinds each wave, the newest debut always in it
+      const rest = pool.filter(t => !deb || t !== deb[0]);
+      for (let i = rest.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [rest[i], rest[j]] = [rest[j], rest[i]]; }
+      pool = (deb ? [deb[0]] : []).concat(rest).slice(0, W.mix(n));
+    }
+    P5.mix = pool.slice();
+    if (deb && T35().foes[deb[0]]) toast(dgFmt(T35().debut, { name: T35().foes[deb[0]] }));
+    for (let i = 0; i < cnt; i++) {
+      let t = i === 0 && deb ? deb[0] : pool[(Math.random() * pool.length) | 0];
+      P5.queue.push(t);
+      if (t === "ashen_wolf" && i + 1 < cnt) { P5.queue.push(t); i++; }   // the ash wolves hunt in pairs
+    }
+    synth.sfx("gate"); synth.sfx("crowd35"); shake = 4;
+  }
+  function pitSpawn35(type) {
+    const W = W35(), n = pit35.wave, st = window.SHARDS.enemyStats[type], side = Math.random() < 0.5 ? 0 : 1, gx = level.gates[side];
+    const e = makeEnemy({ type, x: gx - st.w / 2, y: 164 - st.h, hpMul: W.hpMul(n), dmgAdd: W.dmgAdd(n), elite: Math.random() < W.elite(n) });
+    e.pit35 = n; e.facing = side ? -1 : 1; e.vx = e.facing * 0.8; e.cd = 30 + Math.random() * 40; e.homeX = 200; e.leash = 400;
+    enemies.push(e); fxAdd("puff", gx, 160, {}); synth.sfx("door");
+    if (type === "ashen_wolf" && !pit35.howled) { pit35.howled = 1; synth.sfx("wolfHowl"); }
+  }
+  function pitWaveDone35() {
+    const P5 = pit35, W = W35(), n = P5.wave, a = W.waveGold(n);
+    pitGain35(a); P5.cleared = n; P5.wave++; P5.howled = 0;
+    enemies = []; projectiles = projectiles.filter(p => !p.harm);
+    if (n > save.pit35.best) save.pit35.best = n;
+    persist(); toast(dgFmt(T35().cleared, { n, a })); synth.sfx("coin"); synth.sfx("crowd35");
+    P5.bossNext = n % W.block === 0; P5.phase = "count"; P5.t = W.countdown;
+    if (P5.bossNext) toast(T35().bossIn);
+  }
+  function pitSpawnBoss35() {
+    // the k-th block boss (0-based) follows from the waves cleared, so the rotation and tiers hold at any depth
+    const P5 = pit35, W = W35(), k = Math.max(0, Math.floor(P5.cleared / W.block) - 1), id = W.bosses[k % W.bosses.length], tier = Math.floor(k / W.bosses.length);
+    P5.bossK = k + 1;
+    level.bossSpawn = { x: pcx26() < 200 ? 300 : 60, y: 60 };
+    boss = makeBoss26(id); arena26Init(id);
+    const m = (1 + W.boss.hpTier * tier) * (1 + 0.4 * Math.min(3, save.ngp | 0));
+    boss.hp = boss.maxHp = Math.round(boss.hp * m); boss.rest = Math.max(30, Math.round(boss.rest * Math.pow(W.boss.rest, tier)));
+    boss.tier35 = tier; boss.pit35 = 1; boss.facing = pcx26() < bcx26(boss) ? -1 : 1;
+    P5.phase = "boss"; P5.bossNext = false;
+    introPages = [T35().bossLines[id]]; introPage = 0; introPageTime = 150; introHold = 150; bossIntroCard = 150;
+    setMusic("pit35boss"); synth.sfx("gate"); synth.sfx("crowd35"); shake = 10;
+  }
+  function pitBossDown35(b) {
+    const P5 = pit35, W = W35(), R = save.pit35;
+    P5.bosses++; R.bosses++;
+    const a = W.bossGold(P5.bossK || P5.bosses); pitGain35(a);
+    R.half = (R.half | 0) + W.nipHalf; let nm = T35().nipHalf;
+    if (R.half >= 2) { R.half -= 2; V().nip += 1; V().nipTotal += 1; P5.nip++; nm = T35().nip; }
+    persist(); boss = null; A26 = null; projectiles = []; teleMarks = []; enemies = [];
+    P5.last = { a, nm }; P5.phase = "choice"; P5.sel = 0; P5.t = 0;
+    synth.sfx("crowd35"); setMusic("pit35");
+  }
+  function pitEnd35(kind) {
+    const P5 = pit35, R = save.pit35; if (!P5) return;
+    if (P5.cleared > R.best) R.best = P5.cleared;
+    pitRes35 = { kind, waves: P5.cleared, best: R.best, newBest: P5.cleared > P5.startBest, bosses: P5.bosses, aurels: P5.gained, nip: P5.nip, t: 0 };
+    pit35 = null; boss = null; A26 = null; speech27 = null;
+    if (player) { player.dead = false; player.hp = player.maxHp; }
+    persist(); scene = "pit35end"; setMusic("title");
+  }
+  function pitDeath35() {
+    synth.sfx("playerDeath");
+    if (pit35.respawn) { pitEnd35("dead"); return; }
+    pit35.prev = boss && !boss.dead ? "boss" : "wave"; pit35.phase = "dead"; pit35.sel = 0; pit35.t = 0;
+  }
+  const pitCost35 = () => Math.min(V().aurels, Math.floor(pit35.gained * W35().respawnShare));
+  function pitRevive35() {
+    const P5 = pit35, cost = pitCost35();
+    V().aurels -= cost; P5.gained -= cost; P5.respawn = true;
+    player = makePlayer(level.spawn.x, level.spawn.y); recomputeStats(); player.hp = player.maxHp; player.inv = 120;
+    projectiles = []; teleMarks = [];
+    if (P5.prev === "boss" && boss) { const b = boss; b.move = null; b.teleT = 0; b.moveT = 0; b.cd = 100; b.vx = 0; b.stunT = 0; b.anim = "idle"; b.x = pcx26() < 200 ? 300 : 60; P5.phase = "boss"; }
+    else { enemies = []; P5.queue = []; P5.phase = "count"; P5.t = W35().countdown; P5.howled = 0; }
+    persist(); toast(T35().respawned); synth.sfx("checkpoint"); synth.sfx("crowd35");
+  }
+  function pitMenu35(n) {
+    const P5 = pit35; P5.t++;
+    if (input.pressed("up")) { P5.sel = (P5.sel + n - 1) % n; synth.sfx("menuMove"); }
+    if (input.pressed("down")) { P5.sel = (P5.sel + 1) % n; synth.sfx("menuMove"); }
+    return P5.t > 24 && input.pressed("confirm");
+  }
+  // Called first in updateArena; true = the world is frozen this frame.
+  function pitTick35() {
+    const P5 = pit35, W = W35();
+    if (P5.phase === "dead") { if (pitMenu35(2)) { synth.sfx("menu"); if (P5.sel === 0) pitRevive35(); else pitEnd35("dead"); } return true; }
+    if (P5.phase === "choice") {
+      if (pitMenu35(2)) {
+        synth.sfx("menu");
+        if (P5.sel === 0) { player.hp = player.maxHp; flaskRefill(); synth.sfx("heal"); goScene(() => pitEnterCell35()); P5.phase = "leaving"; }
+        else { P5.phase = "freeing"; speech27 = { text: T35().freed, who: portraitPath("warden"), t: 0 }; }
+      }
+      return true;
+    }
+    if (P5.phase === "freeing") { if (!speech27) pitEnd35("free"); return true; }
+    if (P5.phase === "leaving") return true;
+    if (!speech27 && P5.say.length) { speech27 = { text: P5.say.shift(), who: portraitPath("warden"), t: 0 }; return true; }
+    if (P5.phase === "cell") return pitCellTick35();
+    if (P5.phase === "count") {
+      P5.t--;
+      if (P5.t > 0 && P5.t <= 180 && P5.t % 60 === 0) synth.sfx("blip");
+      if (P5.t <= 0) { if (P5.bossNext) pitSpawnBoss35(); else pitStartWave35(); }
+      return false;
+    }
+    if (P5.phase === "wave") {
+      P5.spawnT--;
+      const alive = enemies.filter(e => !e.dead).length;
+      if (P5.queue.length && alive < P5.cap && P5.spawnT <= 0) { pitSpawn35(P5.queue.shift()); P5.spawnT = 45; }
+      if (!P5.queue.length && alive === 0 && enemies.every(e => e.animT > 26)) pitWaveDone35();
+    }
+    return false;
+  }
+  // ----- the cell -----
+  function pitNear35() {
+    if (!pitCell35() || !player || player.dead) return null;
+    let best = null, bd = 1e9; const px = pcx26();
+    for (const p of level.props) { const cx = p.x + (p.w || 0) / 2, d = Math.abs(px - cx), r = p.w ? p.w / 2 + 8 : 14; if (d < r && d < bd && Math.abs(player.y + player.h - (p.y || 164)) < 34) { best = p; bd = d; } }
+    return best;
+  }
+  function pitCellTick35() {
+    const P5 = pit35;
+    if (P5.bub) { P5.bub.t--; if (P5.bub.t <= 0) P5.bub = null; }
+    else if (--P5.bubT <= 0) { const ks = ["pra", "prb", "prc"], k = ks[(Math.random() * 3) | 0], L = T35().ambient[k]; P5.bub = { k, text: L[(Math.random() * L.length) | 0], t: 170 }; P5.bubT = 260 + ((Math.random() * 200) | 0); }
+    if (!speech27) P5.talkTo = null;
+    const n = pitNear35();
+    if (n && input.pressed("confirm")) {
+      if (n.k === "dresser") { synth.sfx("door"); openInventory("play"); invTab = 1; input.clearJust(); return true; }
+      if (n.k === "door") { synth.sfx("gate"); P5.phase = "leaving"; goScene(() => pitEnterArena35(false)); return true; }
+      const L = T35().lines[n.k], i = (P5.lineIx[n.k] | 0) % L.length; P5.lineIx[n.k] = i + 1; P5.talkTo = n.k; P5.bub = null;
+      speech27 = { text: T35().who[n.k] + ": " + L[i], who: null, t: 0 }; synth.sfx("dialogue"); return true;
+    }
+    return false;
+  }
+  // ----- enemies (behaviours) -----
+  function knife35(e, vy) { projectiles.push({ x: e.x + e.w / 2 - 4, y: e.y + 9, w: 8, h: 3, vx: e.facing * 3.1, vy, life: 110, harm: true, dmg: e.damage, k35: "knife", tick32: pitFloor35 }); }
+  function net35(e, dx) {
+    const T = 38, g = 0.12, sx = e.x + e.w / 2 - 7, sy = e.y + 4, tx = player.x + player.w / 2 - 7, ty = player.y + 6;
+    projectiles.push({ x: sx, y: sy, w: 14, h: 10, vx: Math.max(-3, Math.min(3, (tx - sx) / T)), vy: ((ty - sy) - 0.5 * g * T * T) / T, g26: g, life: 100, harm: true, dmg: e.pit35 >= 15 ? 2 : 1, k35: "net",
+      tick32: (pr) => { if (pr.harm && aabb(player, pr) && player.inv === 0 && player.dodge === 0 && !player.dead) { player.slowT = 80; player.snare35 = 80; synth.sfx("slowHit"); } pitFloor35(pr); } });
+  }
+  function pitFloor35(pr) { if (pr.y + pr.h >= 164 || pr.x < -10 || pr.x > level.w + 10) { pr.life = 0; spark(pr.x + pr.w / 2, Math.min(162, pr.y + pr.h), P().ground.smoke, 3); } }
+  function pitEnemy35(e, dx) {
+    const lv = e.pit35 || 1, cdm = Math.max(0.55, 1 - 0.015 * (lv - 1)), adx = Math.abs(dx), ady = Math.abs(player.y + player.h - (e.y + e.h));
+    e.sm = e.sm | 0; e.dt = e.dt | 0;
+    const B = e.behavior;
+    if (B === "pitBrawl") {   // Plains brawler: closes in, a short wind-up, then a combo of lunging punches (longer combos in later waves)
+      if (e.sm === 0) {
+        e.vx = adx < 14 ? 0 : e.facing * e.speed; e.anim = e.vx ? "walk" : "idle";
+        if (adx < 36 && e.cd <= 0 && ady < 26) { e.sm = 1; e.dt = 18; e.vx = 0; e.combo = 2 + (lv >= 8 ? 1 : 0) + (lv >= 20 ? 1 : 0); synth.sfx("telegraph"); }
+      } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 2; e.dt = 12; e.animT = 0; synth.sfx("swipe"); } }
+      else if (e.sm === 2) {
+        e.dt--; e.anim = "attack"; e.vx = e.dt > 6 ? e.facing * 1.8 : 0;
+        if (e.dt <= 0) { if (--e.combo > 0) { e.dt = 12; e.animT = 0; synth.sfx("swipe"); } else { e.sm = 3; e.dt = 40; } }
+      } else { e.dt--; e.vx = -e.facing * 0.3; e.anim = "idle"; if (e.dt <= 0) { e.sm = 0; e.cd = Math.round(70 * cdm); } }
+    } else if (B === "pitCut") {   // Mob cutthroat: keeps to mid range and throws knives (1 to 3), stabs and backsteps when crowded
+      if (e.sm === 0) {
+        const want = adx < 56 ? -1 : adx > 120 ? 1 : 0; e.vx = want * e.facing * e.speed; e.anim = e.vx ? "walk" : "idle";
+        if (e.cd <= 0 && ady < 40) { if (adx < 44) { e.sm = 4; e.dt = 14; } else if (adx < 210) { e.sm = 1; e.dt = 22; } if (e.sm) { e.vx = 0; synth.sfx("telegraph"); } }
+      } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { const n = 1 + (lv >= 10 ? 1 : 0) + (lv >= 25 ? 1 : 0); for (let i = 0; i < n; i++) knife35(e, (i - (n - 1) / 2) * 0.45); synth.sfx("knifeThrow"); e.sm = 2; e.dt = 16; e.animT = 0; } }
+      else if (e.sm === 2) { e.dt--; e.vx = 0; e.anim = "attack"; if (e.dt <= 0) { e.sm = 0; e.cd = Math.round(100 * cdm); } }
+      else if (e.sm === 4) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 5; e.dt = 14; e.animT = 0; synth.sfx("swipe"); } }
+      else if (e.sm === 5) { e.dt--; e.vx = e.facing * 3; e.anim = "attack"; if (e.dt <= 0) { e.sm = 6; e.dt = 16; } }
+      else { e.dt--; e.vx = -e.facing * 1.6; e.anim = "walk"; if (e.dt <= 0) { e.sm = 0; e.cd = Math.round(80 * cdm); } }
+    } else if (B === "pitNet") {   // Pirate netter: an arcing net slows you, then the boathook jab
+      if (e.sm === 0) {
+        const want = adx < 50 ? -1 : adx > 110 ? 1 : 0; e.vx = want * e.facing * e.speed; e.anim = e.vx ? "walk" : "idle";
+        if (e.cd <= 0 && ady < 60) { if (player.slowT > 0 && adx < 48) { e.sm = 4; e.dt = 12; } else if (adx < 170) { e.sm = 1; e.dt = 26; } if (e.sm) { e.vx = 0; synth.sfx("telegraph"); } }
+      } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { net35(e, dx); synth.sfx("boneThrow"); e.sm = 2; e.dt = 18; e.animT = 0; } }
+      else if (e.sm === 2) { e.dt--; e.vx = 0; e.anim = "attack"; if (e.dt <= 0) { e.sm = 0; e.cd = Math.round(60 * cdm); } }
+      else if (e.sm === 4) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 5; e.dt = 12; e.animT = 0; synth.sfx("whipCrack"); } }
+      else {
+        e.dt--; e.anim = "attack"; e.vx = e.facing * 1.4;
+        if (e.dt === 6 && player.inv === 0 && player.dodge === 0 && aabb(player, { x: e.facing > 0 ? e.x + e.w : e.x - 30, y: e.y + 6, w: 30, h: 12 })) hurtPlayer(e.damage + 1, e.facing, e);
+        if (e.dt <= 0) { e.sm = 0; e.cd = Math.round(90 * cdm); }
+      }
+    } else if (B === "pitShield") {   // Dwarven shieldbearer: guards its front, a shield bash, open for a moment after
+      if (e.open35 > 0) e.open35--;
+      if (e.f35 == null) e.f35 = e.facing;   // the tower shield turns slowly: get behind it
+      if ((dx < 0 ? -1 : 1) !== e.f35 && e.sm === 0) { e.turn35 = (e.turn35 | 0) + 1; if (e.turn35 > 40) { e.f35 = -e.f35; e.turn35 = 0; } } else e.turn35 = 0;
+      e.facing = e.f35;
+      if (e.sm === 0) {
+        e.vx = adx < 12 ? 0 : e.facing * e.speed; e.anim = adx < 100 ? "guard" : "walk";
+        if (adx < 32 && e.cd <= 0 && ady < 26) { e.sm = 1; e.dt = 24; e.vx = 0; synth.sfx("telegraph"); }
+      } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 2; e.dt = 12; e.animT = 0; synth.sfx("slamSwing"); } }
+      else if (e.sm === 2) { e.dt--; e.vx = e.facing * 2.6; e.anim = "attack"; if (e.dt <= 0) { e.sm = 3; e.dt = 50; e.open35 = 50; } }
+      else { e.dt--; e.vx = 0; e.anim = "idle"; if (e.dt <= 0) { e.sm = 0; e.cd = Math.round(90 * cdm); } }
+    } else if (B === "pitWolf") {   // Ashen wolf: circles at a distance, crouches, pounces; bolder once you are wounded
+      const hungry = player.hp <= player.maxHp / 2;
+      if (e.sm === 0) {
+        const ring = e.ring35 || (e.ring35 = 50 + Math.random() * 34), want = adx > ring + 10 ? 1 : adx < ring - 10 ? -1 : 0;
+        e.vx = want ? want * e.facing * e.speed * (hungry ? 1.3 : 1) : Math.sin((e.animT + e.x) * 0.05) * e.speed * 0.6; e.anim = Math.abs(e.vx) > 0.1 ? "walk" : "idle";
+        if (e.cd <= 0 && e.onGround && adx < ring + 34 && ady < 40) { e.sm = 1; e.dt = hungry ? 16 : 24; e.vx = 0; synth.sfx("telegraph"); }
+      } else if (e.sm === 1) { e.dt--; e.vx = 0; e.anim = "tele"; if (e.dt <= 0) { e.sm = 2; e.vy = -3.2; e.vx = e.facing * Math.min(3.6, adx / 22 + 1); e.onGround = false; e.animT = 0; e.anim = "attack"; synth.sfx("swipe"); } }
+      else if (e.sm === 2) { e.anim = "attack"; if (e.onGround && e.vy >= 0) { e.sm = 3; e.dt = 28; e.vx = 0; } }
+      else { e.dt--; e.vx = 0; e.anim = "idle"; if (e.dt <= 0) { e.sm = 0; e.cd = Math.round((70 + Math.random() * 40) * cdm * (hungry ? 0.55 : 1)); e.ring35 = 0; } }
+    }
+    if (e.x < 2) e.x = 2; if (e.x + e.w > level.w - 2) e.x = level.w - 2 - e.w;
+  }
+  // the shieldbearer blocks blows from the front (not from behind, from above, or while it recovers from a bash)
+  function pitBlock35(e) {
+    if (e.behavior !== "pitShield" || e.open35 > 0 || e.sm === 2 || (e.stun | 0) > 0) return false;
+    if (Math.sign(player.x + player.w / 2 - (e.x + e.w / 2)) !== e.facing || player.y + player.h <= e.y + 6) return false;
+    e.inv = 8; synth.sfx("staffBlock"); spark(e.x + e.w / 2 + e.facing * 9, e.y + 8, P().order.light, 4); doHitstop(1); player.vx = -e.facing * 1.4;
+    if (!pit35.shieldTold) { pit35.shieldTold = 1; toast(T35().teach.shield); }
+    return true;
+  }
+  // ----- bosses -----
+  function hit35(b, box, n) { if (player.inv === 0 && player.dodge === 0 && !player.dead && aabb(player, box)) { hurtPlayer(dm35(b, n), b.facing, b); return true; } return false; }
+  function fall35(x, delay, k, b, noMark) {
+    if (!noMark) addTeleMark(x - 6, 161, 12, 3, bossAccent(b), delay + 52);
+    bproj26({ x: x - 5, y: -12, w: 10, h: 10, vx: 0, vy: 3, life: 100, delay, k35: k, dmg: dm35(b, 1), tick32: pitFloor35 });
+  }
+  function vent35(x, delay, b) { bproj26({ x: x - 7, y: 164 - 34, w: 14, h: 34, vx: 0, vy: 0, life: 36, delay, tele26: true, k35: "vent", dmg: dm35(b, 1), nodefl35: 1 }); }
+  function shock35(x, dir, b) { bproj26({ x: x - 6, y: 164 - 12, w: 12, h: 12, vx: dir * 2.4, vy: 0, life: 80, k35: "shock", dmg: dm35(b, 1), nodefl35: 1, tick32: pitFloor35 }); }
+  const front35 = (b, w, h) => ({ x: b.facing > 0 ? b.x + b.w - 8 : b.x - w + 8, y: b.y + b.h - h, w, h });
+  const face35 = (b) => { b.facing = pcx26() < bcx26(b) ? -1 : 1; };
+  function lane35(b, life) { if (b.facing > 0) mark26(b.x + b.w, level.w - b.x - b.w, life); else mark26(0, b.x, life); }
+  function charge35(b, sp, stun, rocks, key) {
+    b.vx = b.facing * sp; hit35(b, bossCore(b), 1);
+    if (b.moveT % 6 === 0) spark(b.facing > 0 ? b.x : b.x + b.w, b.y + b.h - 2, P().ground.smoke, 2);
+    if (hitWall26(b)) {
+      b.abortMove = true; b.vx = -b.facing * 1.2; b.stunT = stun; shake = 12; synth.sfx("crash"); if (key) teach35(key);
+      for (let i = 0; i < rocks; i++) fall35(24 + Math.random() * 352, 10 + i * 9, b.id === "cinderbear" ? "cinder" : "rock", b);
+    }
+  }
+  // Cinder Bear (Corrupted Beasts: "battering-ram charges", claws, heat in its cracks)
+  C26.bearCharge = { tele: 40, dur: 110, pose: 1, start(b) { face35(b); lane35(b, 40); synth.sfx("blevinsRoar"); }, tick(b) { charge35(b, 3.3, 72 - 10 * Math.min(2, b.tier35 | 0), 3 + b.phase, "bearWall"); } };
+  C26.bearSwipe = { tele: 26, dur: 40, pose: 2, start(b) { face35(b); const f = front35(b, 46, 36); mark26(f.x, f.w, 26); },
+    tick(b, t) { b.vx = b.facing * 0.5; const on = (t >= 5 && t <= 11) || (b.phase >= 2 && t >= 24 && t <= 30); if (t === 5 || (b.phase >= 2 && t === 24)) { synth.sfx("swipe"); shake = 4; } if (b.phase >= 2 && t === 18) face35(b); if (on) hit35(b, front35(b, 46, 36), 1); } };
+  C26.bearSlam = { tele: 38, dur: 46, pose: 3, start(b) { const p = pcx26(); b.v35 = [p, p - 56, p + 56].map(x => Math.max(12, Math.min(level.w - 12, x))); b.v35.forEach(x => mark26(x - 8, 16, 38 + 20)); },
+    act(b) { shake = 12; synth.sfx("shockwave"); hit35(b, { x: b.x - 6, y: b.y + b.h - 10, w: b.w + 12, h: 10 }, 1); b.v35.forEach((x, i) => vent35(x, 6 + i * 6, b)); }, tick(b) { b.vx = 0; } };
+  C26.bearRoar = { tele: 44, dur: 70, pose: 4,
+    start(b) { synth.sfx("blevinsRoar"); shake = 6; b.r35 = []; for (let i = 0; i < 6; i++) b.r35.push(20 + (i + Math.random()) * 60); b.r35.push(Math.max(12, Math.min(level.w - 12, pcx26()))); b.r35.forEach((x, i) => addTeleMark(x - 6, 161, 12, 3, bossAccent(b), 44 + i * 7 + 56)); },
+    act(b) { b.r35.forEach((x, i) => fall35(x, i * 7, "cinder", b, true)); }, tick(b) { b.vx = 0; } };
+  // Hollow Stag (Corrupted Beasts: still and silent until approached, then charges, impales or throws)
+  C26.stagStill = { tele: 16, dur: 130, pose: 4, start(b) { b.vx = 0; b.lash35 = 0; teach35("stagStill"); },
+    tick(b, t) {
+      b.vx = 0;
+      const near = Math.abs(pcx26() - bcx26(b)) < b.w / 2 + 46 && player.y + player.h > b.y + 10;
+      if (!b.lash35 && near && t > 8) { face35(b); b.lash35 = 18; const f = front35(b, 70, 40); mark26(f.x, f.w, 18); synth.sfx("telegraph"); b.anim = "atk2_tele"; b.animT = 0; }
+      if (b.lash35 > 0 && --b.lash35 === 0) { b.anim = "atk2_active"; b.animT = 0; hit35(b, front35(b, 70, 40), 2); shake = 7; synth.sfx("swipe"); b.moveT = Math.min(b.moveT, 18); b.lash35 = -1; }
+    }, end(b) { b.lash35 = 0; } };
+  C26.stagCharge = { tele: 34, dur: 100, pose: 1, start(b) { face35(b); lane35(b, 34); synth.sfx("howl"); }, tick(b) { charge35(b, 3.8, 60, 2, "stagWall"); } };
+  C26.stagToss = { tele: 24, dur: 30, pose: 2, start(b) { face35(b); const f = front35(b, 50, 34); mark26(f.x, f.w, 24); },
+    tick(b, t) { b.vx = b.facing * 0.8; if (t === 4) synth.sfx("swipe"); if (t >= 4 && t <= 10 && hit35(b, front35(b, 50, 34), 1)) { player.vy = -4.6; player.vx = b.facing * 2.4; } } };
+  C26.stagLeap = { tele: 30, dur: 90, pose: 3, start(b) { b.tx35 = Math.max(30, Math.min(level.w - 30, pcx26())); mark26(b.tx35 - 30, 60, 30 + 58); },
+    act(b) { b.vy = -5.2; b.vx = (b.tx35 - bcx26(b)) / 58; b.fly35 = 1; b.onGround = false; synth.sfx("jump2"); },
+    tick(b, t) { if (b.fly35 && t > 6 && b.onGround) { b.fly35 = 0; b.vx = 0; shake = 10; synth.sfx("shockwave"); hit35(b, { x: b.x - 10, y: b.y + b.h - 14, w: b.w + 20, h: 14 }, 1); shock35(bcx26(b) - 10, -1, b); shock35(bcx26(b) + 10, 1, b); b.moveT = Math.min(b.moveT, 22); } },
+    end(b) { b.fly35 = 0; } };
+  // Pit Golem (Stone Golems: dwarven war-engines of the Great War, slow and heavy; game invention: one still walks in the pit)
+  C26.golPunch = { tele: 30, dur: 28, pose: 1, start(b) { face35(b); const f = front35(b, 52, 38); mark26(f.x, f.w, 30); },
+    tick(b, t) { b.vx = t < 10 ? b.facing * 1.3 : 0; if (t === 6) { shake = 5; synth.sfx("thud"); } if (t >= 6 && t <= 12) hit35(b, front35(b, 52, 38), 2); } };
+  C26.golPound = { tele: 40, dur: 140, pose: 2, restMul: 0.6, start(b) { mark26(b.x - 70, b.w + 140, 40); },
+    act(b) { shake = 14; synth.sfx("shockwave"); hit35(b, { x: b.x - 10, y: b.y + b.h - 12, w: b.w + 20, h: 12 }, 1); shock35(b.x - 8, -1, b); shock35(b.x + b.w + 8, 1, b); for (let i = 0; i < 2 + b.phase; i++) fall35(30 + Math.random() * 340, 12 + i * 10, "rock", b); teach35("golCore"); },
+    tick(b) { b.vx = 0; } };
+  C26.golThrow = { tele: 34, dur: 34, pose: 3, start(b) { face35(b); b.tx35 = [pcx26()]; b.ty35 = player.y + player.h; if (b.phase >= 2) b.tx35.push(Math.max(20, Math.min(level.w - 20, pcx26() + (pcx26() < 200 ? 60 : -60)))); b.tx35.forEach(x => mark26(x - 14, 28, 34 + 46)); },
+    act(b) {
+      synth.sfx("boneThrow");
+      b.tx35.forEach((tx, i) => { const sx = bcx26(b) + b.facing * 10, sy = b.y + 4, T = 44 + i * 12, g = 0.16, h = 11;
+        bproj26({ x: sx - 6, y: sy, w: 12, h, vx: (tx - sx) / T, vy: (((i ? 164 : Math.min(164, b.ty35)) - h - sy) - 0.5 * g * T * T) / T, g26: g, life: 140, k35: "rock", dmg: dm35(b, 2), nodefl35: 0,
+          tick32: (pr) => { if (pr.y + pr.h >= 164) { pr.life = 0; shake = 6; synth.sfx("crumble"); spark(pr.x + 6, 160, P().ground.smoke, 8); } } }); });
+    }, tick(b) { b.vx = 0; } };
+  C26.golCharge = { tele: 38, dur: 120, pose: 4, start(b) { face35(b); lane35(b, 38); synth.sfx("crash"); }, tick(b) { charge35(b, 2.8, 84, 5, "golWall"); } };
+  function pitBossHit35(b, n) {
+    if (b.id === "pitgolem") {
+      if (b.stunT > 0 || (b.move === "golPound" && b.teleT === 0)) return n * 1.8;
+      teach35("golArmor"); return n * 0.6;
+    }
+    return b.stunT > 0 ? n * 1.5 : n;
+  }
+  // ----- drawing -----
+  function drawPr35(pr, x, y, w, h) {
+    const k = pr.k35, cx = x + (w >> 1), cy = y + (h >> 1);
+    if (k === "knife") blitFrame("fx35-knife", "knife0", cx, cy, pr.vx < 0);
+    else if (k === "net") blitFrame("fx35-net", "net" + ((animT >> 3) & 1), cx, cy, pr.vx < 0);
+    else if (k === "rock") blitFrame("fx35-rock", "rock" + ((animT >> 2) & 3), cx, cy, false);
+    else if (k === "cinder") blitFrame("fx35-cinder", "cinder" + ((animT >> 2) & 1), cx, cy, false);
+    else if (k === "vent") blitFrame("fx35-vent", "vent" + Math.min(3, ((36 - pr.life) / 9) | 0), cx, y + h, false);
+    else if (k === "shock") blitFrame("fx35-shock", "shock" + ((animT >> 2) % 3), cx, y + h, pr.vx < 0);
+  }
+  function drawPitActors35() {
+    if (!pit35 || !level) return;
+    if (levelId === "pit35") {
+      const Wd = level.warden, talk = pit35.phase === "choice" || pit35.phase === "freeing" || (speech27 && speech27.who);
+      drawActor("npc35-warden", animFrame("npc35-warden", talk ? "talk" : "idle", animT, talk ? 9 : 16), Wd.x, Wd.y, pcx26() < Wd.x);
+      return;
+    }
+    if (levelId !== "pit35cell") return;
+    const n = pitNear35();
+    for (const p of level.props) {
+      if (p.k === "door") continue;
+      if (p.k === "dresser") { drawActor("prop35-dresser", n === p ? "open0" : "closed0", p.x + p.w / 2, 164, false); continue; }
+      const talk = pit35.talkTo === p.k && speech27, look = talk || n === p;
+      drawActor(p.sheet, animFrame(p.sheet, talk ? "talk" : "idle", animT + p.x * 3, talk ? 8 : 18), p.x, p.y || 164, look ? pcx26() < p.x : p.face < 0);
+    }
+  }
+  function drawSnare35() { if (pit35 && player && player.snare35 > 0 && !player.dead) { player.snare35--; blitFrame("fx35-snare", "snare" + ((animT >> 3) & 1), wx(player.x + player.w / 2), wy(player.y + player.h), false); } }
+  function pitPrompt35(o) { return touchUI() ? o.promptTouch : padUI() ? o.promptPad : o.prompt; }
+  function drawPitUI35() {
+    if (!pit35) return;
+    const P5 = pit35, TT = T35(), t = touchUI();
+    if (levelId === "pit35cell") {
+      if (P5.bub && !speech27) { const p = level.props.find(q => q.k === P5.bub.k); if (p) { const tw = measure(P5.bub.text) + 12, px = Math.max(4, Math.min(W - tw - 4, wx(p.x) - (tw >> 1))), py = wy((p.y || 164) - 44) - 20; panel(px, py, tw, 18, "plate"); drawText(P5.bub.text, px + 6, py + 5, P().order.boneShade); } }
+      const n = pitNear35();
+      if (n && !speech27 && scene === "arena") { const lab = n.k === "dresser" ? TT.cell.dresser : n.k === "door" ? TT.cell.door : TT.cell.talk; const pl = pitPrompt35(lab), half = (measure(pl) + 14) / 2 + 4; drawPrompt(Math.max(cameraX + half / WS, Math.min(cameraX + (W - half) / WS, n.x + (n.w || 0) / 2)), (n.y || 164) - (n.k === "door" ? 46 : 40), pl); if (t) tapTarget(0, 40, W, H - 80, () => input.tap("confirm")); }
+      const nb = Math.floor(P5.cleared / W35().block) + 1;
+      const lab = dgFmt(TT.cell.next, { b: nb, a: P5.wave, z: nb * W35().block }), tw = measure(lab) + 16;
+      panel(((W - tw) / 2) | 0, 4, tw, 20, "plate"); drawText(lab, W / 2, 8, P().order.bone, "center");
+      return;
+    }
+    if (P5.phase === "count" && !speech27) {
+      const s = Math.max(1, Math.ceil(P5.t / 60)), lab = P5.bossNext ? dgFmt(TT.bossNext, { s }) : dgFmt(TT.next, { n: P5.wave, s }), tw = Math.max(120, measure(lab) + 24), x0 = ((W - tw) / 2) | 0;
+      panel(x0, 30, tw, 30, "plate"); drawText(lab, W / 2, 36, s <= 3 ? P().order.illumination : P().order.bone, "center");
+      const pips = W35().countdown / 60;
+      for (let i = 0; i < pips; i++) rect(((W / 2) | 0) - pips * 4 + i * 8 + 1, 50, 6, 3, i < s ? (P5.bossNext ? P().cult.emberLight : P().order.nexus) : P().ground.ash);
+    }
+    if (P5.phase === "wave" || (P5.phase === "count" && !speech27)) {
+      const lab = dgFmt(TT.wave, { n: P5.phase === "wave" ? P5.wave : Math.max(1, P5.wave - 1) }) + "   +" + P5.gained, tw = measure(lab) + 16;
+      if (P5.phase === "wave") { panel(((W - tw) / 2) | 0, 4, tw, 20, "plate"); drawText(lab, W / 2, 8, P().order.bone, "center"); }
+      if (P5.phase === "wave") { const left = P5.queue.length + enemies.filter(e => !e.dead).length; for (let i = 0; i < Math.min(16, left); i++) rect(((W / 2) | 0) - Math.min(16, left) * 3 + i * 6, 26, 4, 2, P().cult.emberLight); }
+    }
+    if (P5.phase === "choice") {
+      const C = TT.choice, pw = 236, px = ((W - pw) / 2) | 0, py = 40;
+      panel(px, py, pw, 76);
+      drawText(dgFmt(TT.bossDown, { a: P5.last.a }), W / 2, py + 8, P().order.nexus, "center");
+      drawText(P5.last.nm, W / 2, py + 20, P().ground.smoke, "center");
+      [C.heal, C.free].forEach((s, i) => { const yy = py + 38 + i * 18; menuText(s, px + 30, yy, P5.sel === i, "left"); if (P5.sel === i) cursor(px + 14, yy + 1); menuRow(px, yy, pw, 18, "pit35c" + i, false, () => { P5.sel = i; }); });
+      wardenBox35(C.line, P5.sel === 0 ? C.healNote : C.freeNote);
+    }
+    if (P5.phase === "dead") {
+      const D = TT.dead, pw = 260, px = ((W - pw) / 2) | 0, py = 50;
+      panel(px, py, pw, 102);
+      drawText(D.title, W / 2, py + 8, P().cult.emberLight, "center");
+      drawWrapped(D.line, px + 12, py + 22, pw - 24, P().order.boneShade);
+      [dgFmt(D.pay, { n: pitCost35() }), D.stay].forEach((s, i) => { const yy = py + 62 + i * 18; menuText(s, px + 30, yy, P5.sel === i, "left"); if (P5.sel === i) cursor(px + 14, yy + 1); menuRow(px, yy, pw, 18, "pit35d" + i, false, () => { P5.sel = i; }); });
+    }
+  }
+  function wardenBox35(line, note) {   // the Warden speaks while a menu is open (no "next" hint: the menu above takes the input)
+    const bw = W - 40, bh = 74, bx = 20, by = H - bh - 8, port = portraitPath("warden");
+    panel(bx, by, bw, bh);
+    if (port) drawPortrait(port, bx + 8, by + 9);
+    const tx = bx + (port ? 72 : 12);
+    drawText(T35().who.warden, tx, by + 8, P().order.illumination);
+    drawWrapped(line, tx, by + 22, bw - (tx - bx) - 10, P().order.bone);
+    if (note) drawText(note, tx, by + bh - 14, P().ground.smoke);
+  }
+  function updatePitEnd35() { pitRes35.t++; if (pitRes35.t > 24 && input.pressed("confirm")) { synth.sfx("menu"); goScene(() => enterHub()); } }
+  function drawPitEnd35() {
+    const r = pitRes35, R = T35().res; uiT++;
+    drawImg(ART().ui.title.path, 0, 0); g.globalAlpha = 0.8; rect(0, 0, W, H, P().ground.void); g.globalAlpha = 1;
+    const th = ART().thumbs.pit35; if (th) { drawImg(ART().ui.thumbFrame.path, ((W - 152) >> 1) - 4, 20); drawImg(th, (W - 152) >> 1, 24); }
+    drawText(r.kind === "free" ? R.freeTitle : r.kind === "left" ? R.leftTitle : R.deadTitle, W / 2, 120, r.kind === "free" ? P().order.illumination : P().cult.emberLight, "center");
+    drawText(dgFmt(R.waves, { n: r.waves }) + "     " + dgFmt(R.best, { n: r.best }) + (r.newBest ? "  (" + R.newBest + ")" : ""), W / 2, 142, P().order.bone, "center");
+    drawText(dgFmt(R.bosses, { n: r.bosses }) + "     " + dgFmt(R.aurels, { n: r.aurels }) + "     " + dgFmt(R.nip, { n: r.nip }), W / 2, 158, P().order.bone, "center");
+    drawText(R.kept, W / 2, 178, P().ground.smoke, "center");
+    drawText(touchUI() ? R.okTouch : padUI() ? R.okPad : R.ok, W / 2, H - 20, P().order.illumination, "center");
+    tapTarget(0, 0, W, H, () => input.tap("confirm"));
+  }
+  // travel row label (records line)
+  function pitRow35() { normV35(); const b = save.pit35.best; return T35().travel + "  " + (b ? dgFmt(T35().best, { n: b }) : T35().none); }
   // ================= v3.0: the Dungeon (Delve mode) =================
   const T30 = () => window.SHARDS.text30, D30 = () => window.SHARDS.dungeon30;
   function dgFmt(str, o) { return fmtT29(str, o); }
@@ -5006,7 +5414,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     }
     // v2 pad layout: A is jump and interact. While an interaction prompt is up (guide,
     // travel pad, altar, boss gate) A interacts instead of jumping.
-    if ((scene === "hub" || scene === "traverse") && input.padJust.jump && contextAction()) {
+    if ((scene === "hub" || scene === "traverse" || (scene === "arena" && pitCell35())) && input.padJust.jump && contextAction()) {
       delete input.padJust.jump;
     }
     if ((scene === "hub" || scene === "traverse" || (scene === "arena" && introHold === 0)) && input.pressed("inv") && !(player && player.dead)) { openInventory("play"); input.clearJust(); return; }
@@ -5030,6 +5438,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "endgame32") updateEndgame32();
     else if (scene === "dye33") updateDye33();
     else if (scene === "rush32end") updateRushEnd32();
+    else if (scene === "pit35end") updatePitEnd35();
     else if (scene === "settings") updateSettings();
     else if (scene === "hub") {
       if (input.pressed("cancel")) { pauseIx = 0; pausePage = "main"; scene = "pause"; }
@@ -5399,6 +5808,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         if (pr.life < 20) g.globalAlpha = Math.max(0.2, pr.life / 20);
         if (pr.az32 === "comet") { g.save(); g.translate(cx, cy); g.rotate(Math.atan2(pr.vy, pr.vx)); blitFrame("az32-proj", fr, -8, 0, false); g.restore(); } else blitFrame("az32-proj", fr, cx, cy, false);
         g.globalAlpha = 1; continue; }
+      if (pr.k35) { drawPr35(pr, x, y, w, h); continue; }
       if (pr.s26) { const S6 = pr.s26; blitFrame(S6.sh, S6.fr + ((animT >> 2) % S6.n), x + (w >> 1), y + (h >> 1), pr.vx < 0); continue; }
       if (pr.k26 === "flame") { const fh = ((animT >> 1) & 1); rect(x, y + 2, w, h - 2, P().cult.crimson); rect(x + 2, y, w - 4, h, P().cult.emberLight); rect(x + 4, y + 3 - fh, w - 8, h - 4, P().order.illumination); continue; }
       if (pr.k26 === "beam") { for (let i = 0; i < w; i += 2) rect(x + i, y + ((i + animT) & 3), 2, h - 3, i % 4 ? pr.color : P().order.light); rect(x, y, w, 2, P().order.light); rect(x, y + h - 2, w, 2, P().order.light); continue; }
@@ -5669,7 +6079,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const t = touchUI(), rows = travelRows(), U = T25().ui;
     if (t) panel(6, 4, W - 12, H - 8); else panel(16, 14, W - 32, H - 28);
     drawText(T().hub.travelHeading, t ? W / 2 : 150, t ? 10 : 24, P().order.illumination, "center");
-    const pitch = t ? Math.min(36, Math.floor((H - 30) / rows.length)) : (rows.length > 8 ? 19 : 24);
+    const pitch = t ? Math.min(36, Math.floor((H - 30) / rows.length)) : Math.min(rows.length > 8 ? 19 : 24, Math.floor((H - 70) / rows.length));
     let y = t ? 30 : 44;
     const listW = t ? W - 24 : 270;
     const nUn = S25().filter(q => q.kind === "bonus" && stageUnlocked(q)).length;
@@ -5689,6 +6099,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         blitFrame("ui-frag16", "claw-dim", 30, ty - 3, false);
       } else if (r.k === "bonusmenu") label = U.bonusRow.replace("{n}", nUn);
       else if (r.k === "endgame") { label = T32().rush.name + " / " + T32().rush.hard + (save.endSeen32 ? " / " + T32().ngp.offer : "") + (endgame32() ? "" : "  " + T32().ngp.lockTag); blitFrame("ui-frag16", "heart", 30, ty - 3, false); }
+      else if (r.k === "pit35") { label = pitRow35(); blitFrame("ui-frag16", "claw-dim", 30, ty - 3, false); }
       else label = T().hub.travelBack;
       if (sel) c = P().order.illumination;
       drawText(label, 52, ty, c);
@@ -5698,7 +6109,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     });
     if (!t) {
       const r = rows[Math.min(travelIx, rows.length - 1)];
-      const id = r.k === "zone" ? r.z.id : r.k === "stage" ? r.s.id : null;
+      const id = r.k === "zone" ? r.z.id : r.k === "stage" ? r.s.id : r.k === "pit35" ? "pit35" : null;
       const px = 300, py = 46;
       if (id) {
         const th = ART().thumbs[id];
@@ -5784,6 +6195,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (scene === "hub") { const n = hubNear(); return n.guide || n.travel || n.altar || n.merchant || n.dungeon; }
     if (scene === "traverse" && dg && level.dungeon) return dgNpcNear() || dgExitNear();
     if (scene === "traverse") return level.tiled ? !!nearInteract() : !!(level.bossGate && aabb(player, level.bossGate));
+    if (scene === "arena" && pitCell35()) return !!pitNear35();
     return false;
   }
   function toGame(t) {
@@ -6253,12 +6665,13 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (tl) drawWorldItems();
     drawPickups();
     if (scene === "hub" || (scene === "pause" && level.kind === "hub") || scene === "travel" || scene === "leader") { drawMerchant(); drawHubNPCs(); drawGuide(); }
+    drawPitActors35();
     drawEnemies(); drawCoins();
     drawArenaBack26();
     if (scene === "arena" || (scene === "pause" && level.kind === "arena")) drawBoss();
     drawStuck33();
     drawArenaFront26();
-    if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); drawCos34(); }
+    if (player) { if (level.plains28 && scene === "traverse" && inShadow26()) drawPlayerTint28(); else drawPlayer(); drawCos34(); drawSnare35(); }
     drawHook27(); drawMoth33();
     drawShadows26(); drawAlly26();
     drawProjectiles(); drawArenaLava26();
@@ -6278,6 +6691,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     drawTip27();
     if (save.secret && save.secret.glass && scene === "hub") blitFrame("fx26-moonglass", "moonglass" + ((animT >> 3) % 4), W - 14, 92, false);
     if (boss && (scene === "arena" || scene === "pause")) drawBossBar();
+    if (scene === "arena") drawPitUI35();
     if (scene === "hub" || (scene === "pause" && level.kind === "hub")) drawHubUI();
     if (scene === "travel") drawTravel();
     if (scene === "traverse" && tl) {
@@ -6309,7 +6723,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       tapTarget(0, 0, W, H, () => input.tap("confirm"));
       const intro = introPages[Math.min(introPage, introPages.length - 1)] || "";
       const last = introPage >= introPages.length - 1;
-      drawDialogue(last ? intro + "\n" + T().bossReason[path] : intro, null, last ? T().pad.skip : T().pad.next);
+      drawDialogue(last ? intro + (pit35 ? "" : "\n" + T().bossReason[path]) : intro, null, last ? T().pad.skip : T().pad.next);
     }
     if (speech27) { drawDialogue(speech27.text, speech27.who || null, T().pad.next); tapTarget(0, 0, W, H, () => input.tap("confirm")); }
     if (scene === "pause") drawPause();
@@ -6353,6 +6767,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     else if (scene === "endgame32") drawEndgame32();
     else if (scene === "dye33") drawDye33();
     else if (scene === "rush32end") drawRushEnd32();
+    else if (scene === "pit35end") drawPitEnd35();
     else if (scene === "settings") drawSettings();
     else if (scene === "claim") drawClaim();
     else if (scene === "stageclear") { drawWorld(); drawStageClear(); }
@@ -6425,7 +6840,20 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       noClip32 = false; return { worst, sum, frames: n };
     },
     eg32() { return { endgame: endgame32(), rush: rush32 && { i: rush32.i, n: rush32.list.length, t: rush32.t }, hard: hard32, dyes: Object.keys(save.dyes32 || {}), dye: save.dye32 || null, rushSave: save.rush32 || null, ngp: save.ngp | 0, endSeen: !!save.endSeen32, res: rushRes32 }; },
-    startRush32() { startRush32(); }, hardStart32(z) { hardStart32(z); }, killBoss32() { this.killBoss(); }, beginNGP32() { beginNGP32(); }, setEndSeen32() { save.endSeen32 = true; save.endCycle33 = save.ngp | 0; persist(); }, ngpReady33() { return ngpReady33(); }, ngpRaw33(o) { Object.assign(save, o); },
+    startRush32() { startRush32(); },
+    pit35() { return pit35 ? { phase: pit35.phase, wave: pit35.wave, cleared: pit35.cleared, bosses: pit35.bosses, gained: pit35.gained, nip: pit35.nip, respawn: pit35.respawn, queue: pit35.queue.length, mix: pit35.mix || [], bossK: pit35.bossK | 0, alive: enemies.filter(e => !e.dead).length, types: enemies.map(e => e.type), t: pit35.t, bossNext: pit35.bossNext, sel: pit35.sel, levelId, scene, boss: boss ? { id: boss.id, hp: boss.hp, maxHp: boss.maxHp, tier: boss.tier35 | 0, move: boss.move, phase: boss.phase } : null, hp: player ? player.hp : null, maxHp: player ? player.maxHp : null, near: (pitNear35() || {}).k || null, canEquip, rec: save.pit35, marks: teleMarks.length, aurels: V().aurels, nipNow: V().nip, flask: V().flask, flaskCap: flaskCap(), speech: speech27 ? speech27.text : null, music: musicTrack } : { phase: null, scene, rec: save.pit35, res: pitRes35, aurels: V().aurels, nipNow: V().nip, music: musicTrack }; },
+    pitSetHp(n) { if (player) player.hp = n; }, pitProj() { const o = {}; for (const q of projectiles) if (q.k35) o[q.k35] = (o[q.k35] | 0) + 1; return o; }, pitHitBoss(n) { if (boss) { boss.inv = 0; const h = boss.hp; damageBoss(n); return h - boss.hp; } return 0; }, pitPlayer() { return player ? { x: player.x, y: player.y, w: player.w, h: player.h, slowT: player.slowT | 0, facing: player.facing } : null; }, pitPlace(x, f) { if (player) { player.x = x; player.y = 164 - player.h; player.vx = 0; player.vy = 0; if (f) player.facing = f; } }, pitEnemies() { return enemies.map(e => ({ type: e.type, x: e.x, y: e.y, w: e.w, hp: e.hp, facing: e.facing, dead: e.dead, sm: e.sm | 0, elite: e.elite, lv: e.pit35 })); }, pitFreeze(i) { const e = enemies[i]; if (e) { e.stun = 0; e.cd = 9999; e.sm = 0; e.inv = 0; e.open35 = 0; } },
+    pitStart() { startPit35(); }, pitSkipSay() { if (pit35) pit35.say = []; speech27 = null; },
+    pitWave(n) { if (!pit35) return; pit35.wave = n; pit35.cleared = n - 1; pit35.bossNext = false; enemies = []; projectiles = []; pit35.queue = []; pit35.phase = "count"; pit35.t = 1; speech27 = null; pit35.say = []; },
+    pitCount(t) { if (pit35) pit35.t = t; },
+    pitKillAll() { for (const e of enemies) if (!e.dead) { e.hp = 0; e.dead = true; e.anim = "death"; e.animT = 99; } if (pit35) pit35.queue = []; },
+    pitBoss(k) { if (!pit35) return; pit35.bosses = k | 0; pit35.wave = (k + 1) * 10 + 1; pit35.cleared = (k + 1) * 10; enemies = []; pit35.queue = []; pit35.say = []; speech27 = null; pitSpawnBoss35(); introHold = 0; },
+    pitBossMove(m) { if (boss) { boss.cd = 999; startMove(boss, m); } },
+    pitKillBoss() { if (boss && !boss.dead) { boss.inv = 0; boss.hp = 0.0001; boss.stunT = 0; boss.move = null; damageBoss(1); boss.deathT = 1; } },
+    pitChoose(i) { if (pit35) { pit35.sel = i; pit35.t = 99; input.tap("confirm"); } },
+    pitDie() { if (player) { player.hp = 0; player.dead = true; player.anim = "death"; player.animT = 0; player.deathT = 1; } },
+    pitGo(k) { if (!pitCell35()) return; const p = level.props.find(q => q.k === k); if (p) { player.x = p.x + (p.w || 0) / 2 - player.w / 2; player.y = 164 - player.h; player.vx = 0; } },
+    pitGain(a) { if (pit35) pitGain35(a); }, pitNearBoss() { if (boss && player) { player.x = boss.x + boss.w / 2 + (pcx26() < bcx26(boss) ? -40 : 34); player.y = 164 - player.h; player.vx = 0; } }, hardStart32(z) { hardStart32(z); }, killBoss32() { this.killBoss(); }, beginNGP32() { beginNGP32(); }, setEndSeen32() { save.endSeen32 = true; save.endCycle33 = save.ngp | 0; persist(); }, ngpReady33() { return ngpReady33(); }, ngpRaw33(o) { Object.assign(save, o); },
     remix32(id, ng) { const L = window.SHARDS.levels[id]; remixSeals32(L, id, ng); return L.items.map(it => ({ id: it.id, type: it.type, x: it.x, y: it.y })); },
     azMove32(m) { if (boss) { boss.cd = 9999; boss.move = null; startMove(boss, m); } }, azProj32() { return projectiles.filter(p => p.az32).map(p => ({ k: p.az32, x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life, home: p.home32 | 0 })); }, sparks32() { return sparks32.length; }, bossInfo32() { return boss ? { x: boss.x, y: boss.y, visible: boss.visible, move: boss.move, phase: boss.phase, cd: boss.cd } : null; },
     dgSetup33() { return dgSetupS ? { ix: dgSetupS.ix, mode: dgSetupS.mode, mods: dgSetupS.mods.slice(), rows: dgSetupRows(), desc: window.__dgDesc33 || '' } : null; },
@@ -6944,7 +7372,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const n = rg[0] + Math.floor((r2 == null ? Math.random() : r2) * (rg[1] - rg[0] + 1));
     return Math.max(0, Math.min(have, n));
   }
-  function applyDeathLoss() { if (dg) return; const v = V(), n = rollAurelLoss(v.aurels); v.aurels -= n; deathLoss = n; lossMsg = n; persist(); }
+  function applyDeathLoss() { if (dg || pit35) return; const v = V(), n = rollAurelLoss(v.aurels); v.aurels -= n; deathLoss = n; lossMsg = n; persist(); }
   // ----- confirm modal -----
   function openConfirm(title, body, yes, no) { confirmBox = { title, body, yes, no, ix: 1 }; synth.sfx("confirmOpen"); }
   function updateConfirm() {
@@ -7272,7 +7700,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (input.pressed("down")) { invIx = (invIx + 1) % n; synth.sfx("menuMove"); }
       if (input.pressed("confirm")) equipFromInv();
     } else if (invTab === 1) {
-      if (input.pressed("confirm")) { charmFrom = "inventory"; canEquip = level.kind === "hub"; charmIx = 0; popup = null; scene = "charms"; }
+      if (input.pressed("confirm")) { charmFrom = "inventory"; canEquip = level.kind === "hub" || pitCell35(); charmIx = 0; popup = null; scene = "charms"; }
     } else {
       const n = loreList().length;
       if (input.pressed("up")) loreScroll = Math.max(0, loreScroll - 1);
@@ -7870,7 +8298,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       synth.sfx("menu");
       if (pauseIx === 0) back();
       else if (pauseIx === 1) openInventory("pause");
-      else if (pauseIx === 2) { charmFrom = "pause"; canEquip = level.kind === "hub"; charmIx = 0; popup = null; scene = "charms"; }
+      else if (pauseIx === 2) { charmFrom = "pause"; canEquip = level.kind === "hub" || pitCell35(); charmIx = 0; popup = null; scene = "charms"; }
       else if (pauseIx === 3) { mapOpen33(); scene = "map"; }
       else if (pauseIx === 4) { pausePage = "fragments"; fragScroll = 0; }
       else if (pauseIx === 5) toggleFullscreen();

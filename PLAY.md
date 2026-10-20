@@ -307,3 +307,22 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
 - **Round 9:** the hub Player statue is now a stone-grey copy of your own sprite on a plinth, in front of the travel gate; the stone golem companion was redrawn (mossy shoulders, glowing eyes and chest rune, walking legs and arms).
 - **Round 10:** stone golem is taller (22 px instead of 14) and stands on the floor (its foot offset was in the wrong units, which left it hovering); snake foot offset corrected too.
 - **Round 11:** the Player statue now stands on the first step, between the Delve portal and the guide (Ryan or Jeriah), in both hubs; the Order monk who stood there moved over to make room.
+
+## v3.2.5: the Arena
+- **Entry:** pick "The Arena" on the travel screen (above "Stay"). It shows your best wave.
+- **Waves:** clear a wave, then get 8 seconds to breathe. HP does not refill between waves. Every 10th wave is followed by a beast.
+- **After each beast, the Warden asks:**
+  - **Heal:** full HP and flasks, then the cell. Open the dresser to change charms, talk to the prisoners, and use the door to fight on.
+  - **Freedom:** walk out with everything.
+- **Death:** once per run you may pay half the aurels earned in that run to get back up. The run is endless; you choose when to stop.
+- **Foes:**
+  - Waves 1-10: Plains brawler, Ashen wolves (always in pairs), Saffrika cutthroat (knives), Pirate netter (nets slow you), Dwarven shieldbearer (hit him from behind).
+  - From wave 11: chained pirates, Saffrikan bowmen, cast-out monks, turned Vesperans, hooded griffins and pirate captains in irons.
+- **Beasts:**
+  - Cinder Bear: bait it into a wall to stun it.
+  - Hollow Stag: don't stand close while it is still.
+  - Pit Golem: armoured; hit it after a ground pound or while it is stunned.
+- **Pay:**
+  - Waves: 15 aurels for wave 1, rising by 3 a wave up to 120.
+  - Beasts: 150 × the beast's number, up to 900, plus half a NIP each.
+

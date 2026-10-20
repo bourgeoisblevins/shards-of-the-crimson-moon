@@ -323,6 +323,8 @@
   // ======================================================================
   const DEEP_A = "r:8 Gb4:4 F4:4 | Ab4:8 Gb4:4 F4:4 | Eb4:12 D4:4 | Db4:16 | r:4 C5:4 Db5:4 C5:4 | Ab4:8 F4:8 | Gb4:4 F4:4 Db4:4 Bb3:4 | C4:16";
   const DEEP_B = "Eb5:6 C5:2 Ab4:8 | Bb4:4 Db5:4 C5:8 | Gb5:8 Eb5:8 | C5:16 | Ab5:6 G5:2 F5:8 | Gb5:4 F5:4 Db5:8 | Eb5:4 Db5:4 C5:4 B4:4 | C5:16";
+  const PIT_A = "E5:4 B4:4 E5:4 G5:4 | Fs5:8 Ds5:4 B4:4 | C5:4 E5:4 G5:4 C6:4 | B5:8 Ds5:8 | E5:2 Fs5:2 G5:4 B5:4 E6:4 | C6:4 B5:4 G5:8 | A5:4 C6:4 B5:4 Ds6:4 | E6:8 B5:8";
+  const PIT_B = "C6:4 G5:4 E5:8 | D6:4 A5:4 Fs5:8 | Ds6:4 B5:4 Fs5:8 | E6:8 G6:8 | A5:4 C6:4 E6:8 | G6:4 E6:4 C6:8 | B5:4 A5:4 G5:4 Fs5:4 | Ds5:8 B4:8";
   const BOSS_A = "G5:2 G5:2 D5:2 G5:2 Bb5:4 A5:4 | G5:2 G5:2 Eb5:2 G5:2 Bb5:4 C6:4 | D6:4 C6:2 Bb5:2 A5:4 G5:4 | Fs5:8 A5:4 D6:4 | G6:4 F6:2 D6:2 Bb5:4 G5:4 | Eb6:4 D6:2 C6:2 Bb5:4 G5:4 | C6:4 Eb6:4 D6:4 C6:2 A5:2 | Fs5:4 G5:2 A5:2 Bb5:2 C6:2 D6:4";
   const BOSS_B = "Bb4:4 Eb5:4 G5:6 F5:2 | A5:4 C6:4 F5:8 | Fs5:4 A5:4 D6:6 C6:2 | Bb5:8 G5:8 | C6:4 Eb6:4 G6:6 F6:2 | Eb6:4 D6:4 Bb5:4 G5:4 | A5:4 D6:4 Fs5:4 A5:4 | D6:2 C6:2 Bb5:2 A5:2 G5:2 Fs5:2 Eb5:2 D5:2";
   const BOSS_C = "C5:8 Eb5:8 | D5:12 r:4 | Fs5:8 A5:8 | D6:16 | Eb6:8 D6:4 C6:4 | Bb5:8 G5:8 | A5:4 Fs5:4 D5:4 A5:4 | D6:16";
@@ -721,6 +723,79 @@
       order: ["A", "B"]
     },
 
+    // v3.2.5 the Arena: "The Choice" (waves), "The Warden's Beast" (arena bosses), "Cell Block" (the cells). A minor / E minor / D Dorian.
+    pit35: {
+      gain: 1.1,
+      title: "The Choice", mode: "A minor", bpm: 120, spb: 4,
+      inst: {
+        lead: I(LEAD25, { vol: 0.11, gate: 0.85, vib: { depth: 10, rate: 5.5, delay: 0.15 } }),
+        harm: I(PAD, { wave: "p25", a: 0.03, vol: 0.035 }),
+        bass: I(BASS, { gate: 0.7, vol: 0.2 }),
+        drums: I(KIT, { vol: 0.5 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "Am Am F G Am Am Dm E",
+          lead: "A4:4 C5:4 E5:4 A5:4 | G5:6 E5:2 D5:8 | C5:4 D5:4 E5:4 F5:4 | D5:8 B4:8 | A4:4 E5:4 A5:4 B5:4 | C6:8 B5:4 A5:4 | F5:4 E5:4 D5:4 F5:4 | E5:12 Gs5:4",
+          harm: gen("2---------------", 4), bass: gen("0..0..0.0..0.3.2", 2),
+          drums: "k..hs.k.k.h.s.hh"
+        },
+        B: {
+          bars: 8, chords: "F G Am Am F G E E",
+          lead: "F5:4 A5:4 C6:8 | B5:4 G5:4 D5:8 | E5:4 A5:4 C6:4 E6:4 | D6:8 C6:4 B5:4 | A5:4 F5:4 C5:8 | D5:4 G5:4 B5:8 | Gs5:8 B5:8 | E6:16",
+          harm: gen("2---------------", 4), bass: gen("0..0..0.0..0.3.2", 2),
+          drums: "k..hs.k.k.hks.hS"
+        }
+      },
+      order: ["A", "B"]
+    },
+    pit35boss: {
+      gain: 1.1,
+      title: "The Warden's Beast", mode: "E harmonic minor", bpm: 156, spb: 4,
+      phase2: { bpm: 168 },
+      inst: {
+        lead: I(LEAD25, { vol: 0.12, gate: 0.85, vib: { depth: 14, rate: 6.5, delay: 0.12 } }),
+        harm: I(PAD, { wave: "p25", a: 0.02, vol: 0.04 }),
+        bass: I(BASS, { gate: 0.75, vol: 0.21 }),
+        drums: I(KIT, { vol: 0.47 }),
+        arp_p2: I(ARP, { vol: 0.035, gate: 0.6 }),
+        low_p2: I(LEAD50, { vol: 0.055, vib: null, gate: 0.8 }),
+        hat_p2: I(KIT, { vol: 0.3 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "Em C Am B Em C Am:8 B:8 B",
+          lead: PIT_A, harm: gen("2---------------", 4), bass: gen("0.000.300.000.32", 2),
+          drums: "k.h.s.hkk.h.s.hh", arp_p2: gen("0123012301230123", 5), low_p2: trans(PIT_A, -12), hat_p2: "hhHhhhHhhhHhhhHh"
+        },
+        B: {
+          bars: 8, chords: "C D B Em Am C B B",
+          lead: PIT_B, harm: gen("2---------------", 4), bass: gen("0.0.0.300.0.0.32", 2),
+          drums: "k.h.s.hkk.hks.hS", arp_p2: gen("0123210301232103", 5), low_p2: trans(PIT_B, -12), hat_p2: "hhHhhhHhhhHhhhHh"
+        }
+      },
+      order: ["A", "B"]
+    },
+    pit35cell: {
+      gain: 1.15,
+      title: "Cell Block", mode: "D Dorian", bpm: 66, spb: 4,
+      echo: { beats: 1, fb: 0.45, mix: 0.4, lp: 3200 },
+      inst: {
+        lead: I(BELL, { vol: 0.11, echo: 0.7, partial: { ratio: 3, wave: "tri", vol: 0.6, d: 0.8 } }),
+        harm: I(PAD, { wave: "p50", vol: 0.03, a: 0.8, r: 1.2 }),
+        bass: I(BASS, { vol: 0.1, a: 0.2, r: 0.8 }), drums: I(KIT, { vol: 0.4 })
+      },
+      sections: {
+        A: {
+          bars: 8, chords: "Dm7 Dm7 G G Am7 Am7 Dm7 Dm7",
+          lead: "A5:8 F5:8 | D5:16 | B5:4 A5:4 G5:8 | r:16 | E5:4 G5:4 A5:8 | C6:8 A5:8 | F5:6 E5:2 D5:8 | r:16",
+          harm: gen("1---------------", 4), bass: gen("0---------------", 2),
+          drums: hits(64, { 0: "w", 32: "i" })
+        }
+      },
+      order: ["A"]
+    },
+
     boss: {
       gain: 1.1,
       title: "Wrath of the Shardbearer", mode: "G harmonic minor", bpm: 150, spb: 4,
@@ -986,6 +1061,7 @@
     swim(A, o, t) { noise(A, o, t, { dur: 0.14, vol: 0.12, type: "bandpass", fq: 500, fq2: 1100, Q: 1.2, a: 0.01 }); tone(A, o, t, { wave: "sine", f: 200, f2: 340, dur: 0.1, vol: 0.1 }); },
     griffinCry(A, o, t) { tone(A, o, t, { wave: "sq", f: 1300, f2: 780, dur: 0.22, vol: 0.12 }); tone(A, o, t + 0.05, { wave: "saw", f: 900, f2: 520, dur: 0.2, vol: 0.08 }); noise(A, o, t, { dur: 0.1, vol: 0.1, type: "highpass", fq: 3000, fq2: 5000, Q: 1, a: 0.01 }); },
     griffinDive(A, o, t) { noise(A, o, t, { dur: 0.3, vol: 0.22, type: "bandpass", fq: 3200, fq2: 700, Q: 1.2, a: 0.01 }); tone(A, o, t, { wave: "saw", f: 700, f2: 160, dur: 0.28, vol: 0.14 }); },
+    crowd35(A, o, t) { noise(A, o, t, { dur: 1.1, vol: 0.07, type: "bandpass", fq: 1300, fq2: 900, Q: 0.7, a: 0.25 }); noise(A, o, t + 0.15, { dur: 0.9, vol: 0.05, type: "bandpass", fq: 2200, fq2: 1500, Q: 0.9, a: 0.2 }); },
     thud(A, o, t) { tone(A, o, t, { wave: "sine", f: 120, f2: 45, dur: 0.18, vol: 0.4 }); noise(A, o, t, { dur: 0.1, vol: 0.18, type: "lowpass", fq: 700, fq2: 300, Q: 1, a: 0.002 }); },
     stageClear(A, o, t) { [523, 659, 784, 1047].forEach((f, i) => tone(A, o, t + i * 0.12, { wave: "tri", f: f, dur: 0.22, vol: 0.2 })); tone(A, o, t + 0.5, { wave: "p25", f: 1568, dur: 0.5, vol: 0.12 }); },
     // ---- v2.4 ----
