@@ -23,7 +23,7 @@ window.SHARDS = window.SHARDS || {};
     },
     teach: { bearWall: "It hit the wall. Strike while it is dazed.", stagStill: "Still as wood. Do not walk into its crown.", golArmor: "The stone turns blades. Strike the core when it opens.", golCore: "The core is open." },
     bossDown: "+{a} aurels",
-    nip: "+1 NIP (every second arena beast)", nipHalf: "Half a NIP banked",
+    nip: "+1 NIP",
     choice: {
       line: "The beast is down and the crowd wants more. Rest in a cell and fight on, or ask me for your freedom. I keep my word.",
       heal: "Be healed, fight on", free: "Request my freedom",

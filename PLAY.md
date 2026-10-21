@@ -326,3 +326,10 @@ The Capital is one long stealth stage: the open plains (fields, farms, a stream,
   - Waves: 15 aurels for wave 1, rising by 3 a wave up to 120.
   - Beasts: 150 × the beast's number, up to 900, plus half a NIP each.
 
+
+## v3.2.6: Arena fixes
+- **Floor:** arena kills drop no coins; you are paid per wave and per beast. Arrow bundles still drop when your quiver is short. At most 3 lie on the floor, they fade after 6 s, and leftovers go into your quiver when the wave ends.
+- **Touch:** only the action button (or a tap on the prompt itself) talks or opens the dresser, so walking with the joystick never starts a dialogue.
+- **Pay:**
+  - Waves: 10 aurels for wave 1, rising by 2 a wave up to 80.
+  - Beasts: 100 × the beast's number, up to 600, plus 1 NIP each.

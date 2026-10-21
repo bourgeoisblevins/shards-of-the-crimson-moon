@@ -3,7 +3,7 @@
 // (see CANON_SUMMARY.md); the forms and look come from the archive (blevins, shattering-of-the-blevins, crimson-moon and the six fragment entries).
 (function () {
   var S = window.SHARDS;
-  S.VERSION = "v3.2.5";   // single source for the title screen (the build bumps this constant)
+  S.VERSION = "v3.2.6";   // single source for the title screen (the build bumps this constant)
   S.w26 = {
     hpMul: { jeriah: 1.25, azmardus: 1.2, nezradeem: 1.25, orchalsius: 1.2, silent: 1.2, gladius: 1.15 },
     blevins: { hp: 78, forms: [1, 0.74, 0.5, 0.26], size: { 1: [22, 52], 2: [62, 40], 3: [34, 50], 4: [46, 62] }, speed: { 1: 0.6, 2: 0.55, 3: 0.85, 4: 0.5 } },

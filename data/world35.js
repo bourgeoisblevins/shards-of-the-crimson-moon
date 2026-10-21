@@ -55,9 +55,10 @@ window.SHARDS = window.SHARDS || {};
   S.pit35 = {
     countdown: 480,            // 8 s between waves (60 fps)
     block: 10,                 // a boss after every 10 waves
-    waveAurels: [12, 3, 120],  // wave n pays min(120, 12 + 3n) aurels (flat 120 from wave 36 on)
-    blockBonus: [150, 900],    // the k-th boss pays min(900, 150 * k) aurels (flat 900 from the 6th boss on)
-    nipHalf: 1,                // each arena boss is worth half a NIP (one NIP per two bosses, counted across runs)
+    waveAurels: [8, 2, 80],    // v3.2.6: wave n pays min(80, 8 + 2n) aurels (flat 80 from wave 36 on); was min(120, 12 + 3n)
+    blockBonus: [100, 600],    // v3.2.6: the k-th boss pays min(600, 100 * k) aurels (flat 600 from the 6th boss on); was min(900, 150k)
+    nip: 1,                    // v3.2.6: each arena boss gives a full NIP, the same as a story boss (was half)
+    loot: { arrowsMax: 3, arrowLife: 360, bodyT: 40 },   // v3.2.6: no coin drops; <= 3 arrow bundles on the floor, each fades after 6 s; bodies removed 40 frames after death
     respawnShare: 0.5,         // the Warden buys you back once per run for half of the aurels earned in it
     bosses: ["cinderbear", "hollowstag", "pitgolem"],
     boss: { hpTier: 0.35, rest: 0.85, dmgCap: 3 },   // tier t = every full rotation of three: +35% HP per tier, 15% shorter rests (floor 30 frames), +1 damage per tier up to +3

@@ -4054,7 +4054,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
   function updateArena() {
     if (pit35 && pitTick35()) { updateParticles(); updateCamera(); return; }
-    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); if (enemies.length) updateEnemies(pit35 ? null : nezMinion29); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); updateEfx();
+    updatePlayer(); playerStrikeHit(); updateBoss(); updateBossDeath(); if (enemies.length) updateEnemies(pit35 ? null : nezMinion29); updateProjectiles(); updateParticles(); updatePickups(); updateAmbient(); updateCamera(); if (coins.length) updateCoins(); updateEfx();   // v3.2.6: arena drops age, fade and can be picked up (they were never updated here)
     if (boss && !boss.dead) tickStatus(boss, true);
     for (const m of teleMarks) m.life--;
     teleMarks = teleMarks.filter(m => m.life > 0);
@@ -4123,10 +4123,24 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     enemies.push(e); fxAdd("puff", gx, 160, {}); synth.sfx("door");
     if (type === "ashen_wolf" && !pit35.howled) { pit35.howled = 1; synth.sfx("wolfHowl"); }
   }
+  // v3.2.6 arena loot: kills drop no coins. An arrow bundle drops only while your quiver (plus the bundles already
+  // lying there) is short, at most W.loot.arrowsMax bundles lie on the floor, each fades after W.loot.arrowLife frames,
+  // and any left at the end of a wave go straight into the quiver.
+  function pitLoot36(cx, cy) {
+    const L = W35().loot, v = V(), lying = coins.filter(c => c.kind === "arrow"), owed = lying.reduce((a, c) => a + c.n, 0);
+    if (lying.length >= L.arrowsMax || v.arrows + owed >= v.arrowMax) return;
+    const a = rollArrows(); if (!a) return;
+    spawnCoin(cx, cy, 0, false, "arrow", a); coins[coins.length - 1].life = L.arrowLife;
+  }
+  function pitSweep36() {
+    const v = V(); let got = 0;
+    for (const c of coins) if (c.kind === "arrow") { const n = Math.min(c.n, v.arrowMax - v.arrows); v.arrows += n; got += n; }
+    coins = []; efx = []; if (got) { arrowPing = 24; synth.sfx("arrowGet"); }
+  }
   function pitWaveDone35() {
     const P5 = pit35, W = W35(), n = P5.wave, a = W.waveGold(n);
     pitGain35(a); P5.cleared = n; P5.wave++; P5.howled = 0;
-    enemies = []; projectiles = projectiles.filter(p => !p.harm);
+    enemies = []; projectiles = projectiles.filter(p => !p.harm); pitSweep36();
     if (n > save.pit35.best) save.pit35.best = n;
     persist(); toast(dgFmt(T35().cleared, { n, a })); synth.sfx("coin"); synth.sfx("crowd35");
     P5.bossNext = n % W.block === 0; P5.phase = "count"; P5.t = W.countdown;
@@ -4149,8 +4163,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const P5 = pit35, W = W35(), R = save.pit35;
     P5.bosses++; R.bosses++;
     const a = W.bossGold(P5.bossK || P5.bosses); pitGain35(a);
-    R.half = (R.half | 0) + W.nipHalf; let nm = T35().nipHalf;
-    if (R.half >= 2) { R.half -= 2; V().nip += 1; V().nipTotal += 1; P5.nip++; nm = T35().nip; }
+    V().nip += W.nip; V().nipTotal += W.nip; P5.nip += W.nip; const nm = T35().nip;   // v3.2.6: a full NIP per arena beast (save.pit35.half is kept, unused)
     persist(); boss = null; A26 = null; projectiles = []; teleMarks = []; enemies = [];
     P5.last = { a, nm }; P5.phase = "choice"; P5.sel = 0; P5.t = 0;
     synth.sfx("crowd35"); setMusic("pit35");
@@ -4206,6 +4219,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (P5.t <= 0) { if (P5.bossNext) pitSpawnBoss35(); else pitStartWave35(); }
       return false;
     }
+    if (enemies.length && enemies.some(e => e.dead && e.animT > W.loot.bodyT)) enemies = enemies.filter(e => !(e.dead && e.animT > W.loot.bodyT));   // bodies leave once the death pose has played
     if (P5.phase === "wave") {
       P5.spawnT--;
       const alive = enemies.filter(e => !e.dead).length;
@@ -4406,7 +4420,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     if (levelId === "pit35cell") {
       if (P5.bub && !speech27) { const p = level.props.find(q => q.k === P5.bub.k); if (p) { const tw = measure(P5.bub.text) + 12, px = Math.max(4, Math.min(W - tw - 4, wx(p.x) - (tw >> 1))), py = wy((p.y || 164) - 44) - 20; panel(px, py, tw, 18, "plate"); drawText(P5.bub.text, px + 6, py + 5, P().order.boneShade); } }
       const n = pitNear35();
-      if (n && !speech27 && scene === "arena") { const lab = n.k === "dresser" ? TT.cell.dresser : n.k === "door" ? TT.cell.door : TT.cell.talk; const pl = pitPrompt35(lab), half = (measure(pl) + 14) / 2 + 4; drawPrompt(Math.max(cameraX + half / WS, Math.min(cameraX + (W - half) / WS, n.x + (n.w || 0) / 2)), (n.y || 164) - (n.k === "door" ? 46 : 40), pl); if (t) tapTarget(0, 40, W, H - 80, () => input.tap("confirm")); }
+      if (n && !speech27 && scene === "arena") { const lab = n.k === "dresser" ? TT.cell.dresser : n.k === "door" ? TT.cell.door : TT.cell.talk; const pl = pitPrompt35(lab), half = (measure(pl) + 14) / 2 + 4; const pr = drawPrompt(Math.max(cameraX + half / WS, Math.min(cameraX + (W - half) / WS, n.x + (n.w || 0) / 2)), (n.y || 164) - (n.k === "door" ? 46 : 40), pl); if (t && pr) tapTarget(pr.x - 4, pr.y - 4, pr.w + 8, pr.h + 8, () => input.tap("confirm"), true); }
       const nb = Math.floor(P5.cleared / W35().block) + 1;
       const lab = dgFmt(TT.cell.next, { b: nb, a: P5.wave, z: nb * W35().block }), tw = measure(lab) + 16;
       panel(((W - tw) / 2) | 0, 4, tw, 20, "plate"); drawText(lab, W / 2, 8, P().order.bone, "center");
@@ -5891,9 +5905,10 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const tw = measure(label) + 14, th = glyph ? 22 : 20;
     const px = wx(worldXPos) - (tw / 2 | 0);
     const py = wy(worldYPos) - th - 4;
-    if (py < 4 || px < 2 || px + tw > W - 2) return;
+    if (py < 4 || px < 2 || px + tw > W - 2) return null;
     panel(px, py, tw, th, "plate");
     drawText(label, px + tw / 2, py + (glyph ? 4 : 5), P().order.illumination, "center");
+    return { x: px, y: py, w: tw, h: th };
   }
   function drawPadTab(label, right, boxTop) {
     const tw = measure(label) + 14;
@@ -5912,7 +5927,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     const top = touchUI() && (scene === "hub" || scene === "traverse");
     const d = dialogueGeom(str, portraitP);
     const y = top ? 30 : H - 10 - d.h;
-    if (top) { touchDialogue = true; tapTarget(24, y, W - 48, d.h, () => input.tap("confirm")); }
+    if (top) { touchDialogue = true; tapTarget(24, y, W - 48, d.h, () => input.tap("confirm"), true); }
     panel(24, y, W - 48, d.h);
     if (portraitP) drawPortrait(portraitP, 32, y + ((d.h - 56) >> 1));
     d.lines.forEach((ln, i) => drawText(ln, d.tx, y + 10 + i * LH, P().order.bone));
@@ -6169,7 +6184,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   let tapTargets = [], drawnTargets = [], padHeld = new Set(), touchDialogue = false, lastTouchDialogue = false;
   let armedKey = "", fsTried = false;
   function touchUI() { return input.isTouch && input.lastDevice === "touch"; }
-  function tapTarget(x, y, w, h, fn) { if (touchUI()) tapTargets.push({ x, y, w, h, fn }); }
+  function tapTarget(x, y, w, h, fn, world) { if (touchUI()) tapTargets.push({ x, y, w, h, fn, world: !!world }); }
   function menuRow(x, textY, w, pitch, key, twoTap, select, isBox) {
     if (!touchUI()) return;
     const y = isBox ? textY : textY - ((pitch - 9) >> 1);
@@ -6227,6 +6242,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
       if (padAt(p.x, p.y)) continue;
       for (let i = drawnTargets.length - 1; i >= 0; i--) {
         const tg = drawnTargets[i];
+        if (tg.world && inStickZone(p)) continue;   // v3.2.6: moving never taps a world prompt or a hub line
         if (p.x >= tg.x && p.x < tg.x + tg.w && p.y >= tg.y && p.y < tg.y + tg.h) { input.lastTap33 = p; tg.fn(); break; }
       }
     }
@@ -6846,6 +6862,9 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
     pitStart() { startPit35(); }, pitSkipSay() { if (pit35) pit35.say = []; speech27 = null; },
     pitWave(n) { if (!pit35) return; pit35.wave = n; pit35.cleared = n - 1; pit35.bossNext = false; enemies = []; projectiles = []; pit35.queue = []; pit35.phase = "count"; pit35.t = 1; speech27 = null; pit35.say = []; },
     pitCount(t) { if (pit35) pit35.t = t; },
+    pitAmmo(n) { V().arrows = Math.max(0, Math.min(V().arrowMax, n | 0)); return V().arrows; },
+    pitSlay() { let n = 0; for (const e of enemies) if (!e.dead) { e.inv = 0; damageEnemy(e, 9999); n++; } return n; },
+    pitEnt() { return { enemies: enemies.length, dead: enemies.filter(e => e.dead).length, drawn: enemies.filter(e => !(e.dead && e.animT > 30)).length, coins: coins.filter(c => c.kind === "coin").length, arrows: coins.filter(c => c.kind === "arrow").length, proj: projectiles.length, stuck: enemies.reduce((a, e) => a + ((e.stuck33 || []).length), 0), parts: particles.length, efx: efx.length, ammo: V().arrows, ammoMax: V().arrowMax }; },
     pitKillAll() { for (const e of enemies) if (!e.dead) { e.hp = 0; e.dead = true; e.anim = "death"; e.animT = 99; } if (pit35) pit35.queue = []; },
     pitBoss(k) { if (!pit35) return; pit35.bosses = k | 0; pit35.wave = (k + 1) * 10 + 1; pit35.cleared = (k + 1) * 10; enemies = []; pit35.queue = []; pit35.say = []; speech27 = null; pitSpawnBoss35(); introHold = 0; },
     pitBossMove(m) { if (boss) { boss.cd = 999; startMove(boss, m); } },
@@ -7101,6 +7120,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   }
   function dropLoot(e) {
     const C = W23().coin, cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+    if (pit35) { pitLoot36(cx, cy); return; }   // v3.2.6: the arena pays per wave, never in coins on the floor
     if (e.elite) for (let i = 0; i < C.eliteCoins; i++) spawnCoin(cx, cy, C.big, true);
     else { const n = 1 + (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.2 ? 1 : 0); for (let i = 0; i < n; i++) spawnCoin(cx, cy, C.small, false); }
     const a = rollArrows(); if (a) spawnCoin(cx, cy, 0, false, "arrow", a);
@@ -7128,7 +7148,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
         if (c.kind === "coin") { v.aurels += Math.round(c.v * (sk26("aurel") ? 1.25 : 1)); coinPing = 20; synth.sfx("coin"); efx.push({ x: cx, y: cy, t: 0, type: "coinget", n: 4 }); coinDirty = true; }
         else { const n = Math.min(c.n, v.arrowMax - v.arrows); v.arrows += n; synth.sfx("arrowGet"); arrowPing = 24; efx.push({ x: cx, y: cy, t: 0, type: "coinget", n: 4 }); coinDirty = true; }
       }
-      if (c.age > C.life) c.dead = true;
+      if (c.age > (c.life || C.life)) c.dead = true;
     }
     coins = coins.filter(c => !c.dead);
     if (coinDirty && (animT & 31) === 0) { coinDirty = false; persist(); }
@@ -7143,7 +7163,7 @@ function updateStageClear() { clearT++; if (clearT > 50 && input.pressed("confir
   function drawCoins() {
     for (const c of coins) {
       if (!onScrAny(c.x, c.y)) continue;
-      if (c.age > W23().coin.life - 120 && (animT & 4)) continue;
+      if (c.age > (c.life || W23().coin.life) - 120 && (animT & 4)) continue;
       const f = (((animT + c.ph * 3) / 5) | 0) % 4;
       if (c.kind === "coin") drawActor("w23-world", (c.big ? "coinb" : "coin") + f, c.x + 4, c.y + 8, false);
       else drawActor("w23-world", "arrow" + c.n, c.x + 4, c.y + 8, false);
